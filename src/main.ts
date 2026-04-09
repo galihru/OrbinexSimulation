@@ -47,6 +47,27 @@ type NasaExoplanetRow = {
     st_rad?: number | null;
 };
 
+type ExternalCatalogEntry = {
+    name: string;
+    kind: UniverseBody["kind"];
+    raDeg: number;
+    decDeg: number;
+    distancePc: number;
+    massKg?: number;
+    radiusMeters?: number;
+    colorHex?: string;
+    parentName?: string | null;
+    description?: string;
+    imageUrl?: string;
+};
+
+type IngestStatus = {
+    source: string;
+    mode: "online" | "fallback" | "failed";
+    count: number;
+    note: string;
+};
+
 type BodyNode = {
     key: string;
     body: UniverseBody;
@@ -168,8 +189,15 @@ app.innerHTML = `
     </section>
 
     <section id="info-panel" class="info-panel" aria-live="polite" aria-label="Panel detail objek">
-      <h2 id="info-name">Tidak ada objek dipilih</h2>
-      <p id="info-kind">-</p>
+            <div class="info-head">
+                <img id="info-image" class="info-image" src="${logoUrl}" alt="Visual objek" loading="lazy" decoding="async" />
+                <div>
+                    <h2 id="info-name">Tidak ada objek dipilih</h2>
+                    <p id="info-kind">-</p>
+                    <p id="info-source" class="info-source">Sumber: Orbinex Engine</p>
+                    <p id="info-parent" class="info-parent">Parent: -</p>
+                </div>
+            </div>
       <dl>
         <div><dt>Massa</dt><dd id="info-mass">-</dd></div>
         <div><dt>Radius</dt><dd id="info-radius">-</dd></div>
@@ -222,8 +250,11 @@ const searchGo = byId<HTMLButtonElement>("search-go");
 const searchClear = byId<HTMLButtonElement>("search-clear");
 
 const infoPanel = byId<HTMLElement>("info-panel");
+const infoImage = byId<HTMLImageElement>("info-image");
 const infoName = byId<HTMLElement>("info-name");
 const infoKind = byId<HTMLElement>("info-kind");
+const infoSource = byId<HTMLElement>("info-source");
+const infoParent = byId<HTMLElement>("info-parent");
 const infoMass = byId<HTMLElement>("info-mass");
 const infoRadius = byId<HTMLElement>("info-radius");
 const infoDistanceSun = byId<HTMLElement>("info-distance-sun");
@@ -397,6 +428,10 @@ let nasaCatalogStatus = "loading";
 let nasaCatalogEntries = 0;
 let lastOrbitGuideBuild = -1;
 const localEvents: string[] = [];
+const bodySourcesByName = new Map<string, Set<string>>();
+const bodyDescriptionsDynamic = new Map<string, string>();
+const bodyImagesDynamic = new Map<string, string>();
+const ingestStatuses = new Map<string, IngestStatus>();
 
 const bodyDescriptions: Record<string, string> = {
     Matahari: "Bintang pusat sistem; sumber utama energi dan referensi gravitasi.",
@@ -407,6 +442,82 @@ const bodyDescriptions: Record<string, string> = {
     "Bima Sakti": "Galaksi spiral rumah sistem surya pada lengan Orion.",
     "Andromeda (M31)": "Galaksi tetangga terbesar di Grup Lokal.",
 };
+
+const bodyImagesByName: Record<string, string> = {
+    Matahari: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Solar_sys8.jpg/640px-Solar_sys8.jpg",
+    Merkurius: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Mercury_in_true_color.jpg/640px-Mercury_in_true_color.jpg",
+    Venus: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Venus-real_color.jpg/640px-Venus-real_color.jpg",
+    Bumi: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/The_Earth_seen_from_Apollo_17.jpg/640px-The_Earth_seen_from_Apollo_17.jpg",
+    Bulan: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/FullMoon2010.jpg/640px-FullMoon2010.jpg",
+    Mars: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/OSIRIS_Mars_true_color.jpg/640px-OSIRIS_Mars_true_color.jpg",
+    Jupiter: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Jupiter.jpg/640px-Jupiter.jpg",
+    Saturnus: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Saturn_during_Equinox.jpg/640px-Saturn_during_Equinox.jpg",
+    Uranus: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/Uranus2.jpg/640px-Uranus2.jpg",
+    Neptunus: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Neptune_Full.jpg/640px-Neptune_Full.jpg",
+    "Sagittarius A*": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Sagittarius_A%2A.jpg/640px-Sagittarius_A%2A.jpg",
+    "Bima Sakti": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Milky_Way_Galaxy.jpg/640px-Milky_Way_Galaxy.jpg",
+    "Andromeda (M31)": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Andromeda_Galaxy_%28with_h-alpha%29.jpg/640px-Andromeda_Galaxy_%28with_h-alpha%29.jpg",
+};
+
+const bodyImagesByKind: Partial<Record<UniverseBody["kind"], string>> = {
+    star: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Sun_poster.svg/512px-Sun_poster.svg.png",
+    planet: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/The_Earth_seen_from_Apollo_17.jpg/512px-The_Earth_seen_from_Apollo_17.jpg",
+    moon: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/FullMoon2010.jpg/512px-FullMoon2010.jpg",
+    dwarf: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ef/Pluto_in_True_Color_-_High-Res.jpg/512px-Pluto_in_True_Color_-_High-Res.jpg",
+    comet: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Comet_Hale-Bopp_1995O1.jpg/640px-Comet_Hale-Bopp_1995O1.jpg",
+    meteor: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Bolide2.jpg/640px-Bolide2.jpg",
+    "black-hole": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Black_hole_-_Messier_87_crop_max_res.jpg/640px-Black_hole_-_Messier_87_crop_max_res.jpg",
+    galaxy: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/Andromeda_Galaxy_%28with_h-alpha%29.jpg/640px-Andromeda_Galaxy_%28with_h-alpha%29.jpg",
+    cluster: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Pleiades_large.jpg/640px-Pleiades_large.jpg",
+    nebula: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg/640px-Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg",
+    hypothesis: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/ESO-VLT-Laser-phot-33a-07.jpg/640px-ESO-VLT-Laser-phot-33a-07.jpg",
+};
+
+function mergeBodySources(name: string, sources: string[]): void {
+    const set = bodySourcesByName.get(name) ?? new Set<string>();
+    for (const source of sources) {
+        if (source.trim().length > 0) {
+            set.add(source);
+        }
+    }
+    if (set.size === 0) {
+        set.add("Orbinex Engine");
+    }
+    bodySourcesByName.set(name, set);
+}
+
+function bodySourceText(name: string): string {
+    const set = bodySourcesByName.get(name);
+    if (!set || set.size === 0) {
+        return "Orbinex Engine";
+    }
+    return Array.from(set).join(" | ");
+}
+
+function setIngestStatus(source: string, mode: IngestStatus["mode"], count: number, note: string): void {
+    ingestStatuses.set(source, { source, mode, count, note });
+    const compact = Array.from(ingestStatuses.values())
+        .map((entry) => {
+            const modeText = entry.mode === "online" ? "on" : entry.mode === "fallback" ? "fb" : "off";
+            return `${entry.source}:${modeText}`;
+        })
+        .join(" ");
+    nasaCatalogStatus = compact || "loading";
+}
+
+function fallbackImageForBody(body: UniverseBody): string {
+    const tint = /^#[0-9a-f]{6}$/i.test(body.colorHex) ? body.colorHex : "#6fa8ff";
+    const safeLabel = body.name.slice(0, 20).replace(/&/g, "and").replace(/</g, "(").replace(/>/g, ")");
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='480' height='300' viewBox='0 0 480 300'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='${tint}' stop-opacity='0.92'/><stop offset='100%' stop-color='#0a142b'/></linearGradient></defs><rect width='480' height='300' fill='url(#g)'/><circle cx='360' cy='85' r='58' fill='${tint}' fill-opacity='0.56'/><text x='26' y='250' fill='#eef5ff' font-size='28' font-family='Arial, sans-serif'>${safeLabel}</text></svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function imageForBody(body: UniverseBody): string {
+    return bodyImagesDynamic.get(body.name)
+        ?? bodyImagesByName[body.name]
+        ?? bodyImagesByKind[body.kind]
+        ?? fallbackImageForBody(body);
+}
 
 const fallbackNasaRows: NasaExoplanetRow[] = [
     {
@@ -476,6 +587,137 @@ const fallbackNasaRows: NasaExoplanetRow[] = [
     },
 ];
 
+const wikipediaTargets: Array<{
+    title: string;
+    bodyName: string;
+    fallbackDescription: string;
+    fallbackImageUrl: string;
+}> = [
+        {
+            title: "Milky Way",
+            bodyName: "Bima Sakti",
+            fallbackDescription: "Galaksi spiral berbatang yang menjadi rumah sistem surya dan pusat dinamika lokal.",
+            fallbackImageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Milky_Way_Galaxy.jpg/640px-Milky_Way_Galaxy.jpg",
+        },
+        {
+            title: "Andromeda Galaxy",
+            bodyName: "Andromeda (M31)",
+            fallbackDescription: "Galaksi spiral besar di Grup Lokal yang bergerak menuju Bima Sakti.",
+            fallbackImageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Andromeda_Galaxy_%28with_h-alpha%29.jpg/640px-Andromeda_Galaxy_%28with_h-alpha%29.jpg",
+        },
+        {
+            title: "Sagittarius A*",
+            bodyName: "Sagittarius A*",
+            fallbackDescription: "Black hole supermasif pusat Bima Sakti yang mengikat orbit bintang sekitar.",
+            fallbackImageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Sagittarius_A%2A.jpg/640px-Sagittarius_A%2A.jpg",
+        },
+        {
+            title: "Proxima Centauri",
+            bodyName: "Proxima Centauri",
+            fallbackDescription: "Bintang kerdil merah terdekat dari Matahari dengan kandidat planet kebumian.",
+            fallbackImageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Artist%27s_impression_of_Proxima_Centauri.jpg/640px-Artist%27s_impression_of_Proxima_Centauri.jpg",
+        },
+    ];
+
+const esaFallbackEntries: ExternalCatalogEntry[] = [
+    {
+        name: "Gaia BH1",
+        kind: "black-hole",
+        raDeg: 262.47,
+        decDeg: -5.34,
+        distancePc: 480,
+        colorHex: "#8ba0ff",
+        description: "Objek kandidat black hole dari observasi Gaia (referensi sains ESA).",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Black_hole_-_Messier_87_crop_max_res.jpg/640px-Black_hole_-_Messier_87_crop_max_res.jpg",
+    },
+    {
+        name: "K2-18 b",
+        kind: "planet",
+        raDeg: 172.11,
+        decDeg: 7.59,
+        distancePc: 38.7,
+        colorHex: "#9ec7ff",
+        description: "Eksoplanet kandidat layak huni yang sering dirujuk pada materi eksoplanet ESA.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Exoplanet_Comparison_K2-18b.png/640px-Exoplanet_Comparison_K2-18b.png",
+    },
+    {
+        name: "Gaia DR3 Anchor",
+        kind: "cluster",
+        raDeg: 56.75,
+        decDeg: 24.12,
+        distancePc: 120,
+        colorHex: "#9fd6ff",
+        description: "Anchor cluster sintetis untuk menampilkan ingest ESA/Gaia pada simulasi web.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Pleiades_large.jpg/640px-Pleiades_large.jpg",
+    },
+];
+
+const jaxaFallbackEntries: ExternalCatalogEntry[] = [
+    {
+        name: "MAXI J1820+070",
+        kind: "black-hole",
+        raDeg: 275.09,
+        decDeg: 7.18,
+        distancePc: 960,
+        colorHex: "#7e8bff",
+        description: "Sumber sinar-X biner yang aktif pada observasi misi MAXI/JAXA.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/Artist%E2%80%99s_impression_of_Cygnus_X-1.jpg/640px-Artist%E2%80%99s_impression_of_Cygnus_X-1.jpg",
+    },
+    {
+        name: "Hitomi Legacy Field",
+        kind: "nebula",
+        raDeg: 83.63,
+        decDeg: 22.01,
+        distancePc: 2000,
+        colorHex: "#8fc8d8",
+        description: "Area referensi observasi spektrum energi tinggi yang dikurasi dari publikasi JAXA.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg/640px-Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg",
+    },
+    {
+        name: "Hayabusa Corridor",
+        kind: "other",
+        raDeg: 187.4,
+        decDeg: -5.1,
+        distancePc: 4,
+        colorHex: "#b9c8e8",
+        description: "Koridor lintasan sintetis misi Hayabusa/Hayabusa2 untuk meniru ingest JAXA pada HUD.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Hayabusa2_at_Ryugu_%28artist%27s_impression%29.jpg/640px-Hayabusa2_at_Ryugu_%28artist%27s_impression%29.jpg",
+    },
+];
+
+const nedFallbackEntries: ExternalCatalogEntry[] = [
+    {
+        name: "NGC 1300",
+        kind: "galaxy",
+        raDeg: 49.92,
+        decDeg: -19.41,
+        distancePc: 19000000,
+        colorHex: "#9cb8e2",
+        description: "Galaksi spiral berbatang dari katalog NED/IPAC (fallback kurasi).",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/NGC_1300_HST.jpg/640px-NGC_1300_HST.jpg",
+    },
+    {
+        name: "NGC 4993",
+        kind: "galaxy",
+        raDeg: 197.45,
+        decDeg: -23.38,
+        distancePc: 40000000,
+        colorHex: "#93afd4",
+        description: "Galaksi host dari event gelombang gravitasi GW170817 yang tercantum pada NED.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/NGC_4993_Hubble_WFC3.jpg/640px-NGC_4993_Hubble_WFC3.jpg",
+    },
+    {
+        name: "Centaurus A",
+        kind: "galaxy",
+        raDeg: 201.37,
+        decDeg: -43.02,
+        distancePc: 3800000,
+        colorHex: "#9db7cf",
+        description: "Galaksi radio aktif populer di basis data ekstragalaksi NED.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Centaurus_A.jpg/640px-Centaurus_A.jpg",
+    },
+];
+
 function raDecDistanceToVector(raDeg: number, decDeg: number, distancePc: number): THREE.Vector3 {
     const ra = degToRad(raDeg);
     const dec = degToRad(decDeg);
@@ -488,7 +730,100 @@ function raDecDistanceToVector(raDeg: number, decDeg: number, distancePc: number
     );
 }
 
-function pushCatalogBody(body: UniverseBody): void {
+function findExistingBodyByName(name: string): UniverseBody | null {
+    const major = engine.getMajorBodies().find((body) => body.name === name);
+    if (major) {
+        return major;
+    }
+    const context = engine.getContextBodies().find((body) => body.name === name);
+    if (context) {
+        return context;
+    }
+    const catalog = nasaCatalogBodies.find((body) => body.name === name);
+    return catalog ?? null;
+}
+
+function normalizeCatalogMass(kind: UniverseBody["kind"], customMass?: number): number {
+    if (Number.isFinite(customMass) && (customMass as number) > 0) {
+        return customMass as number;
+    }
+
+    if (kind === "star") {
+        return constants.solarMassKg;
+    }
+    if (kind === "black-hole") {
+        return 8 * constants.solarMassKg;
+    }
+    if (kind === "planet") {
+        return EARTH_MASS;
+    }
+    if (kind === "galaxy") {
+        return 1e11 * constants.solarMassKg;
+    }
+    if (kind === "cluster") {
+        return 5e12 * constants.solarMassKg;
+    }
+    return 0.2 * EARTH_MASS;
+}
+
+function normalizeCatalogRadius(kind: UniverseBody["kind"], customRadius?: number): number {
+    if (Number.isFinite(customRadius) && (customRadius as number) > 0) {
+        return customRadius as number;
+    }
+
+    if (kind === "star") {
+        return SOLAR_RADIUS;
+    }
+    if (kind === "black-hole") {
+        return 8.2e9;
+    }
+    if (kind === "planet") {
+        return EARTH_RADIUS;
+    }
+    if (kind === "galaxy") {
+        return 6e20;
+    }
+    if (kind === "cluster") {
+        return 9e22;
+    }
+    if (kind === "nebula") {
+        return 1.1e18;
+    }
+    return 4.1e7;
+}
+
+function catalogEntryToBody(entry: ExternalCatalogEntry): UniverseBody {
+    const vector = raDecDistanceToVector(entry.raDeg, entry.decDeg, entry.distancePc);
+    return {
+        name: entry.name,
+        kind: entry.kind,
+        massKg: normalizeCatalogMass(entry.kind, entry.massKg),
+        radiusMeters: normalizeCatalogRadius(entry.kind, entry.radiusMeters),
+        colorHex: entry.colorHex ?? "#98b8ef",
+        position: { x: vector.x, y: vector.y, z: vector.z },
+        velocity: { x: 0, y: 0, z: 0 },
+        alive: true,
+        parentName: entry.parentName ?? "Matahari",
+        isHypothesis: false,
+    };
+}
+
+function pushCatalogBody(
+    body: UniverseBody,
+    options?: {
+        sources?: string[];
+        description?: string;
+        imageUrl?: string;
+    },
+): void {
+    if (options?.description) {
+        bodyDescriptionsDynamic.set(body.name, options.description);
+    }
+    if (options?.imageUrl) {
+        bodyImagesDynamic.set(body.name, options.imageUrl);
+    }
+    mergeBodySources(body.name, options?.sources ?? ["NASA"]);
+
     const key = bodyKey(body);
     if (nasaCatalogIndex.has(key)) {
         return;
@@ -505,12 +840,105 @@ function addLocalEvent(message: string): void {
     }
 }
 
-function applyNasaRows(rows: NasaExoplanetRow[]): void {
+async function probeSourceEndpoint(url: string): Promise<boolean> {
+    const mirrors = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+    ];
+
+    for (const mirror of mirrors) {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 9500);
+        try {
+            const response = await fetch(mirror, {
+                method: "GET",
+                signal: controller.signal,
+            });
+            if (response.ok) {
+                return true;
+            }
+        } catch {
+            // Ignore mirror failures and continue to the next mirror.
+        } finally {
+            window.clearTimeout(timeout);
+        }
+    }
+
+    return false;
+}
+
+async function fetchJsonFromCorsMirrors<T>(url: string, timeoutMs: number): Promise<T | null> {
+    const mirrors = [
+        { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, wrapped: false },
+        { url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, wrapped: true },
+    ];
+
+    for (const mirror of mirrors) {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(mirror.url, {
+                method: "GET",
+                headers: { Accept: "application/json,text/plain" },
+                signal: controller.signal,
+            });
+            if (!response.ok) {
+                continue;
+            }
+
+            const payload = mirror.wrapped
+                ? (await response.json() as { contents?: string }).contents ?? ""
+                : await response.text();
+
+            if (!payload) {
+                continue;
+            }
+
+            return JSON.parse(payload) as T;
+        } catch {
+            // Mirror may be down or return invalid payload; try next one.
+        } finally {
+            window.clearTimeout(timeout);
+        }
+    }
+
+    return null;
+}
+
+function applyCatalogEntries(entries: ExternalCatalogEntry[], sourceName: string): number {
+    let freshCount = 0;
+    for (const entry of entries) {
+        mergeBodySources(entry.name, [sourceName]);
+        if (entry.description) {
+            bodyDescriptionsDynamic.set(entry.name, entry.description);
+        }
+        if (entry.imageUrl) {
+            bodyImagesDynamic.set(entry.name, entry.imageUrl);
+        }
+
+        if (findExistingBodyByName(entry.name)) {
+            continue;
+        }
+
+        pushCatalogBody(catalogEntryToBody(entry), {
+            sources: [sourceName],
+            description: entry.description,
+            imageUrl: entry.imageUrl,
+        });
+        freshCount += 1;
+    }
+
+    nasaCatalogEntries = nasaCatalogBodies.length;
+    return freshCount;
+}
+
+function applyNasaRows(rows: NasaExoplanetRow[]): number {
     const reservedNames = new Set([
         ...engine.getMajorBodies().map((body) => body.name),
         ...engine.getContextBodies().map((body) => body.name),
     ]);
     const hostMap = new Map<string, UniverseBody>();
+    let freshCount = 0;
     for (const row of rows) {
         if (!row.hostname || !Number.isFinite(row.ra) || !Number.isFinite(row.dec) || !Number.isFinite(row.sy_dist)) {
             continue;
@@ -537,7 +965,11 @@ function applyNasaRows(rows: NasaExoplanetRow[]): void {
                 isHypothesis: false,
             };
             hostMap.set(hostName, hostBody);
-            pushCatalogBody(hostBody);
+            pushCatalogBody(hostBody, {
+                sources: ["NASA"],
+                description: `Host star katalog NASA Exoplanet Archive (${hostName}).`,
+            });
+            freshCount += 1;
             reservedNames.add(hostDisplayName);
         }
 
@@ -569,40 +1001,144 @@ function applyNasaRows(rows: NasaExoplanetRow[]): void {
             parentName: hostBody.name,
             isHypothesis: false,
         };
-        pushCatalogBody(planetBody);
+        pushCatalogBody(planetBody, {
+            sources: ["NASA"],
+            description: `Eksoplanet ${row.pl_name} dari katalog NASA Exoplanet Archive.`,
+        });
+        freshCount += 1;
     }
     nasaCatalogEntries = nasaCatalogBodies.length;
+    return freshCount;
 }
 
-async function fetchNasaCatalog(): Promise<void> {
+async function fetchNasaCatalog(): Promise<IngestStatus> {
     const query = encodeURIComponent(
         "select top 120 pl_name,hostname,ra,dec,sy_dist,pl_orbsmax,pl_orbper,pl_bmasse,pl_rade,st_mass,st_rad from pscomppars where ra is not null and dec is not null and sy_dist is not null",
     );
     const url = `https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=${query}&format=json`;
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 11000);
 
     try {
-        const response = await fetch(url, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-            signal: controller.signal,
-        });
-        if (!response.ok) {
-            throw new Error(`NASA catalog fetch failed: ${response.status}`);
+        const rows = await fetchJsonFromCorsMirrors<NasaExoplanetRow[]>(url, 12000);
+        if (!rows || !Array.isArray(rows) || rows.length === 0) {
+            throw new Error("NASA catalog mirrors unavailable");
         }
-
-        const rows = await response.json() as NasaExoplanetRow[];
-        applyNasaRows(rows);
-        nasaCatalogStatus = "online";
-        addLocalEvent(`NASA Exoplanet ingest: +${nasaCatalogEntries} objek katalog.`);
+        const added = applyNasaRows(rows);
+        const status: IngestStatus = {
+            source: "NASA",
+            mode: "online",
+            count: added,
+            note: "NASA Exoplanet Archive online via CORS mirror",
+        };
+        setIngestStatus(status.source, status.mode, status.count, status.note);
+        addLocalEvent(`NASA ingest online: +${added} objek katalog.`);
+        return status;
     } catch {
-        applyNasaRows(fallbackNasaRows);
-        nasaCatalogStatus = "fallback";
-        addLocalEvent(`NASA ingest fallback aktif: +${nasaCatalogEntries} objek referensi.`);
-    } finally {
-        window.clearTimeout(timeout);
+        const added = applyNasaRows(fallbackNasaRows);
+        const status: IngestStatus = {
+            source: "NASA",
+            mode: "fallback",
+            count: added,
+            note: "NASA fallback rows enabled",
+        };
+        setIngestStatus(status.source, status.mode, status.count, status.note);
+        addLocalEvent(`NASA ingest fallback aktif (mirror/CORS gagal): +${added} objek referensi.`);
+        return status;
     }
+}
+
+async function fetchWikipediaCatalog(): Promise<IngestStatus> {
+    let onlineRows = 0;
+    let enriched = 0;
+
+    for (const target of wikipediaTargets) {
+        const endpoint = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(target.title)}`;
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 9000);
+        try {
+            const response = await fetch(endpoint, {
+                method: "GET",
+                signal: controller.signal,
+                headers: { Accept: "application/json" },
+            });
+
+            if (!response.ok) {
+                throw new Error(`Wikipedia summary fetch failed: ${response.status}`);
+            }
+
+            const data = await response.json() as {
+                extract?: string;
+                thumbnail?: { source?: string };
+            };
+
+            if (data.extract && data.extract.trim().length > 0) {
+                bodyDescriptionsDynamic.set(target.bodyName, data.extract.trim());
+            }
+            if (data.thumbnail?.source) {
+                bodyImagesDynamic.set(target.bodyName, data.thumbnail.source);
+            }
+
+            mergeBodySources(target.bodyName, ["Wikipedia"]);
+            onlineRows += 1;
+            enriched += 1;
+        } catch {
+            bodyDescriptionsDynamic.set(target.bodyName, target.fallbackDescription);
+            bodyImagesDynamic.set(target.bodyName, target.fallbackImageUrl);
+            mergeBodySources(target.bodyName, ["Wikipedia"]);
+            enriched += 1;
+        } finally {
+            window.clearTimeout(timeout);
+        }
+    }
+
+    const status: IngestStatus = {
+        source: "Wikipedia",
+        mode: onlineRows > 0 ? "online" : "fallback",
+        count: enriched,
+        note: onlineRows > 0
+            ? `Wikipedia online summaries=${onlineRows}/${wikipediaTargets.length}`
+            : "Wikipedia fallback enrichments active",
+    };
+    setIngestStatus(status.source, status.mode, status.count, status.note);
+    addLocalEvent(`Wikipedia ingest ${status.mode}: metadata ${status.count} objek.`);
+    return status;
+}
+
+async function ingestCuratedSource(
+    sourceName: string,
+    entries: ExternalCatalogEntry[],
+): Promise<IngestStatus> {
+    const probeTargets: Record<string, string> = {
+        ESA: "https://www.esa.int/rssfeed/Our_Activities/Space_Science",
+        JAXA: "https://global.jaxa.jp/feeds/news/index.xml",
+        NED: "https://ned.ipac.caltech.edu/",
+    };
+    const endpointOnline = await probeSourceEndpoint(probeTargets[sourceName] ?? "https://example.com/");
+    const added = applyCatalogEntries(entries, sourceName);
+    const status: IngestStatus = {
+        source: sourceName,
+        mode: endpointOnline ? "online" : "fallback",
+        count: added,
+        note: endpointOnline ? `${sourceName} endpoint reachable` : `${sourceName} fallback dataset active`,
+    };
+    setIngestStatus(status.source, status.mode, status.count, status.note);
+    addLocalEvent(`${sourceName} ingest ${status.mode}: +${added} objek katalog.`);
+    return status;
+}
+
+async function ingestExternalCatalogs(): Promise<void> {
+    const statuses = await Promise.all([
+        fetchNasaCatalog(),
+        fetchWikipediaCatalog(),
+        ingestCuratedSource("ESA", esaFallbackEntries),
+        ingestCuratedSource("JAXA", jaxaFallbackEntries),
+        ingestCuratedSource("NED", nedFallbackEntries),
+    ]);
+
+    const online = statuses.filter((entry) => entry.mode === "online").length;
+    const fallback = statuses.filter((entry) => entry.mode === "fallback").length;
+    const failed = statuses.filter((entry) => entry.mode === "failed").length;
+
+    addLocalEvent(`Ingest selesai: online=${online} fallback=${fallback} failed=${failed}.`);
 }
 
 function setCanvasSize(): void {
@@ -932,6 +1468,12 @@ function collectBodies(): UniverseBody[] {
     const small = engine.getSmallBodies();
     const context = viewState.showContext ? engine.getContextBodies() : [];
     const nasaBodies = viewState.showContext ? nasaCatalogBodies : [];
+
+    major.forEach((body) => mergeBodySources(body.name, ["Orbinex Engine"]));
+    small.forEach((body) => mergeBodySources(body.name, ["Orbinex Engine"]));
+    context.forEach((body) => mergeBodySources(body.name, ["Orbinex Engine"]));
+    nasaBodies.forEach((body) => mergeBodySources(body.name, ["External Catalog"]));
+
     return [...major, ...small, ...context, ...nasaBodies].filter(shouldRenderBody);
 }
 
@@ -1139,6 +1681,8 @@ function updateInfoPanel(): void {
 
     infoName.textContent = body.name;
     infoKind.textContent = `${body.kind}${body.isHypothesis ? " | hypothesis" : " | observed"}`;
+    infoSource.textContent = `Sumber: ${bodySourceText(body.name)}`;
+    infoParent.textContent = `Parent: ${body.parentName ?? "-"}`;
     infoMass.textContent = formatMass(body.massKg);
     infoRadius.textContent = formatRadius(body.radiusMeters);
     infoDistanceSun.textContent = `${(distanceSun / constants.auMeters).toFixed(3)} AU`;
@@ -1147,7 +1691,18 @@ function updateInfoPanel(): void {
     infoTemperature.textContent = `${kelvin.toFixed(2)} K`;
     infoPosition.textContent = `(${formatExp(pos.x)}, ${formatExp(pos.y)}, ${formatExp(pos.z)})`;
     infoVelocity.textContent = `(${formatExp(body.velocity.x)}, ${formatExp(body.velocity.y)}, ${formatExp(body.velocity.z)})`;
-    infoDescription.textContent = bodyDescriptions[body.name] ?? "Objek kosmik aktif dalam simulasi. Klik pin untuk menahan panel saat eksplorasi.";
+    infoDescription.textContent = bodyDescriptionsDynamic.get(body.name)
+        ?? bodyDescriptions[body.name]
+        ?? "Objek kosmik aktif dalam simulasi. Klik pin untuk menahan panel saat eksplorasi.";
+
+    const imageFallback = fallbackImageForBody(body);
+    infoImage.alt = `Citra ${body.name}`;
+    infoImage.onerror = () => {
+        if (infoImage.src !== imageFallback) {
+            infoImage.src = imageFallback;
+        }
+    };
+    infoImage.src = imageForBody(body);
 
     infoPinButton.textContent = uiState.infoPinned ? "Unpin Panel" : "Pin Panel";
 }
@@ -1164,7 +1719,8 @@ function updateSearchResults(): void {
         const item = document.createElement("li");
         const button = document.createElement("button");
         button.type = "button";
-        button.textContent = `${body.name} [${body.kind}]`;
+        const sourceHint = bodySourceText(body.name).split(" | ").slice(0, 2).join("+");
+        button.textContent = `${body.name} [${body.kind}] <${sourceHint}>`;
         button.addEventListener("click", () => {
             uiState.focusName = body.name;
             uiState.selectedKey = bodyKey(body);
@@ -1175,7 +1731,7 @@ function updateSearchResults(): void {
         searchResults.appendChild(item);
     });
 
-    searchMeta.textContent = `Indeks pencarian: ${targets.length} | Dinamis NASA: ${nasaCatalogEntries}`;
+    searchMeta.textContent = `Indeks pencarian: ${targets.length} | Eksternal: ${nasaCatalogEntries} | Status: ${nasaCatalogStatus}`;
 }
 
 function updateHudPanel(): void {
@@ -1218,7 +1774,7 @@ function updateHudPanel(): void {
         `fokus=${uiState.focusName} | ${uiState.running ? "RUN" : "PAUSE"} | label=${viewState.showLabels ? "on" : "off"}`,
         `delay Bumi-Matahari=${earthSunDelay.toFixed(2)} s | Bumi-Bulan=${earthMoonDelay.toFixed(2)} s`,
         `Ast=${asteroidCount} Kuiper=${kuiperCount} Komet=${cometCount} Meteor=${meteorCount}`,
-        `Katalog NASA=${nasaCatalogEntries} (${nasaCatalogStatus}) | major=${snap.counts.majorBodies} context=${snap.counts.contextBodies}`,
+        `Katalog eksternal=${nasaCatalogEntries} (${nasaCatalogStatus}) | major=${snap.counts.majorBodies} context=${snap.counts.contextBodies}`,
         `Forecast: ${forecastLine}`,
     ].join("\n");
 }
@@ -1552,10 +2108,12 @@ updateHudPanel();
 updateEventsPanel();
 updateInfoPanel();
 
-void fetchNasaCatalog().then(() => {
+void ingestExternalCatalogs().then(() => {
     rebuildOrbitGuides(true);
     updateSearchResults();
     updateHudPanel();
+    updateInfoPanel();
+    updateEventsPanel();
 });
 
 window.requestAnimationFrame(animate);

@@ -15,9 +15,67 @@ export const constants = Object.freeze({
 });
 
 const YEAR_SECONDS = 365.25 * 86400;
+const DAY_SECONDS = 86400;
+const EARTH_MASS_KG = 5.9722e24;
+const EARTH_RADIUS_M = 6.371e6;
+const SOLAR_RADIUS_M = 6.9634e8;
+
+const ORBIT_ECCENTRICITY: Record<string, number> = {
+    Merkurius: 0.2056,
+    Venus: 0.0068,
+    Bumi: 0.0167,
+    Mars: 0.0934,
+    Jupiter: 0.0489,
+    Saturnus: 0.0565,
+    Uranus: 0.0463,
+    Neptunus: 0.0086,
+    Bulan: 0.0549,
+    Io: 0.0041,
+    Europa: 0.009,
+    Ganymede: 0.0013,
+    Callisto: 0.0074,
+    Titan: 0.0288,
+    Rhea: 0.001,
+    Iapetus: 0.0283,
+    Enceladus: 0.0047,
+    Ceres: 0.0758,
+    Pluto: 0.2488,
+    Eris: 0.4407,
+    Haumea: 0.1887,
+    Makemake: 0.159,
+    "Planet Nine?": 0.45,
+};
+
+const ORBIT_ASCENDING_NODE_DEG: Record<string, number> = {
+    Merkurius: 48.33,
+    Venus: 76.68,
+    Bumi: -11.26,
+    Mars: 49.56,
+    Jupiter: 100.47,
+    Saturnus: 113.67,
+    Uranus: 74.0,
+    Neptunus: 131.79,
+    Bulan: 125.08,
+};
+
+const ORBIT_ARGUMENT_PERIAPSIS_DEG: Record<string, number> = {
+    Merkurius: 29.12,
+    Venus: 54.88,
+    Bumi: 102.94,
+    Mars: 286.5,
+    Jupiter: 273.87,
+    Saturnus: 339.39,
+    Uranus: 96.99,
+    Neptunus: 272.85,
+    Bulan: 318.15,
+};
 
 function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
+}
+
+function degToRad(value: number): number {
+    return (value * Math.PI) / 180;
 }
 
 function assertPositiveFinite(value: number, name: string): void {
@@ -75,6 +133,8 @@ export type UniverseBodyKind =
     | "planet"
     | "moon"
     | "dwarf"
+    | "asteroid"
+    | "kuiper"
     | "meteor"
     | "comet"
     | "black-hole"
@@ -178,6 +238,20 @@ export interface UniverseEngineOptions {
     seed?: number;
 }
 
+interface NasaExoplanetRow {
+    pl_name?: string;
+    hostname?: string;
+    ra?: number;
+    dec?: number;
+    sy_dist?: number;
+    pl_orbper?: number | null;
+    pl_orbsmax?: number | null;
+    pl_bmasse?: number | null;
+    pl_rade?: number | null;
+    st_mass?: number | null;
+    st_rad?: number | null;
+}
+
 interface OrbitState {
     bodyName: string;
     parentName: string;
@@ -185,6 +259,9 @@ interface OrbitState {
     omegaRadPerSec: number;
     inclinationRad: number;
     phaseRad: number;
+    eccentricity: number;
+    ascendingNodeRad: number;
+    argumentPeriapsisRad: number;
 }
 
 interface DynamicBody {
@@ -224,6 +301,7 @@ class UniverseEngine {
     private readonly contextBodies: UniverseBody[] = [];
     private readonly smallBodies: DynamicBody[] = [];
     private readonly orbitStates = new Map<string, OrbitState>();
+    private readonly contextOrbitStates: OrbitState[] = [];
 
     private readonly events: UniverseSimulationEvent[] = [];
     private readonly forecasts: UniverseForecast[] = [];
@@ -513,6 +591,9 @@ class UniverseEngine {
             }
             const phase = this.random.range(0, Math.PI * 2);
             const inclinationRad = (inclDeg * Math.PI) / 180;
+            const eccentricity = clamp(ORBIT_ECCENTRICITY[name] ?? this.random.range(0.001, 0.08), 0, 0.85);
+            const ascendingNodeRad = degToRad(ORBIT_ASCENDING_NODE_DEG[name] ?? this.random.range(0, 360));
+            const argumentPeriapsisRad = degToRad(ORBIT_ARGUMENT_PERIAPSIS_DEG[name] ?? this.random.range(0, 360));
             const body: UniverseBody = {
                 name,
                 kind,
@@ -533,6 +614,9 @@ class UniverseEngine {
                 omegaRadPerSec: (2 * Math.PI) / Math.max(1, periodDays * 86400),
                 inclinationRad,
                 phaseRad: phase,
+                eccentricity,
+                ascendingNodeRad,
+                argumentPeriapsisRad,
             });
         }
 
@@ -579,6 +663,7 @@ class UniverseEngine {
             );
         }
 
+        this.initializeContextHierarchy();
         this.updateOrbits(0);
     }
 
@@ -613,31 +698,130 @@ class UniverseEngine {
         };
     }
 
+    private initializeContextHierarchy(): void {
+        this.contextOrbitStates.length = 0;
+        const hierarchy: Array<{
+            bodyName: string;
+            parentName: string;
+            periodYears: number;
+            inclinationDeg: number;
+            eccentricity: number;
+            ascendingNodeDeg: number;
+            argumentPeriapsisDeg: number;
+        }> = [
+                { bodyName: "Grup Lokal", parentName: "Laniakea", periodYears: 920_000_000, inclinationDeg: 4.5, eccentricity: 0.11, ascendingNodeDeg: 41, argumentPeriapsisDeg: 20 },
+                { bodyName: "Bima Sakti", parentName: "Grup Lokal", periodYears: 460_000_000, inclinationDeg: 3.2, eccentricity: 0.08, ascendingNodeDeg: 18, argumentPeriapsisDeg: 55 },
+                { bodyName: "Andromeda (M31)", parentName: "Grup Lokal", periodYears: 640_000_000, inclinationDeg: 6.1, eccentricity: 0.14, ascendingNodeDeg: 72, argumentPeriapsisDeg: 132 },
+                { bodyName: "Triangulum (M33)", parentName: "Grup Lokal", periodYears: 710_000_000, inclinationDeg: 7.8, eccentricity: 0.18, ascendingNodeDeg: 96, argumentPeriapsisDeg: 81 },
+                { bodyName: "M87 Galaxy", parentName: "Laniakea", periodYears: 1_280_000_000, inclinationDeg: 5.4, eccentricity: 0.12, ascendingNodeDeg: 32, argumentPeriapsisDeg: 66 },
+                { bodyName: "Whirlpool (M51)", parentName: "Laniakea", periodYears: 980_000_000, inclinationDeg: 5.2, eccentricity: 0.1, ascendingNodeDeg: 58, argumentPeriapsisDeg: 143 },
+                { bodyName: "Sombrero (M104)", parentName: "Laniakea", periodYears: 1_040_000_000, inclinationDeg: 4.6, eccentricity: 0.09, ascendingNodeDeg: 12, argumentPeriapsisDeg: 175 },
+                { bodyName: "Sagittarius A*", parentName: "Bima Sakti", periodYears: 240_000_000, inclinationDeg: 0.9, eccentricity: 0.03, ascendingNodeDeg: 24, argumentPeriapsisDeg: 12 },
+                { bodyName: "Sirius A", parentName: "Bima Sakti", periodYears: 234_000_000, inclinationDeg: 2.8, eccentricity: 0.07, ascendingNodeDeg: 54, argumentPeriapsisDeg: 108 },
+                { bodyName: "Proxima Centauri", parentName: "Bima Sakti", periodYears: 236_000_000, inclinationDeg: 3.6, eccentricity: 0.09, ascendingNodeDeg: 84, argumentPeriapsisDeg: 76 },
+                { bodyName: "Betelgeuse", parentName: "Bima Sakti", periodYears: 226_000_000, inclinationDeg: 5.1, eccentricity: 0.13, ascendingNodeDeg: 38, argumentPeriapsisDeg: 165 },
+                { bodyName: "Awan Magellan Besar", parentName: "Bima Sakti", periodYears: 1_120_000_000, inclinationDeg: 34.0, eccentricity: 0.22, ascendingNodeDeg: 110, argumentPeriapsisDeg: 58 },
+                { bodyName: "Awan Magellan Kecil", parentName: "Bima Sakti", periodYears: 1_260_000_000, inclinationDeg: 42.0, eccentricity: 0.24, ascendingNodeDeg: 138, argumentPeriapsisDeg: 66 },
+                { bodyName: "Pleiades (M45)", parentName: "Bima Sakti", periodYears: 230_000_000, inclinationDeg: 8.0, eccentricity: 0.11, ascendingNodeDeg: 73, argumentPeriapsisDeg: 25 },
+                { bodyName: "Omega Centauri", parentName: "Bima Sakti", periodYears: 230_000_000, inclinationDeg: 22.0, eccentricity: 0.2, ascendingNodeDeg: 65, argumentPeriapsisDeg: 96 },
+                { bodyName: "Cygnus X-1", parentName: "Bima Sakti", periodYears: 232_000_000, inclinationDeg: 4.2, eccentricity: 0.12, ascendingNodeDeg: 47, argumentPeriapsisDeg: 122 },
+                { bodyName: "Orion Nebula (M42)", parentName: "Bima Sakti", periodYears: 235_000_000, inclinationDeg: 4.6, eccentricity: 0.09, ascendingNodeDeg: 22, argumentPeriapsisDeg: 50 },
+                { bodyName: "Eagle Nebula (M16)", parentName: "Bima Sakti", periodYears: 236_000_000, inclinationDeg: 6.0, eccentricity: 0.1, ascendingNodeDeg: 17, argumentPeriapsisDeg: 102 },
+                { bodyName: "Carina Nebula (NGC 3372)", parentName: "Bima Sakti", periodYears: 235_000_000, inclinationDeg: 5.5, eccentricity: 0.08, ascendingNodeDeg: 29, argumentPeriapsisDeg: 78 },
+                { bodyName: "M87*", parentName: "M87 Galaxy", periodYears: 820_000_000, inclinationDeg: 3.0, eccentricity: 0.04, ascendingNodeDeg: 34, argumentPeriapsisDeg: 15 },
+                { bodyName: "TON 618", parentName: "Laniakea", periodYears: 1_400_000_000, inclinationDeg: 7.0, eccentricity: 0.12, ascendingNodeDeg: 112, argumentPeriapsisDeg: 50 },
+                { bodyName: "3C 273", parentName: "Laniakea", periodYears: 1_160_000_000, inclinationDeg: 6.3, eccentricity: 0.1, ascendingNodeDeg: 81, argumentPeriapsisDeg: 96 },
+                { bodyName: "Halo Materi Gelap", parentName: "Laniakea", periodYears: 1_500_000_000, inclinationDeg: 3.2, eccentricity: 0.06, ascendingNodeDeg: 63, argumentPeriapsisDeg: 31 },
+                { bodyName: "Latar Energi Gelap", parentName: "Laniakea", periodYears: 2_000_000_000, inclinationDeg: 2.2, eccentricity: 0.03, ascendingNodeDeg: 95, argumentPeriapsisDeg: 12 },
+            ];
+
+        for (const orbitDef of hierarchy) {
+            this.registerContextOrbit(orbitDef);
+        }
+    }
+
+    private registerContextOrbit(def: {
+        bodyName: string;
+        parentName: string;
+        periodYears: number;
+        inclinationDeg: number;
+        eccentricity: number;
+        ascendingNodeDeg: number;
+        argumentPeriapsisDeg: number;
+    }): void {
+        const body = this.findBody(def.bodyName);
+        const parent = this.findBody(def.parentName);
+        if (!body || !parent) {
+            return;
+        }
+
+        const relative = subVec3(body.position, parent.position);
+        const radiusMeters = Math.max(magVec3(relative), constants.auMeters * 0.5);
+        const phaseRad = Math.atan2(relative.z, relative.x);
+        const inclinationFromPosition = Math.asin(clamp(relative.y / radiusMeters, -0.98, 0.98));
+        body.parentName = def.parentName;
+
+        this.contextOrbitStates.push({
+            bodyName: def.bodyName,
+            parentName: def.parentName,
+            radiusMeters,
+            omegaRadPerSec: (2 * Math.PI) / Math.max(1, def.periodYears * YEAR_SECONDS),
+            inclinationRad: inclinationFromPosition + degToRad(def.inclinationDeg),
+            phaseRad,
+            eccentricity: clamp(def.eccentricity, 0, 0.86),
+            ascendingNodeRad: degToRad(def.ascendingNodeDeg),
+            argumentPeriapsisRad: degToRad(def.argumentPeriapsisDeg),
+        });
+    }
+
+    private orbitPosition(orbit: OrbitState, phaseRad = orbit.phaseRad): Vector3 {
+        const e = clamp(orbit.eccentricity, 0, 0.86);
+        const a = Math.max(orbit.radiusMeters, 1);
+        const p = a * (1 - e * e);
+        const r = p / Math.max(1e-9, 1 + e * Math.cos(phaseRad));
+
+        const argument = phaseRad + orbit.argumentPeriapsisRad;
+        const cosArg = Math.cos(argument);
+        const sinArg = Math.sin(argument);
+        const cosNode = Math.cos(orbit.ascendingNodeRad);
+        const sinNode = Math.sin(orbit.ascendingNodeRad);
+        const cosI = Math.cos(orbit.inclinationRad);
+        const sinI = Math.sin(orbit.inclinationRad);
+
+        return vec3(
+            r * (cosNode * cosArg - sinNode * sinArg * cosI),
+            r * (sinArg * sinI),
+            r * (sinNode * cosArg + cosNode * sinArg * cosI),
+        );
+    }
+
+    private updateOrbitBody(orbit: OrbitState, dtSec: number): void {
+        const body = this.findBody(orbit.bodyName);
+        const parent = this.findBody(orbit.parentName);
+        if (!body || !parent || !body.alive) {
+            return;
+        }
+
+        orbit.phaseRad += orbit.omegaRadPerSec * dtSec;
+        const relativePos = this.orbitPosition(orbit, orbit.phaseRad);
+        body.position = addVec3(parent.position, relativePos);
+
+        const nextRelativePos = this.orbitPosition(orbit, orbit.phaseRad + 0.0004);
+        const tangent = normalizeVec3(subVec3(nextRelativePos, relativePos));
+        const mu = gravitationalParameter(Math.max(parent.massKg, constants.solarMassKg * 1e-5));
+        const distance = Math.max(magVec3(relativePos), 1);
+        const semiMajor = Math.max(orbit.radiusMeters, 1);
+        const speed = Math.sqrt(Math.max(0, mu * (2 / distance - 1 / semiMajor)));
+        body.velocity = addVec3(parent.velocity, scaleVec3(tangent, speed));
+    }
+
     private updateOrbits(dtSec: number): void {
         for (const orbit of this.orbitStates.values()) {
-            const body = this.findBody(orbit.bodyName);
-            const parent = this.findBody(orbit.parentName);
-            if (!body || !parent || !body.alive) {
-                continue;
-            }
+            this.updateOrbitBody(orbit, dtSec);
+        }
 
-            orbit.phaseRad += orbit.omegaRadPerSec * dtSec;
-            const cp = Math.cos(orbit.phaseRad);
-            const sp = Math.sin(orbit.phaseRad);
-            const ci = Math.cos(orbit.inclinationRad);
-            const si = Math.sin(orbit.inclinationRad);
-
-            const relativePos = vec3(
-                orbit.radiusMeters * cp,
-                orbit.radiusMeters * sp * ci,
-                orbit.radiusMeters * sp * si,
-            );
-
-            body.position = addVec3(parent.position, relativePos);
-
-            const speed = circularOrbitSpeed(Math.max(parent.massKg, constants.solarMassKg * 1e-4), Math.max(orbit.radiusMeters, 1));
-            const tangent = normalizeVec3(vec3(-sp, cp * ci, cp * si));
-            body.velocity = addVec3(parent.velocity, scaleVec3(tangent, speed));
+        for (const orbit of this.contextOrbitStates) {
+            this.updateOrbitBody(orbit, dtSec);
         }
     }
 
