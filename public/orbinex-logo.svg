@@ -1,0 +1,38 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logoTitle logoDesc">
+  <title id="logoTitle">Orbinex Simulation Logo</title>
+  <desc id="logoDesc">Stylized stellar core with orbital rings and trajectory nodes.</desc>
+  <defs>
+    <radialGradient id="bgGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 256) rotate(90) scale(240)">
+      <stop offset="0" stop-color="#133675"/>
+      <stop offset="1" stop-color="#050B19"/>
+    </radialGradient>
+    <linearGradient id="ringA" x1="96" y1="96" x2="416" y2="416" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7FC6FF"/>
+      <stop offset="1" stop-color="#FFC074"/>
+    </linearGradient>
+    <linearGradient id="ringB" x1="416" y1="108" x2="104" y2="404" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C7DEFF"/>
+      <stop offset="1" stop-color="#88ABFF"/>
+    </linearGradient>
+    <radialGradient id="core" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 256) rotate(90) scale(64)">
+      <stop stop-color="#FFF4D8"/>
+      <stop offset="1" stop-color="#FFB86A"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bgGlow)"/>
+  <circle cx="256" cy="256" r="214" stroke="#7AB9FF" stroke-opacity="0.25" stroke-width="2"/>
+  <ellipse cx="256" cy="256" rx="188" ry="114" transform="rotate(-20 256 256)" stroke="url(#ringA)" stroke-width="16"/>
+  <ellipse cx="256" cy="256" rx="188" ry="114" transform="rotate(20 256 256)" stroke="url(#ringB)" stroke-width="12" stroke-opacity="0.85"/>
+
+  <circle cx="256" cy="256" r="58" fill="url(#core)"/>
+  <circle cx="256" cy="256" r="77" stroke="#FFD79A" stroke-opacity="0.45" stroke-width="6"/>
+
+  <circle cx="111" cy="213" r="14" fill="#8DD6FF"/>
+  <circle cx="390" cy="193" r="10" fill="#FFE0AF"/>
+  <circle cx="364" cy="325" r="16" fill="#A4B8FF"/>
+  <circle cx="142" cy="327" r="8" fill="#C7E5FF"/>
+
+  <path d="M106 216C186 127 326 127 402 190" stroke="#A9D3FF" stroke-width="3" stroke-dasharray="9 9" stroke-opacity="0.75"/>
+  <path d="M143 327C220 387 315 383 365 324" stroke="#BCD8FF" stroke-width="3" stroke-dasharray="8 8" stroke-opacity="0.7"/>
+</svg>
