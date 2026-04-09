@@ -89,6 +89,7 @@ type BodyNode = {
     body: UniverseBody;
     mesh: THREE.Mesh;
     label: THREE.Sprite | null;
+    ring: THREE.Mesh | null;
     trail: THREE.Line | null;
     trailPoints: THREE.Vector3[];
 };
@@ -208,7 +209,7 @@ app.innerHTML = `
 
             <section id="info-panel" class="info-panel" aria-live="polite" aria-label="Panel detail objek">
                             <div class="info-head">
-                                    <img id="info-image" class="info-image" src="${logoUrl}" alt="Visual objek" loading="lazy" decoding="async" />
+                            <canvas id="info-preview" class="info-image" aria-label="Pratinjau 3D objek"></canvas>
                                     <div>
                                             <h2 id="info-name">Tidak ada objek dipilih</h2>
                                             <p id="info-kind">-</p>
@@ -270,7 +271,7 @@ const searchGo = byId<HTMLButtonElement>("search-go");
 const searchClear = byId<HTMLButtonElement>("search-clear");
 
 const infoPanel = byId<HTMLElement>("info-panel");
-const infoImage = byId<HTMLImageElement>("info-image");
+const infoPreviewCanvas = byId<HTMLCanvasElement>("info-preview");
 const infoName = byId<HTMLElement>("info-name");
 const infoKind = byId<HTMLElement>("info-kind");
 const infoSource = byId<HTMLElement>("info-source");
@@ -448,6 +449,7 @@ let nasaCatalogStatus = "loading";
 let nasaCatalogEntries = 0;
 let lastOrbitGuideBuild = -1;
 const localEvents: string[] = [];
+let supernovaAutoTriggered = false;
 const bodySourcesByName = new Map<string, Set<string>>();
 const bodyDescriptionsDynamic = new Map<string, string>();
 const bodyImagesDynamic = new Map<string, string>();
@@ -1081,6 +1083,7 @@ function setCanvasSize(): void {
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    resizeInfoPreviewCanvas();
 }
 
 function compressedDistanceMeters(distanceMeters: number): number {
@@ -1132,6 +1135,155 @@ function toRenderRadius(body: UniverseBody): number {
     }
 
     return base;
+}
+
+function isRingedBody(body: UniverseBody): boolean {
+    return body.name === "Saturnus" || body.name === "Uranus" || body.kind === "black-hole";
+}
+
+function ringTiltRadForBody(body: UniverseBody): number {
+    if (body.name === "Saturnus") {
+        return degToRad(26.7);
+    }
+    if (body.name === "Uranus") {
+        return degToRad(97.8);
+    }
+    return degToRad(62);
+}
+
+function createRingMesh(body: UniverseBody): THREE.Mesh {
+    const isBlackHole = body.kind === "black-hole";
+    const geometry = new THREE.RingGeometry(
+        isBlackHole ? 1.18 : 1.26,
+        isBlackHole ? 2.18 : 2.42,
+        90,
+    );
+    const material = new THREE.MeshStandardMaterial({
+        color: isBlackHole ? 0x7f95ff : body.name === "Uranus" ? 0x86cce0 : 0xd7be8e,
+        emissive: isBlackHole ? new THREE.Color(0x2d3a8b) : new THREE.Color(0x000000),
+        emissiveIntensity: isBlackHole ? 0.8 : 0,
+        transparent: true,
+        opacity: isBlackHole ? 0.78 : 0.66,
+        side: THREE.DoubleSide,
+        roughness: 0.68,
+        metalness: 0.08,
+    });
+    return new THREE.Mesh(geometry, material);
+}
+
+function updateRingMeshTransform(ring: THREE.Mesh, body: UniverseBody, position: THREE.Vector3, radius: number): void {
+    ring.position.copy(position);
+    const scale = body.kind === "black-hole" ? radius * 1.05 : radius;
+    ring.scale.setScalar(Math.max(scale, 0.25));
+    ring.rotation.set(Math.PI / 2, 0, ringTiltRadForBody(body));
+}
+
+const infoPreviewScene = new THREE.Scene();
+const infoPreviewCamera = new THREE.PerspectiveCamera(34, 1, 0.1, 44);
+infoPreviewCamera.position.set(0, 0, 4.2);
+
+const infoPreviewRenderer = new THREE.WebGLRenderer({
+    canvas: infoPreviewCanvas,
+    antialias: true,
+    alpha: true,
+    powerPreference: "low-power",
+});
+infoPreviewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+infoPreviewRenderer.outputColorSpace = THREE.SRGBColorSpace;
+infoPreviewRenderer.setClearColor(0x000000, 0);
+
+infoPreviewScene.add(new THREE.AmbientLight(0xa6c7ff, 0.88));
+const infoPreviewKeyLight = new THREE.DirectionalLight(0xfff0cf, 1.2);
+infoPreviewKeyLight.position.set(2.1, 1.4, 2.2);
+infoPreviewScene.add(infoPreviewKeyLight);
+
+let infoPreviewMesh: THREE.Mesh | null = null;
+let infoPreviewRing: THREE.Mesh | null = null;
+let infoPreviewBodyName = "";
+
+function resizeInfoPreviewCanvas(): void {
+    const rect = infoPreviewCanvas.getBoundingClientRect();
+    const width = Math.max(72, Math.round(rect.width || 96));
+    const height = Math.max(72, Math.round(rect.height || 96));
+    infoPreviewRenderer.setSize(width, height, false);
+    infoPreviewCamera.aspect = width / height;
+    infoPreviewCamera.updateProjectionMatrix();
+}
+
+function clearInfoPreviewBody(): void {
+    if (infoPreviewMesh) {
+        infoPreviewScene.remove(infoPreviewMesh);
+        infoPreviewMesh.geometry.dispose();
+        const meshMaterial = infoPreviewMesh.material;
+        if (Array.isArray(meshMaterial)) {
+            meshMaterial.forEach((m) => m.dispose());
+        } else {
+            meshMaterial.dispose();
+        }
+        infoPreviewMesh = null;
+    }
+
+    if (infoPreviewRing) {
+        infoPreviewScene.remove(infoPreviewRing);
+        infoPreviewRing.geometry.dispose();
+        const ringMaterial = infoPreviewRing.material;
+        if (Array.isArray(ringMaterial)) {
+            ringMaterial.forEach((m) => m.dispose());
+        } else {
+            ringMaterial.dispose();
+        }
+        infoPreviewRing = null;
+    }
+
+    infoPreviewBodyName = "";
+}
+
+function setInfoPreviewBody(body: UniverseBody): void {
+    if (infoPreviewBodyName === body.name && infoPreviewMesh) {
+        return;
+    }
+
+    clearInfoPreviewBody();
+    infoPreviewBodyName = body.name;
+
+    const detail = body.kind === "galaxy" || body.kind === "nebula" ? 14 : 26;
+    const geometry = new THREE.SphereGeometry(1, detail, detail);
+    const material = new THREE.MeshStandardMaterial({
+        color: hexToColor(body.colorHex),
+        roughness: body.kind === "star" ? 0.24 : 0.56,
+        metalness: body.kind === "black-hole" ? 0.5 : 0.18,
+        emissive: body.kind === "star"
+            ? new THREE.Color(hexToColor(body.colorHex)).multiplyScalar(0.24)
+            : body.kind === "black-hole"
+                ? new THREE.Color(0x202862)
+                : new THREE.Color(0x050d1e),
+        emissiveIntensity: body.kind === "black-hole" ? 0.55 : 1,
+    });
+
+    infoPreviewMesh = new THREE.Mesh(geometry, material);
+    infoPreviewScene.add(infoPreviewMesh);
+
+    if (isRingedBody(body)) {
+        infoPreviewRing = createRingMesh(body);
+        infoPreviewScene.add(infoPreviewRing);
+        updateRingMeshTransform(infoPreviewRing, body, new THREE.Vector3(0, 0, 0), 1);
+    }
+}
+
+function animateInfoPreview(dtMs: number): void {
+    if (!infoPreviewMesh) {
+        return;
+    }
+
+    const seconds = dtMs / 1000;
+    infoPreviewMesh.rotation.y += seconds * 0.9;
+    infoPreviewMesh.rotation.x += seconds * 0.2;
+
+    if (infoPreviewRing) {
+        infoPreviewRing.rotation.z += seconds * 0.12;
+    }
+
+    infoPreviewRenderer.render(infoPreviewScene, infoPreviewCamera);
 }
 
 function disposeOrbitGuides(): void {
@@ -1272,6 +1424,9 @@ function shouldLabelBody(body: UniverseBody): boolean {
         "Bima Sakti",
         "Andromeda (M31)",
         "Laniakea",
+        "Grup Lokal",
+        "Halo Materi Gelap",
+        "Latar Energi Gelap",
         "Sirius A",
         "Betelgeuse",
     ]);
@@ -1341,6 +1496,13 @@ function createNode(body: UniverseBody): BodyNode {
     mesh.userData.bodyKey = key;
     scene.add(mesh);
 
+    let ring: THREE.Mesh | null = null;
+    if (isRingedBody(body)) {
+        ring = createRingMesh(body);
+        updateRingMeshTransform(ring, body, mesh.position, toRenderRadius(body));
+        scene.add(ring);
+    }
+
     let label: THREE.Sprite | null = null;
     if (shouldLabelBody(body)) {
         label = createLabelSprite(body.name, body.colorHex);
@@ -1367,6 +1529,7 @@ function createNode(body: UniverseBody): BodyNode {
         body,
         mesh,
         label,
+        ring,
         trail,
         trailPoints: [mesh.position.clone()],
     };
@@ -1377,6 +1540,17 @@ function disposeNode(node: BodyNode): void {
     node.mesh.geometry.dispose();
     const meshMaterial = node.mesh.material as THREE.MeshStandardMaterial;
     meshMaterial.dispose();
+
+    if (node.ring) {
+        scene.remove(node.ring);
+        node.ring.geometry.dispose();
+        const ringMaterial = node.ring.material;
+        if (Array.isArray(ringMaterial)) {
+            ringMaterial.forEach((m: THREE.Material) => m.dispose());
+        } else {
+            ringMaterial.dispose();
+        }
+    }
 
     if (node.label) {
         scene.remove(node.label);
@@ -1431,6 +1605,27 @@ function updateNodes(): void {
         const radius = toRenderRadius(body);
         node.mesh.position.copy(position);
         node.mesh.scale.setScalar(radius);
+
+        if (!node.ring && isRingedBody(body)) {
+            node.ring = createRingMesh(body);
+            scene.add(node.ring);
+        }
+
+        if (node.ring && !isRingedBody(body)) {
+            scene.remove(node.ring);
+            node.ring.geometry.dispose();
+            const mat = node.ring.material;
+            if (Array.isArray(mat)) {
+                mat.forEach((m: THREE.Material) => m.dispose());
+            } else {
+                mat.dispose();
+            }
+            node.ring = null;
+        }
+
+        if (node.ring) {
+            updateRingMeshTransform(node.ring, body, position, radius);
+        }
 
         const meshMaterial = node.mesh.material as THREE.MeshStandardMaterial;
         const nextColor = hexToColor(body.colorHex);
@@ -1600,6 +1795,7 @@ function updateInfoPanel(): void {
 
     if (!uiState.showInfo || !body) {
         infoPanel.classList.remove("is-visible");
+        clearInfoPreviewBody();
         return;
     }
 
@@ -1638,14 +1834,7 @@ function updateInfoPanel(): void {
         ?? bodyDescriptions[body.name]
         ?? "Objek kosmik aktif dalam simulasi. Klik pin untuk menahan panel saat eksplorasi.";
 
-    const imageFallback = fallbackImageForBody(body);
-    infoImage.alt = `Citra ${body.name}`;
-    infoImage.onerror = () => {
-        if (infoImage.src !== imageFallback) {
-            infoImage.src = imageFallback;
-        }
-    };
-    infoImage.src = imageForBody(body);
+    setInfoPreviewBody(body);
 
     infoPinButton.textContent = uiState.infoPinned ? "Unpin Panel" : "Pin Panel";
 }
@@ -1678,10 +1867,10 @@ function updateSearchResults(): void {
         ? targets
         : targets.filter((body) => body.name.toLowerCase().includes(query));
 
-    const filtered = filteredTargets.slice(0, 24);
+    const filtered = filteredTargets.slice(0, 80);
 
     searchSuggestions.innerHTML = "";
-    filteredTargets.slice(0, 40).forEach((body) => {
+    filteredTargets.slice(0, 120).forEach((body) => {
         const option = document.createElement("option");
         option.value = body.name;
         option.label = `${body.kind} | ${bodySourceText(body.name)}`;
@@ -1705,7 +1894,10 @@ function updateSearchResults(): void {
         searchResults.appendChild(item);
     });
 
-    searchMeta.textContent = `Indeks pencarian: ${targets.length} | Eksternal: ${nasaCatalogEntries} | Status: ${nasaCatalogStatus}`;
+    const blackHoleCount = targets.filter((body) => body.kind === "black-hole").length;
+    const galaxyCount = targets.filter((body) => body.kind === "galaxy").length;
+    const hypothesisCount = targets.filter((body) => body.isHypothesis).length;
+    searchMeta.textContent = `Indeks: ${targets.length} | BH:${blackHoleCount} Galaxy:${galaxyCount} Hypothesis:${hypothesisCount} | Eksternal:${nasaCatalogEntries} ${nasaCatalogStatus}`;
 }
 
 function updateHudPanel(): void {
@@ -1736,6 +1928,7 @@ function updateHudPanel(): void {
     const kuiperCount = smallBodies.filter((body) => body.name.startsWith("Kuiper-")).length;
     const cometCount = smallBodies.filter(bodyLooksComet).length;
     const meteorCount = smallBodies.filter((body) => body.kind === "meteor" || body.name.startsWith("Meteor-")).length;
+    const hypothesisCount = engine.getContextBodies().filter((body) => body.isHypothesis).length;
 
     const topForecast = engine.getForecasts(1)[0];
     const forecastLine = topForecast
@@ -1748,6 +1941,7 @@ function updateHudPanel(): void {
         `fokus=${uiState.focusName} | ${uiState.running ? "RUN" : "PAUSE"} | label=${viewState.showLabels ? "on" : "off"}`,
         `delay Bumi-Matahari=${earthSunDelay.toFixed(2)} s | Bumi-Bulan=${earthMoonDelay.toFixed(2)} s`,
         `Ast=${asteroidCount} Kuiper=${kuiperCount} Komet=${cometCount} Meteor=${meteorCount}`,
+        `BH=${snap.counts.blackHole} Galaxy=${snap.counts.galaxy} Nebula=${snap.counts.nebula} Hypothesis=${hypothesisCount}`,
         `Katalog eksternal=${nasaCatalogEntries} (${nasaCatalogStatus}) | major=${snap.counts.majorBodies} context=${snap.counts.contextBodies}`,
         `Forecast: ${forecastLine}`,
     ].join("\n");
@@ -2061,6 +2255,14 @@ function animate(now: number): void {
             }
             spawnAccumulator = 0;
         }
+
+        if (!supernovaAutoTriggered && engine.getStateSnapshot().yearsElapsed >= 8) {
+            const triggered = engine.triggerSupernova("Betelgeuse");
+            if (triggered) {
+                addLocalEvent("Supernova model aktif: Betelgeuse masuk mode observasi ledakan.");
+            }
+            supernovaAutoTriggered = true;
+        }
     }
 
     updateNodes();
@@ -2070,6 +2272,7 @@ function animate(now: number): void {
 
     controls.update();
     renderer.render(scene, camera);
+    animateInfoPreview(dtMs);
 
     hudAccumulator += dtMs;
     if (hudAccumulator >= 160) {
