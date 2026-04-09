@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "catalog:update": "node scripts/update-agency-catalog.mjs",
+    "build": "npm run catalog:update && vite build",
     "preview": "vite preview"
   },
   "dependencies": {

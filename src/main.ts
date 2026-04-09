@@ -68,6 +68,22 @@ type IngestStatus = {
     note: string;
 };
 
+type AgencyCatalogSourceFile = {
+    mode?: "online" | "fallback";
+    note?: string;
+    entries?: ExternalCatalogEntry[];
+};
+
+type AgencyCatalogFile = {
+    generatedAt?: string;
+    nasa?: {
+        mode?: "online" | "fallback";
+        note?: string;
+        rows?: NasaExoplanetRow[];
+    };
+    agencies?: Record<string, AgencyCatalogSourceFile>;
+};
+
 type BodyNode = {
     key: string;
     body: UniverseBody;
@@ -178,44 +194,47 @@ app.innerHTML = `
       <pre id="hud-text">Memuat telemetry...</pre>
     </aside>
 
-    <section id="search-panel" class="search-panel" aria-label="Panel pencarian objek">
-      <div class="search-row">
-        <input id="search-input" placeholder="Cari objek... (tekan /)" aria-label="Cari objek semesta" />
-        <button id="search-go" type="button">GO</button>
-        <button id="search-clear" type="button">CLR</button>
-      </div>
-      <p id="search-meta">Indeks pencarian: 0</p>
-      <ol id="search-results" class="search-results"></ol>
-    </section>
-
-    <section id="info-panel" class="info-panel" aria-live="polite" aria-label="Panel detail objek">
-            <div class="info-head">
-                <img id="info-image" class="info-image" src="${logoUrl}" alt="Visual objek" loading="lazy" decoding="async" />
-                <div>
-                    <h2 id="info-name">Tidak ada objek dipilih</h2>
-                    <p id="info-kind">-</p>
-                    <p id="info-source" class="info-source">Sumber: Orbinex Engine</p>
-                    <p id="info-parent" class="info-parent">Parent: -</p>
+        <aside id="right-stack" class="right-stack" aria-label="Stack panel kanan">
+            <section id="search-panel" class="search-panel" aria-label="Panel pencarian objek">
+                <div class="search-row">
+                    <input id="search-input" list="search-suggestions" placeholder="Cari objek... (tekan /)" aria-label="Cari objek semesta" />
+                    <button id="search-go" type="button">GO</button>
+                    <button id="search-clear" type="button">CLR</button>
                 </div>
-            </div>
-      <dl>
-        <div><dt>Massa</dt><dd id="info-mass">-</dd></div>
-        <div><dt>Radius</dt><dd id="info-radius">-</dd></div>
-        <div><dt>Jarak ke Matahari</dt><dd id="info-distance-sun">-</dd></div>
-        <div><dt>Jarak tampilan</dt><dd id="info-distance-render">-</dd></div>
-        <div><dt>Kecepatan</dt><dd id="info-speed">-</dd></div>
-        <div><dt>Suhu perkiraan</dt><dd id="info-temperature">-</dd></div>
-        <div><dt>Posisi</dt><dd id="info-position">-</dd></div>
-        <div><dt>Velocity</dt><dd id="info-velocity">-</dd></div>
-      </dl>
-      <p id="info-description" class="info-desc">Arahkan mouse ke objek untuk melihat detail ilmiah.</p>
-      <button id="info-pin" type="button" class="info-pin">Pin Panel</button>
-    </section>
+                <datalist id="search-suggestions"></datalist>
+                <p id="search-meta">Indeks pencarian: 0</p>
+                <ol id="search-results" class="search-results"></ol>
+            </section>
 
-    <section class="events-panel" aria-label="Panel event simulasi">
-      <h2>Log event berbasis AI</h2>
-      <pre id="events-text">Belum ada event.</pre>
-    </section>
+            <section id="info-panel" class="info-panel" aria-live="polite" aria-label="Panel detail objek">
+                            <div class="info-head">
+                                    <img id="info-image" class="info-image" src="${logoUrl}" alt="Visual objek" loading="lazy" decoding="async" />
+                                    <div>
+                                            <h2 id="info-name">Tidak ada objek dipilih</h2>
+                                            <p id="info-kind">-</p>
+                                            <p id="info-source" class="info-source">Sumber: Orbinex Engine</p>
+                                            <p id="info-parent" class="info-parent">Parent: -</p>
+                                    </div>
+                            </div>
+                <dl>
+                    <div><dt>Massa</dt><dd id="info-mass">-</dd></div>
+                    <div><dt>Radius</dt><dd id="info-radius">-</dd></div>
+                    <div><dt>Jarak ke Matahari</dt><dd id="info-distance-sun">-</dd></div>
+                    <div><dt>Jarak tampilan</dt><dd id="info-distance-render">-</dd></div>
+                    <div><dt>Kecepatan</dt><dd id="info-speed">-</dd></div>
+                    <div><dt>Suhu perkiraan</dt><dd id="info-temperature">-</dd></div>
+                    <div><dt>Posisi</dt><dd id="info-position">-</dd></div>
+                    <div><dt>Velocity</dt><dd id="info-velocity">-</dd></div>
+                </dl>
+                <p id="info-description" class="info-desc">Arahkan mouse ke objek untuk melihat detail ilmiah.</p>
+                <button id="info-pin" type="button" class="info-pin">Pin Panel</button>
+            </section>
+
+            <section class="events-panel" aria-label="Panel event simulasi">
+                <h2>Log event berbasis AI</h2>
+                <pre id="events-text">Belum ada event.</pre>
+            </section>
+        </aside>
 
     <section id="help-panel" class="help-panel" aria-label="Bantuan kontrol">
       <h2>Hint kontrol</h2>
@@ -245,6 +264,7 @@ const bottomHint = byId<HTMLElement>("bottom-hint");
 const searchPanel = byId<HTMLElement>("search-panel");
 const searchInput = byId<HTMLInputElement>("search-input");
 const searchMeta = byId<HTMLElement>("search-meta");
+const searchSuggestions = byId<HTMLDataListElement>("search-suggestions");
 const searchResults = byId<HTMLOListElement>("search-results");
 const searchGo = byId<HTMLButtonElement>("search-go");
 const searchClear = byId<HTMLButtonElement>("search-clear");
@@ -587,38 +607,6 @@ const fallbackNasaRows: NasaExoplanetRow[] = [
     },
 ];
 
-const wikipediaTargets: Array<{
-    title: string;
-    bodyName: string;
-    fallbackDescription: string;
-    fallbackImageUrl: string;
-}> = [
-        {
-            title: "Milky Way",
-            bodyName: "Bima Sakti",
-            fallbackDescription: "Galaksi spiral berbatang yang menjadi rumah sistem surya dan pusat dinamika lokal.",
-            fallbackImageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Milky_Way_Galaxy.jpg/640px-Milky_Way_Galaxy.jpg",
-        },
-        {
-            title: "Andromeda Galaxy",
-            bodyName: "Andromeda (M31)",
-            fallbackDescription: "Galaksi spiral besar di Grup Lokal yang bergerak menuju Bima Sakti.",
-            fallbackImageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Andromeda_Galaxy_%28with_h-alpha%29.jpg/640px-Andromeda_Galaxy_%28with_h-alpha%29.jpg",
-        },
-        {
-            title: "Sagittarius A*",
-            bodyName: "Sagittarius A*",
-            fallbackDescription: "Black hole supermasif pusat Bima Sakti yang mengikat orbit bintang sekitar.",
-            fallbackImageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Sagittarius_A%2A.jpg/640px-Sagittarius_A%2A.jpg",
-        },
-        {
-            title: "Proxima Centauri",
-            bodyName: "Proxima Centauri",
-            fallbackDescription: "Bintang kerdil merah terdekat dari Matahari dengan kandidat planet kebumian.",
-            fallbackImageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Artist%27s_impression_of_Proxima_Centauri.jpg/640px-Artist%27s_impression_of_Proxima_Centauri.jpg",
-        },
-    ];
-
 const esaFallbackEntries: ExternalCatalogEntry[] = [
     {
         name: "Gaia BH1",
@@ -840,69 +828,37 @@ function addLocalEvent(message: string): void {
     }
 }
 
-async function probeSourceEndpoint(url: string): Promise<boolean> {
-    const mirrors = [
-        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-        `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    ];
-
-    for (const mirror of mirrors) {
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), 9500);
-        try {
-            const response = await fetch(mirror, {
-                method: "GET",
-                signal: controller.signal,
-            });
-            if (response.ok) {
-                return true;
-            }
-        } catch {
-            // Ignore mirror failures and continue to the next mirror.
-        } finally {
-            window.clearTimeout(timeout);
-        }
+function normalizeIngestMode(mode?: string): IngestStatus["mode"] {
+    if (mode === "online") {
+        return "online";
     }
-
-    return false;
+    if (mode === "failed") {
+        return "failed";
+    }
+    return "fallback";
 }
 
-async function fetchJsonFromCorsMirrors<T>(url: string, timeoutMs: number): Promise<T | null> {
-    const mirrors = [
-        { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, wrapped: false },
-        { url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`, wrapped: true },
-    ];
+async function fetchAgencyCatalogFile(): Promise<AgencyCatalogFile | null> {
+    const url = `${import.meta.env.BASE_URL}data/agency-catalog.json`;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 12000);
 
-    for (const mirror of mirrors) {
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
-        try {
-            const response = await fetch(mirror.url, {
-                method: "GET",
-                headers: { Accept: "application/json,text/plain" },
-                signal: controller.signal,
-            });
-            if (!response.ok) {
-                continue;
-            }
-
-            const payload = mirror.wrapped
-                ? (await response.json() as { contents?: string }).contents ?? ""
-                : await response.text();
-
-            if (!payload) {
-                continue;
-            }
-
-            return JSON.parse(payload) as T;
-        } catch {
-            // Mirror may be down or return invalid payload; try next one.
-        } finally {
-            window.clearTimeout(timeout);
+    try {
+        const response = await fetch(url, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+            cache: "no-store",
+            signal: controller.signal,
+        });
+        if (!response.ok) {
+            return null;
         }
+        return await response.json() as AgencyCatalogFile;
+    } catch {
+        return null;
+    } finally {
+        window.clearTimeout(timeout);
     }
-
-    return null;
 }
 
 function applyCatalogEntries(entries: ExternalCatalogEntry[], sourceName: string): number {
@@ -1011,129 +967,107 @@ function applyNasaRows(rows: NasaExoplanetRow[]): number {
     return freshCount;
 }
 
-async function fetchNasaCatalog(): Promise<IngestStatus> {
-    const query = encodeURIComponent(
-        "select top 120 pl_name,hostname,ra,dec,sy_dist,pl_orbsmax,pl_orbper,pl_bmasse,pl_rade,st_mass,st_rad from pscomppars where ra is not null and dec is not null and sy_dist is not null",
-    );
-    const url = `https://exoplanetarchive.ipac.caltech.edu/TAP/sync?query=${query}&format=json`;
+function ingestFallbackCatalogs(): IngestStatus[] {
+    const statuses: IngestStatus[] = [];
 
-    try {
-        const rows = await fetchJsonFromCorsMirrors<NasaExoplanetRow[]>(url, 12000);
-        if (!rows || !Array.isArray(rows) || rows.length === 0) {
-            throw new Error("NASA catalog mirrors unavailable");
-        }
-        const added = applyNasaRows(rows);
-        const status: IngestStatus = {
-            source: "NASA",
-            mode: "online",
-            count: added,
-            note: "NASA Exoplanet Archive online via CORS mirror",
-        };
-        setIngestStatus(status.source, status.mode, status.count, status.note);
-        addLocalEvent(`NASA ingest online: +${added} objek katalog.`);
-        return status;
-    } catch {
-        const added = applyNasaRows(fallbackNasaRows);
-        const status: IngestStatus = {
-            source: "NASA",
-            mode: "fallback",
-            count: added,
-            note: "NASA fallback rows enabled",
-        };
-        setIngestStatus(status.source, status.mode, status.count, status.note);
-        addLocalEvent(`NASA ingest fallback aktif (mirror/CORS gagal): +${added} objek referensi.`);
-        return status;
-    }
+    const nasaAdded = applyNasaRows(fallbackNasaRows);
+    const nasa: IngestStatus = {
+        source: "NASA",
+        mode: "fallback",
+        count: nasaAdded,
+        note: "NASA fallback rows enabled",
+    };
+    setIngestStatus(nasa.source, nasa.mode, nasa.count, nasa.note);
+    addLocalEvent(`NASA ingest fallback aktif: +${nasaAdded} objek referensi.`);
+    statuses.push(nasa);
+
+    const esaAdded = applyCatalogEntries(esaFallbackEntries, "ESA");
+    const esa: IngestStatus = {
+        source: "ESA",
+        mode: "fallback",
+        count: esaAdded,
+        note: "ESA fallback dataset active",
+    };
+    setIngestStatus(esa.source, esa.mode, esa.count, esa.note);
+    addLocalEvent(`ESA ingest fallback aktif: +${esaAdded} objek katalog.`);
+    statuses.push(esa);
+
+    const jaxaAdded = applyCatalogEntries(jaxaFallbackEntries, "JAXA");
+    const jaxa: IngestStatus = {
+        source: "JAXA",
+        mode: "fallback",
+        count: jaxaAdded,
+        note: "JAXA fallback dataset active",
+    };
+    setIngestStatus(jaxa.source, jaxa.mode, jaxa.count, jaxa.note);
+    addLocalEvent(`JAXA ingest fallback aktif: +${jaxaAdded} objek katalog.`);
+    statuses.push(jaxa);
+
+    const nedAdded = applyCatalogEntries(nedFallbackEntries, "NED");
+    const ned: IngestStatus = {
+        source: "NED",
+        mode: "fallback",
+        count: nedAdded,
+        note: "NED fallback dataset active",
+    };
+    setIngestStatus(ned.source, ned.mode, ned.count, ned.note);
+    addLocalEvent(`NED ingest fallback aktif: +${nedAdded} objek katalog.`);
+    statuses.push(ned);
+
+    return statuses;
 }
 
-async function fetchWikipediaCatalog(): Promise<IngestStatus> {
-    let onlineRows = 0;
-    let enriched = 0;
+function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[] {
+    const statuses: IngestStatus[] = [];
 
-    for (const target of wikipediaTargets) {
-        const endpoint = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(target.title)}`;
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), 9000);
-        try {
-            const response = await fetch(endpoint, {
-                method: "GET",
-                signal: controller.signal,
-                headers: { Accept: "application/json" },
-            });
+    const nasaRows = payload.nasa?.rows;
+    const hasNasaRows = Array.isArray(nasaRows) && nasaRows.length > 0;
+    const nasaAdded = applyNasaRows(hasNasaRows ? nasaRows : fallbackNasaRows);
+    const nasa: IngestStatus = {
+        source: "NASA",
+        mode: hasNasaRows ? normalizeIngestMode(payload.nasa?.mode) : "fallback",
+        count: nasaAdded,
+        note: payload.nasa?.note ?? (hasNasaRows ? "NASA cached catalog loaded" : "NASA fallback rows enabled"),
+    };
+    setIngestStatus(nasa.source, nasa.mode, nasa.count, nasa.note);
+    addLocalEvent(`NASA ingest ${nasa.mode}: +${nasaAdded} objek katalog.`);
+    statuses.push(nasa);
 
-            if (!response.ok) {
-                throw new Error(`Wikipedia summary fetch failed: ${response.status}`);
-            }
+    const agencyEntries = payload.agencies ?? {};
+    const agencyFallbacks: Record<string, ExternalCatalogEntry[]> = {
+        ESA: esaFallbackEntries,
+        JAXA: jaxaFallbackEntries,
+        NED: nedFallbackEntries,
+    };
 
-            const data = await response.json() as {
-                extract?: string;
-                thumbnail?: { source?: string };
-            };
+    for (const sourceName of ["ESA", "JAXA", "NED"]) {
+        const sourceFile = agencyEntries[sourceName];
+        const sourceRows = sourceFile?.entries;
+        const entries = Array.isArray(sourceRows) && sourceRows.length > 0
+            ? sourceRows
+            : agencyFallbacks[sourceName];
+        const mode = Array.isArray(sourceRows) && sourceRows.length > 0
+            ? normalizeIngestMode(sourceFile?.mode)
+            : "fallback";
 
-            if (data.extract && data.extract.trim().length > 0) {
-                bodyDescriptionsDynamic.set(target.bodyName, data.extract.trim());
-            }
-            if (data.thumbnail?.source) {
-                bodyImagesDynamic.set(target.bodyName, data.thumbnail.source);
-            }
-
-            mergeBodySources(target.bodyName, ["Wikipedia"]);
-            onlineRows += 1;
-            enriched += 1;
-        } catch {
-            bodyDescriptionsDynamic.set(target.bodyName, target.fallbackDescription);
-            bodyImagesDynamic.set(target.bodyName, target.fallbackImageUrl);
-            mergeBodySources(target.bodyName, ["Wikipedia"]);
-            enriched += 1;
-        } finally {
-            window.clearTimeout(timeout);
-        }
+        const added = applyCatalogEntries(entries, sourceName);
+        const status: IngestStatus = {
+            source: sourceName,
+            mode,
+            count: added,
+            note: sourceFile?.note ?? `${sourceName} catalog loaded`,
+        };
+        setIngestStatus(status.source, status.mode, status.count, status.note);
+        addLocalEvent(`${sourceName} ingest ${status.mode}: +${added} objek katalog.`);
+        statuses.push(status);
     }
 
-    const status: IngestStatus = {
-        source: "Wikipedia",
-        mode: onlineRows > 0 ? "online" : "fallback",
-        count: enriched,
-        note: onlineRows > 0
-            ? `Wikipedia online summaries=${onlineRows}/${wikipediaTargets.length}`
-            : "Wikipedia fallback enrichments active",
-    };
-    setIngestStatus(status.source, status.mode, status.count, status.note);
-    addLocalEvent(`Wikipedia ingest ${status.mode}: metadata ${status.count} objek.`);
-    return status;
-}
-
-async function ingestCuratedSource(
-    sourceName: string,
-    entries: ExternalCatalogEntry[],
-): Promise<IngestStatus> {
-    const probeTargets: Record<string, string> = {
-        ESA: "https://www.esa.int/rssfeed/Our_Activities/Space_Science",
-        JAXA: "https://global.jaxa.jp/feeds/news/index.xml",
-        NED: "https://ned.ipac.caltech.edu/",
-    };
-    const endpointOnline = await probeSourceEndpoint(probeTargets[sourceName] ?? "https://example.com/");
-    const added = applyCatalogEntries(entries, sourceName);
-    const status: IngestStatus = {
-        source: sourceName,
-        mode: endpointOnline ? "online" : "fallback",
-        count: added,
-        note: endpointOnline ? `${sourceName} endpoint reachable` : `${sourceName} fallback dataset active`,
-    };
-    setIngestStatus(status.source, status.mode, status.count, status.note);
-    addLocalEvent(`${sourceName} ingest ${status.mode}: +${added} objek katalog.`);
-    return status;
+    return statuses;
 }
 
 async function ingestExternalCatalogs(): Promise<void> {
-    const statuses = await Promise.all([
-        fetchNasaCatalog(),
-        fetchWikipediaCatalog(),
-        ingestCuratedSource("ESA", esaFallbackEntries),
-        ingestCuratedSource("JAXA", jaxaFallbackEntries),
-        ingestCuratedSource("NED", nedFallbackEntries),
-    ]);
-
+    const payload = await fetchAgencyCatalogFile();
+    const statuses = payload ? ingestFromAgencyCatalogFile(payload) : ingestFallbackCatalogs();
     const online = statuses.filter((entry) => entry.mode === "online").length;
     const fallback = statuses.filter((entry) => entry.mode === "fallback").length;
     const failed = statuses.filter((entry) => entry.mode === "failed").length;
@@ -1153,14 +1087,14 @@ function compressedDistanceMeters(distanceMeters: number): number {
     const au = Math.max(distanceMeters / constants.auMeters, 0);
 
     if (au <= 80) {
-        return au * 2.2;
+        return au * 4.6;
     }
 
     if (au <= 200000) {
-        return 80 * 2.2 + Math.log10(au - 79) * 34;
+        return 80 * 4.6 + Math.log10(au - 79) * 34;
     }
 
-    return 80 * 2.2 + Math.log10(200000 - 79) * 34 + Math.log10(au / 200000 + 1) * 240;
+    return 80 * 4.6 + Math.log10(200000 - 79) * 34 + Math.log10(au / 200000 + 1) * 240;
 }
 
 function toRenderPosition(position: { x: number; y: number; z: number }): THREE.Vector3 {
@@ -1178,11 +1112,11 @@ function toRenderRadius(body: UniverseBody): number {
     const base = clamp(Math.log10(Math.max(body.radiusMeters, 1)) - 4.95, 0.2, 11.5);
 
     if (body.kind === "star") {
-        return clamp(base * 1.42, 2.2, 12);
+        return clamp(base * 0.62, 1.1, 6.2);
     }
 
     if (body.kind === "black-hole") {
-        return clamp(base * 0.85, 2.4, 8.2);
+        return clamp(base * 0.62, 1.4, 5.6);
     }
 
     if (body.kind === "galaxy" || body.kind === "cluster" || body.kind === "nebula") {
@@ -1252,7 +1186,7 @@ function rebuildOrbitGuides(force = false): void {
             body.position.z - sun.position.z,
         );
         const radius = compressedDistanceMeters(distMeters);
-        if (!Number.isFinite(radius) || radius < 1.5) {
+        if (!Number.isFinite(radius) || radius < 0.55) {
             continue;
         }
 
@@ -1523,7 +1457,16 @@ function updateNodes(): void {
         if (node.label) {
             node.label.position.copy(position);
             node.label.position.y += radius * 1.8 + 0.35;
-            node.label.visible = shouldLabelBody(body);
+
+            const cameraDistance = camera.position.distanceTo(position);
+            const labelScale = clamp(220 / Math.max(cameraDistance, 1), 0.42, 1.75);
+            node.label.scale.set(9.6 * labelScale, 2.48 * labelScale, 1);
+
+            const isCriticalLabel = body.name === "Matahari"
+                || body.name === uiState.focusName
+                || body.kind === "black-hole";
+            const hiddenByZoom = cameraDistance > 520 && !isCriticalLabel;
+            node.label.visible = shouldLabelBody(body) && !hiddenByZoom;
         }
 
         if (node.trail && !shouldTrailBody(body)) {
@@ -1707,12 +1650,43 @@ function updateInfoPanel(): void {
     infoPinButton.textContent = uiState.infoPinned ? "Unpin Panel" : "Pin Panel";
 }
 
+function focusBodyBySearchTerm(term: string): boolean {
+    const normalized = term.trim().toLowerCase();
+    if (normalized.length === 0) {
+        return false;
+    }
+
+    const targets = focusCandidates();
+    const exact = targets.find((body) => body.name.toLowerCase() === normalized);
+    const partial = targets.find((body) => body.name.toLowerCase().includes(normalized));
+    const target = exact ?? partial;
+    if (!target) {
+        return false;
+    }
+
+    uiState.focusName = target.name;
+    uiState.selectedKey = bodyKey(target);
+    uiState.infoPinned = true;
+    updateInfoPanel();
+    return true;
+}
+
 function updateSearchResults(): void {
     const query = searchInput.value.trim().toLowerCase();
     const targets = focusCandidates();
-    const filtered = query.length === 0
-        ? targets.slice(0, 14)
-        : targets.filter((body) => body.name.toLowerCase().includes(query)).slice(0, 14);
+    const filteredTargets = query.length === 0
+        ? targets
+        : targets.filter((body) => body.name.toLowerCase().includes(query));
+
+    const filtered = filteredTargets.slice(0, 24);
+
+    searchSuggestions.innerHTML = "";
+    filteredTargets.slice(0, 40).forEach((body) => {
+        const option = document.createElement("option");
+        option.value = body.name;
+        option.label = `${body.kind} | ${bodySourceText(body.name)}`;
+        searchSuggestions.appendChild(option);
+    });
 
     searchResults.innerHTML = "";
     filtered.forEach((body) => {
@@ -1910,9 +1884,24 @@ function bindUiHandlers(): void {
         updateSearchResults();
     });
 
+    searchInput.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") {
+            return;
+        }
+        event.preventDefault();
+        const focused = focusBodyBySearchTerm(searchInput.value);
+        if (!focused) {
+            const first = searchResults.querySelector("button");
+            first?.dispatchEvent(new MouseEvent("click"));
+        }
+    });
+
     searchGo.addEventListener("click", () => {
-        const first = searchResults.querySelector("button");
-        first?.dispatchEvent(new MouseEvent("click"));
+        const focused = focusBodyBySearchTerm(searchInput.value);
+        if (!focused) {
+            const first = searchResults.querySelector("button");
+            first?.dispatchEvent(new MouseEvent("click"));
+        }
     });
 
     searchClear.addEventListener("click", () => {

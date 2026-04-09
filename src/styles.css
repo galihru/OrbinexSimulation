@@ -235,6 +235,23 @@ input:focus-visible {
     z-index: 46;
 }
 
+.right-stack {
+    position: absolute;
+    top: 74px;
+    right: 12px;
+    bottom: 12px;
+    width: min(360px, calc(100vw - 24px));
+    display: flex;
+    flex-direction: column;
+    gap: 0.52rem;
+    z-index: 60;
+    pointer-events: none;
+}
+
+.right-stack>* {
+    pointer-events: auto;
+}
+
 .hud-panel {
     top: 74px;
     left: 12px;
@@ -254,13 +271,13 @@ input:focus-visible {
 }
 
 .search-panel {
-    top: 74px;
-    right: 12px;
-    width: min(340px, calc(100vw - 24px));
-    max-height: min(42vh, 340px);
+    position: relative;
+    inset: auto;
+    width: 100%;
+    max-height: min(34vh, 320px);
     overflow: auto;
     padding: 0.62rem;
-    z-index: 60;
+    z-index: 1;
 }
 
 .search-panel.is-hidden {
@@ -306,10 +323,10 @@ input:focus-visible {
 }
 
 .info-panel {
-    right: 12px;
-    top: 426px;
-    width: min(340px, calc(100vw - 24px));
-    max-height: min(46vh, 430px);
+    position: relative;
+    inset: auto;
+    width: 100%;
+    max-height: min(34vh, 320px);
     overflow: auto;
     padding: 0.68rem;
     opacity: 0;
@@ -395,14 +412,16 @@ input:focus-visible {
 }
 
 .events-panel {
-    right: 12px;
-    bottom: 12px;
-    width: min(390px, calc(100vw - 24px));
+    position: relative;
+    inset: auto;
+    width: 100%;
+    flex: 1 1 220px;
     min-height: 170px;
-    max-height: 290px;
+    max-height: none;
+    margin-top: auto;
     display: grid;
     grid-template-rows: auto 1fr;
-    z-index: 54;
+    z-index: 1;
 }
 
 .events-panel h2 {
@@ -428,7 +447,7 @@ input:focus-visible {
     bottom: 40px;
     width: min(390px, calc(100vw - 24px));
     padding: 0.62rem;
-    z-index: 58;
+    z-index: 57;
 }
 
 .help-panel.is-hidden {
@@ -483,9 +502,6 @@ input:focus-visible {
     }
 
     .hud-panel,
-    .search-panel,
-    .info-panel,
-    .events-panel,
     .help-panel,
     .bottom-hint {
         left: 8px;
@@ -494,27 +510,27 @@ input:focus-visible {
         max-width: none;
     }
 
+    .right-stack {
+        top: 262px;
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+        width: auto;
+    }
+
     .hud-panel {
         top: 128px;
     }
 
-    .search-panel {
-        top: 262px;
-    }
-
-    .info-panel {
-        top: auto;
-        bottom: 206px;
-        max-height: 35vh;
-    }
-
     .events-panel {
-        bottom: 8px;
         min-height: 130px;
-        max-height: 180px;
+        max-height: none;
     }
 
     .help-panel {
+        left: 8px;
+        right: auto;
+        width: min(360px, calc(100vw - 16px));
         bottom: 8px;
     }
 
