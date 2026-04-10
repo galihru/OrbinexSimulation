@@ -8,6 +8,9 @@
     <meta name="description"
         content="Viewer AR Orbinex untuk menampilkan objek semesta dari parameter model lewat QR code." />
     <meta name="theme-color" content="#07142d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="./manifest.webmanifest" />
     <style>
         :root {
             color-scheme: dark;
@@ -564,6 +567,7 @@
                 <a id="open-desktop" href="#" rel="noopener noreferrer">Buka Simulasi Desktop</a>
                 <a id="open-marker" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
                     target="_blank" rel="noopener noreferrer">Buka Marker Aktif</a>
+                <button id="install-pwa" type="button">Install App</button>
                 <button id="zoom-in" type="button">Zoom +</button>
                 <button id="zoom-out" type="button">Zoom -</button>
                 <button id="rot-left" type="button">Rotasi -</button>
@@ -651,6 +655,7 @@
             const markerEls = Array.from(document.querySelectorAll("a-marker[data-model]"));
             const openDesktopLink = document.getElementById("open-desktop");
             const openMarkerLink = document.getElementById("open-marker");
+            const installPwaButton = document.getElementById("install-pwa");
             const zoomInButton = document.getElementById("zoom-in");
             const zoomOutButton = document.getElementById("zoom-out");
             const rotLeftButton = document.getElementById("rot-left");
@@ -720,6 +725,130 @@
             desktopUrl.searchParams.set("desktop", "1");
             desktopUrl.searchParams.set("model", requestedModel);
             openDesktopLink.href = desktopUrl.toString();
+
+            const pwaDbFiles = [
+                new URL("./db/cn2tw_1.json", baseUrl).toString(),
+                new URL("./db/tw2cn_1.json", baseUrl).toString(),
+                new URL("./data/agency-catalog.json", baseUrl).toString(),
+            ];
+            let deferredInstallPrompt = null;
+            let pwaInstalled = window.matchMedia("(display-mode: standalone)").matches
+                || (window.navigator && window.navigator.standalone === true);
+
+            function updateInstallPwaButton() {
+                if (!installPwaButton) {
+                    return;
+                }
+                if (pwaInstalled) {
+                    installPwaButton.disabled = true;
+                    installPwaButton.textContent = "App Terpasang";
+                    installPwaButton.title = "Database offline akan diprioritaskan";
+                    return;
+                }
+                installPwaButton.textContent = "Install App";
+                installPwaButton.disabled = !deferredInstallPrompt;
+                installPwaButton.title = deferredInstallPrompt
+                    ? "Install app ke home screen"
+                    : "Gunakan menu browser > Add to Home Screen";
+            }
+
+            async function cachePwaDatabaseAssets() {
+                await Promise.all(pwaDbFiles.map(async (url) => {
+                    try {
+                        await fetch(url, { cache: "reload" });
+                    } catch {
+                        // Retry later when connection is stable.
+                    }
+                }));
+
+                if ("serviceWorker" in navigator) {
+                    try {
+                        const registration = await navigator.serviceWorker.ready;
+                        registration.active && registration.active.postMessage({ type: "CACHE_DB_NOW" });
+                    } catch {
+                        // Ignore service worker timing race.
+                    }
+                }
+            }
+
+            async function registerArPwaServiceWorker() {
+                if (!("serviceWorker" in navigator)) {
+                    return;
+                }
+                try {
+                    await navigator.serviceWorker.register(new URL("./sw.js", baseUrl).toString(), {
+                        scope: baseUrl.pathname,
+                    });
+                } catch {
+                    // Fallback: app still works without offline cache.
+                }
+            }
+
+            function setupArPwaInstallFlow() {
+                updateInstallPwaButton();
+                void registerArPwaServiceWorker();
+
+                window.addEventListener("beforeinstallprompt", (event) => {
+                    event.preventDefault();
+                    deferredInstallPrompt = event;
+                    updateInstallPwaButton();
+                    statusEl.textContent = "Install PWA siap. Tekan tombol Install App.";
+                });
+
+                window.addEventListener("appinstalled", () => {
+                    pwaInstalled = true;
+                    deferredInstallPrompt = null;
+                    updateInstallPwaButton();
+                    statusEl.textContent = "PWA terpasang. Menyiapkan database offline...";
+                    void cachePwaDatabaseAssets();
+                });
+
+                if (installPwaButton) {
+                    installPwaButton.addEventListener("click", async () => {
+                        if (pwaInstalled) {
+                            await cachePwaDatabaseAssets();
+                            statusEl.textContent = "Cache database offline diperbarui.";
+                            return;
+                        }
+
+                        if (!deferredInstallPrompt) {
+                            statusEl.textContent = "Gunakan menu browser lalu pilih Add to Home Screen.";
+                            return;
+                        }
+
+                        if (window.isSecureContext && "Notification" in window && Notification.permission === "default") {
+                            try {
+                                await Notification.requestPermission();
+                            } catch {
+                                // Ignore prompt failures.
+                            }
+                        }
+
+                        if ("storage" in navigator && "persist" in navigator.storage) {
+                            try {
+                                await navigator.storage.persist();
+                            } catch {
+                                // Ignore storage persistence failures.
+                            }
+                        }
+
+                        const promptEvent = deferredInstallPrompt;
+                        deferredInstallPrompt = null;
+                        updateInstallPwaButton();
+                        await promptEvent.prompt();
+                        const result = await promptEvent.userChoice;
+                        if (result && result.outcome === "accepted") {
+                            statusEl.textContent = "Install disetujui. Menyiapkan database offline...";
+                            await cachePwaDatabaseAssets();
+                        } else {
+                            statusEl.textContent = "Install dibatalkan.";
+                        }
+                        updateInstallPwaButton();
+                    });
+                }
+            }
+
+            setupArPwaInstallFlow();
 
             let sheetIsOpen = true;
             let sheetDragPointerId = null;

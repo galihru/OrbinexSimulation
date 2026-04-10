@@ -1,0 +1,26 @@
+{
+  "name": "OrbinexSimulation",
+  "short_name": "Orbinex",
+  "description": "Simulasi semesta 3D dengan mode offline, telemetry realtime, dan viewer AR.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#020814",
+  "theme_color": "#0a1838",
+  "icons": [
+    {
+      "src": "./orbinex-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./orbinex.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

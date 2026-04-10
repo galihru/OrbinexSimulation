@@ -1,5 +1,7 @@
 declare module "*.css";
 
+declare const __BUILD_HASH__: string;
+
 interface ImportMetaEnv {
     readonly BASE_URL: string;
 }

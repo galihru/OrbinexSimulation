@@ -138,6 +138,14 @@ type SolarRenderAnchor = {
     distanceScale?: number;
 };
 
+type DeferredInstallPromptEvent = Event & {
+    prompt: () => Promise<void>;
+    userChoice: Promise<{
+        outcome: "accepted" | "dismissed";
+        platform: string;
+    }>;
+};
+
 type DynamicCatalogOrbitState = {
     bodyName: string;
     parentName: string;
@@ -255,6 +263,12 @@ const PLANCK_REDUCED = 1.054571817e-34;
 const BOLTZMANN = 1.380649e-23;
 const LIGHT_YEAR_METERS = 9.4607304725808e15;
 const HIRO_MARKER_URL = "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png";
+const APP_BUILD_HASH = typeof __BUILD_HASH__ === "string" ? __BUILD_HASH__ : "dev-build";
+const PWA_DB_FILES = [
+    "db/cn2tw_1.json",
+    "db/tw2cn_1.json",
+    "data/agency-catalog.json",
+];
 
 const app = byId<HTMLElement>("app");
 app.innerHTML = `
@@ -289,6 +303,7 @@ app.innerHTML = `
                 <button id="btn-label" type="button">LABEL</button>
                 <button id="btn-info" type="button">INFO</button>
                 <button id="btn-search" type="button">CARI</button>
+                <button id="btn-install" type="button">INSTALL</button>
                 <button id="btn-ref" type="button">REF</button>
                 <button id="btn-help" type="button">BANTU</button>
                 <button id="btn-language" type="button">BAHASA: ID</button>
@@ -482,6 +497,7 @@ const guidesButton = byId<HTMLButtonElement>("btn-guides");
 const labelButton = byId<HTMLButtonElement>("btn-label");
 const infoButton = byId<HTMLButtonElement>("btn-info");
 const searchButton = byId<HTMLButtonElement>("btn-search");
+const installButton = byId<HTMLButtonElement>("btn-install");
 const refButton = byId<HTMLButtonElement>("btn-ref");
 const helpButton = byId<HTMLButtonElement>("btn-help");
 const languageButton = byId<HTMLButtonElement>("btn-language");
@@ -503,6 +519,9 @@ const i18n = {
         infoOff: "INFO:OFF",
         searchOn: "CARI",
         searchOff: "CARI:OFF",
+        install: "INSTALL APP",
+        installDone: "APP:TERPASANG",
+        installUnavailable: "Install via menu browser (Add to Home Screen)",
         helpOn: "BANTU",
         helpOff: "BANTU:OFF",
         lang: "BAHASA: ID",
@@ -523,6 +542,9 @@ const i18n = {
         infoOff: "INFO:OFF",
         searchOn: "SEARCH",
         searchOff: "SEARCH:OFF",
+        install: "INSTALL APP",
+        installDone: "APP:INSTALLED",
+        installUnavailable: "Install via browser menu (Add to Home Screen)",
         helpOn: "HELP",
         helpOff: "HELP:OFF",
         lang: "LANG: EN",
@@ -668,6 +690,10 @@ let cameraFlight: CameraFlight | null = null;
 let focusSuspendUntilMs = 0;
 let latestCatalogGeneratedAt = "";
 let catalogRefreshTimer: number | null = null;
+let deferredInstallPrompt: DeferredInstallPromptEvent | null = null;
+let pwaInstalled = window.matchMedia("(display-mode: standalone)").matches
+    || ((window.navigator as Navigator & { standalone?: boolean }).standalone === true);
+let pwaListenersBound = false;
 
 const bodyDescriptions: Record<string, string> = {
     Matahari: "Bintang pusat sistem; sumber utama energi dan referensi gravitasi.",
@@ -2650,6 +2676,120 @@ function addLocalEvent(message: string): void {
     if (localEvents.length > 16) {
         localEvents.splice(16);
     }
+}
+
+function installHintText(): string {
+    const t = i18n[uiState.language];
+    return t.installUnavailable;
+}
+
+function updateInstallButtonState(): void {
+    const t = i18n[uiState.language];
+    if (pwaInstalled) {
+        installButton.disabled = true;
+        installButton.hidden = false;
+        installButton.textContent = t.installDone;
+        installButton.title = t.installDone;
+        return;
+    }
+
+    installButton.textContent = t.install;
+    if (deferredInstallPrompt) {
+        installButton.disabled = false;
+        installButton.hidden = false;
+        installButton.title = t.install;
+        return;
+    }
+
+    installButton.disabled = true;
+    installButton.hidden = false;
+    installButton.title = installHintText();
+}
+
+async function requestInstallAccessPermissions(): Promise<void> {
+    if (window.isSecureContext && "Notification" in window && Notification.permission === "default") {
+        try {
+            await Notification.requestPermission();
+        } catch {
+            // Ignore unsupported permission prompt failures.
+        }
+    }
+
+    if ("storage" in navigator && "persist" in navigator.storage) {
+        try {
+            await navigator.storage.persist();
+        } catch {
+            // Ignore storage persistence failures.
+        }
+    }
+}
+
+async function predownloadOfflineDatabaseAssets(): Promise<void> {
+    const base = new URL(import.meta.env.BASE_URL, window.location.origin);
+    const absoluteUrls = PWA_DB_FILES.map((path) => new URL(path, base).toString());
+
+    await Promise.all(absoluteUrls.map(async (url) => {
+        try {
+            await fetch(url, { cache: "reload" });
+        } catch {
+            // Retry on next install/open.
+        }
+    }));
+
+    if ("serviceWorker" in navigator) {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            registration.active?.postMessage({ type: "CACHE_DB_NOW" });
+        } catch {
+            // Ignore if service worker is not active yet.
+        }
+    }
+
+    addLocalEvent("Database offline dipersiapkan agar akses PWA lebih cepat.");
+}
+
+async function registerPwaServiceWorker(): Promise<void> {
+    if (!("serviceWorker" in navigator)) {
+        return;
+    }
+
+    try {
+        const base = new URL(import.meta.env.BASE_URL, window.location.origin);
+        const swUrl = new URL("sw.js", base).toString();
+        await navigator.serviceWorker.register(swUrl, { scope: base.pathname });
+    } catch {
+        addLocalEvent("Service worker gagal didaftarkan. Mode offline terbatas.");
+    }
+}
+
+function setupPwaSupport(): void {
+    if (pwaListenersBound) {
+        return;
+    }
+    pwaListenersBound = true;
+
+    void registerPwaServiceWorker();
+
+    window.addEventListener("beforeinstallprompt", (event) => {
+        event.preventDefault();
+        deferredInstallPrompt = event as DeferredInstallPromptEvent;
+        updateInstallButtonState();
+        addLocalEvent("Install PWA siap. Gunakan tombol INSTALL APP.");
+    });
+
+    window.addEventListener("appinstalled", () => {
+        pwaInstalled = true;
+        deferredInstallPrompt = null;
+        updateInstallButtonState();
+        addLocalEvent("PWA terpasang. Mulai sinkronisasi database offline.");
+        void predownloadOfflineDatabaseAssets();
+    });
+
+    if (pwaInstalled) {
+        void predownloadOfflineDatabaseAssets();
+    }
+
+    updateInstallButtonState();
 }
 
 function setSplashProgress(progress: number, message: string): void {
@@ -5355,6 +5495,7 @@ function arViewerUrlForObject(objectName?: string): string {
         arUrl.searchParams.set("model", trimmed);
     }
     arUrl.searchParams.set("from", "qr");
+    arUrl.searchParams.set("build", APP_BUILD_HASH);
     return arUrl.toString();
 }
 
@@ -6007,6 +6148,7 @@ function updateActionButtons(): void {
     languageButton.textContent = t.lang;
     bottomHint.textContent = t.bottomHint;
     searchInput.placeholder = t.searchPlaceholder;
+    updateInstallButtonState();
 }
 
 function updatePanelVisibility(): void {
@@ -6153,6 +6295,36 @@ function bindUiHandlers(): void {
         if (uiState.showSearch) {
             searchInput.focus();
         }
+    });
+
+    installButton.addEventListener("click", async () => {
+        if (pwaInstalled) {
+            void predownloadOfflineDatabaseAssets();
+            return;
+        }
+
+        if (!deferredInstallPrompt) {
+            addLocalEvent(installHintText());
+            return;
+        }
+
+        await requestInstallAccessPermissions();
+
+        const promptEvent = deferredInstallPrompt;
+        deferredInstallPrompt = null;
+        updateInstallButtonState();
+
+        await promptEvent.prompt();
+        const choice = await promptEvent.userChoice;
+
+        if (choice.outcome === "accepted") {
+            addLocalEvent("Install PWA disetujui. Menyiapkan cache offline.");
+            void predownloadOfflineDatabaseAssets();
+        } else {
+            addLocalEvent("Install PWA dibatalkan oleh pengguna.");
+        }
+
+        updateInstallButtonState();
     });
 
     helpButton.addEventListener("click", () => {
@@ -6514,6 +6686,7 @@ async function bootstrapApp(): Promise<void> {
 
     setSplashProgress(8, "Menyalakan mesin fisika dan menyiapkan status loader...");
     bindUiHandlers();
+    setupPwaSupport();
 
     setSplashProgress(14, "Menyusun scene 3D dasar (kamera, cahaya, kanvas)...");
     setCanvasSize();
