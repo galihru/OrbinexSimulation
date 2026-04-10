@@ -1564,6 +1564,8 @@
                         `color: ${body.color}`,
                         `src: ${visualProfile.texture}`,
                         "side: double",
+                        "depthTest: false",
+                        "depthWrite: false",
                     ];
 
                     return {
@@ -1575,42 +1577,42 @@
                 if (kind === "meteor") {
                     return {
                         geometry: `primitive: dodecahedron; radius: ${displayRadius.toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; side: double`,
+                        material: `shader: flat; color: ${body.color}; side: double; depthTest: false; depthWrite: false`,
                     };
                 }
                 if (kind === "comet") {
                     return {
                         geometry: `primitive: icosahedron; radius: ${displayRadius.toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; side: double`,
+                        material: `shader: flat; color: ${body.color}; side: double; depthTest: false; depthWrite: false`,
                     };
                 }
                 if (kind === "black-hole") {
                     return {
                         geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
-                        material: "shader: flat; color: #191a2d; side: double",
+                        material: "shader: flat; color: #191a2d; side: double; depthTest: false; depthWrite: false",
                     };
                 }
                 if (kind === "galaxy") {
                     return {
                         geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; opacity: 0.7; transparent: true; side: double`,
+                        material: `shader: flat; color: ${body.color}; opacity: 0.7; transparent: true; side: double; depthTest: false; depthWrite: false`,
                     };
                 }
                 if (kind === "nebula") {
                     return {
                         geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; opacity: 0.62; transparent: true; side: double`,
+                        material: `shader: flat; color: ${body.color}; opacity: 0.62; transparent: true; side: double; depthTest: false; depthWrite: false`,
                     };
                 }
                 if (kind === "star") {
                     return {
                         geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; side: double`,
+                        material: `shader: flat; color: ${body.color}; side: double; depthTest: false; depthWrite: false`,
                     };
                 }
                 return {
                     geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
-                    material: `shader: flat; color: ${body.color}; side: double`,
+                    material: `shader: flat; color: ${body.color}; side: double; depthTest: false; depthWrite: false`,
                 };
             }
 
@@ -1631,14 +1633,14 @@
                 orbitAnchorEl.appendChild(bodyMeshEl);
 
                 if (visualProfile && visualProfile.texture) {
-                    attachTextureErrorFallback(bodyMeshEl, `shader: flat; color: ${body.color}; side: double`);
+                    attachTextureErrorFallback(bodyMeshEl, `shader: flat; color: ${body.color}; side: double; depthTest: false; depthWrite: false`);
                 }
 
                 let atmosphereEl = null;
                 if (body.name === "Bumi") {
                     atmosphereEl = createEntity("a-entity", {
                         geometry: `primitive: sphere; radius: ${(displayRadius * 1.024).toFixed(4)}`,
-                        material: "shader: flat; color: #dff1ff; opacity: 0.24; transparent: true; side: double",
+                        material: "shader: flat; color: #dff1ff; opacity: 0.24; transparent: true; side: double; depthTest: false; depthWrite: false",
                         position: "0 0 0",
                     });
                     orbitAnchorEl.appendChild(atmosphereEl);
@@ -1648,18 +1650,18 @@
                 if (visualProfile && visualProfile.cloudTexture) {
                     cloudLayerEl = createEntity("a-entity", {
                         geometry: `primitive: sphere; radius: ${(displayRadius * 1.016).toFixed(4)}`,
-                        material: `shader: flat; src: ${visualProfile.cloudTexture}; color: #ffffff; opacity: 0.62; transparent: true; side: double; depthWrite: false`,
+                        material: `shader: flat; src: ${visualProfile.cloudTexture}; color: #ffffff; opacity: 0.62; transparent: true; side: double; depthTest: false; depthWrite: false`,
                         position: "0 0 0",
                     });
                     orbitAnchorEl.appendChild(cloudLayerEl);
-                    attachTextureErrorFallback(cloudLayerEl, "shader: flat; color: #ffffff; opacity: 0.28; transparent: true; side: double; depthWrite: false");
+                    attachTextureErrorFallback(cloudLayerEl, "shader: flat; color: #ffffff; opacity: 0.28; transparent: true; side: double; depthTest: false; depthWrite: false");
                 }
 
                 let glowEl = null;
                 if (body.kind === "star") {
                     glowEl = createEntity("a-entity", {
                         geometry: `primitive: sphere; radius: ${(displayRadius * 1.2).toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; opacity: 0.24; transparent: true; side: double`,
+                        material: `shader: flat; color: ${body.color}; opacity: 0.24; transparent: true; side: double; depthTest: false; depthWrite: false`,
                     });
                     orbitAnchorEl.appendChild(glowEl);
                 }
@@ -1668,7 +1670,7 @@
                 if (body.kind === "comet") {
                     cometTailEl = createEntity("a-entity", {
                         geometry: `primitive: cone; radiusBottom: ${(displayRadius * 0.7).toFixed(4)}; radiusTop: ${(displayRadius * 0.08).toFixed(4)}; height: ${(displayRadius * 4.2).toFixed(4)}`,
-                        material: "shader: flat; color: #dcecff; opacity: 0.38; transparent: true; side: double",
+                        material: "shader: flat; color: #dcecff; opacity: 0.38; transparent: true; side: double; depthTest: false; depthWrite: false",
                         position: `0 0 ${(-displayRadius * 2.5).toFixed(4)}`,
                         rotation: "-90 0 0",
                     });
@@ -1678,8 +1680,8 @@
                 if (isRingedBody(body.name)) {
                     const hasRingTexture = !!(visualProfile && visualProfile.ringTexture);
                     const ringMaterial = hasRingTexture
-                        ? `shader: flat; src: ${visualProfile.ringTexture}; color: #d7c08f; opacity: 0.82; transparent: true; side: double`
-                        : "shader: flat; color: #bcd4d8; opacity: 0.34; transparent: true; side: double";
+                        ? `shader: flat; src: ${visualProfile.ringTexture}; color: #d7c08f; opacity: 0.82; transparent: true; side: double; depthTest: false; depthWrite: false`
+                        : "shader: flat; color: #bcd4d8; opacity: 0.34; transparent: true; side: double; depthTest: false; depthWrite: false";
                     const ringEl = createEntity("a-entity", {
                         geometry: `primitive: ring; radiusInner: ${(displayRadius * 1.42).toFixed(4)}; radiusOuter: ${(displayRadius * 2.06).toFixed(4)}; segmentsTheta: 96`,
                         material: ringMaterial,
@@ -1687,14 +1689,14 @@
                     });
                     orbitAnchorEl.appendChild(ringEl);
                     if (hasRingTexture) {
-                        attachTextureErrorFallback(ringEl, "shader: flat; color: #bcd4d8; opacity: 0.34; transparent: true; side: double");
+                        attachTextureErrorFallback(ringEl, "shader: flat; color: #bcd4d8; opacity: 0.34; transparent: true; side: double; depthTest: false; depthWrite: false");
                     }
                 }
 
                 if (body.kind === "black-hole") {
                     const accretionEl = createEntity("a-entity", {
                         geometry: `primitive: torus; radius: ${(displayRadius * 1.58).toFixed(4)}; radiusTubular: ${(displayRadius * 0.21).toFixed(4)}; segmentsTubular: 72; segmentsRadial: 12`,
-                        material: "shader: flat; color: #7c8dff; opacity: 0.62; transparent: true; side: double",
+                        material: "shader: flat; color: #7c8dff; opacity: 0.62; transparent: true; side: double; depthTest: false; depthWrite: false",
                         rotation: "90 0 0",
                     });
                     orbitAnchorEl.appendChild(accretionEl);
@@ -1703,7 +1705,7 @@
                 if (body.kind === "galaxy") {
                     const diskEl = createEntity("a-entity", {
                         geometry: `primitive: torus; radius: ${(displayRadius * 1.42).toFixed(4)}; radiusTubular: ${(displayRadius * 0.26).toFixed(4)}; segmentsTubular: 92; segmentsRadial: 14`,
-                        material: `shader: flat; color: ${body.color}; opacity: 0.36; transparent: true; side: double`,
+                        material: `shader: flat; color: ${body.color}; opacity: 0.36; transparent: true; side: double; depthTest: false; depthWrite: false`,
                         rotation: "88 0 0",
                     });
                     orbitAnchorEl.appendChild(diskEl);
@@ -1727,7 +1729,7 @@
                     if (parentNode.body.name !== focusName) {
                         orbitTrackEl = createEntity("a-entity", {
                             geometry: `primitive: ring; radiusInner: ${(orbitRadius - 0.003).toFixed(4)}; radiusOuter: ${(orbitRadius + 0.003).toFixed(4)}; segmentsTheta: 96`,
-                            material: "shader: flat; color: #7ea8e6; opacity: 0.24; transparent: true; side: double",
+                            material: "shader: flat; color: #7ea8e6; opacity: 0.24; transparent: true; side: double; depthTest: false; depthWrite: false",
                             rotation: "-90 0 0",
                             position: "0 0 0",
                         });
@@ -1776,7 +1778,7 @@
                 modelRoot.innerHTML = "";
 
                 const system = buildDisplayBodies(focusBody);
-                const rootContainer = createEntity("a-entity", { position: "0 0.22 0" });
+                const rootContainer = createEntity("a-entity", { position: "0 0.38 0" });
                 modelRoot.appendChild(rootContainer);
 
                 const nodes = [];
@@ -1891,7 +1893,7 @@
                     return;
                 }
                 const obj = modelRoot.object3D;
-                obj.position.set(0, 0.22, 0);
+                obj.position.set(0, 0.38, 0);
                 obj.scale.setScalar(viewScale);
                 obj.rotation.set(viewRotX, viewRotY, 0);
             }
@@ -2080,7 +2082,7 @@
                     const dx = next.x - prev.x;
                     const dy = next.y - prev.y;
                     viewRotY += dx * 0.008;
-                    viewRotX = clamp(viewRotX + dy * 0.005, -0.88, 0.88);
+                    viewRotX = clamp(viewRotX + dy * 0.005, -0.55, 0.55);
                     applyViewTransform();
                     return;
                 }
@@ -2135,7 +2137,8 @@
                             : 0;
                         const x = node.orbitRadius * cosP + wobble;
                         const zPlane = node.orbitRadius * sinP;
-                        const y = zPlane * Math.sin(node.inclinationRad);
+                        const yRaw = zPlane * Math.sin(node.inclinationRad);
+                        const y = Math.max(yRaw, -0.06);
                         const z = zPlane * Math.cos(node.inclinationRad);
                         node.orbitAnchorEl.object3D.position.set(x, y, z);
                     }
