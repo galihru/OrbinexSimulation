@@ -275,7 +275,7 @@ app.innerHTML = `
 
         <header class="top-command" aria-label="Quick controls">
             <div class="brand-mark">
-                <img class="brand-logo" src="${brandLogoUrl}" alt="Orbinex" width="176" height="38" />
+                <img class="brand-logo" src="${brandLogoUrl}" alt="Orbinex" width="40" height="40" />
                 <span>Web Universe Sandbox</span>
             </div>
             <div class="button-row">
@@ -292,10 +292,6 @@ app.innerHTML = `
                 <button id="btn-language" type="button">BAHASA: ID</button>
             </div>
         </header>
-
-        <aside class="hud-panel" aria-live="polite">
-        <pre id="hud-text">Memuat telemetry...</pre>
-        </aside>
 
         <aside id="right-stack" class="right-stack" aria-label="Stack panel kanan">
             <section id="search-panel" class="search-panel" aria-label="Panel pencarian objek">
@@ -343,13 +339,11 @@ app.innerHTML = `
                 <p id="info-description" class="info-desc">Arahkan mouse ke objek untuk melihat detail ilmiah.</p>
                 <button id="info-pin" type="button" class="info-pin">Pin Panel</button>
             </section>
+        </aside>
 
-            <section class="events-panel" aria-label="Panel event simulasi">
-                <h2>Log event berbasis AI</h2>
-                <p class="events-tip">Klik event untuk fokus ke koordinat kejadian.</p>
-                <ol id="events-list" class="events-list">
-                    <li class="event-item event-item-empty">Belum ada event.</li>
-                </ol>
+        <aside id="bottom-stack" class="bottom-stack" aria-label="Stack panel bawah">
+            <section class="hud-panel summary-panel" aria-live="polite" aria-label="Ringkasan simulasi">
+                <pre id="hud-text">Memuat telemetry...</pre>
             </section>
 
             <section id="hierarchy-panel" class="hierarchy-panel" aria-label="Panel filter hirarki kosmik">
@@ -366,6 +360,14 @@ app.innerHTML = `
                 </div>
                 <p id="hierarchy-note">Menampilkan level 1 sampai 13.</p>
                 <button id="hierarchy-reset" type="button">RESET HIRARKI</button>
+            </section>
+
+            <section class="events-panel" aria-label="Panel event simulasi">
+                <h2>Log event berbasis AI</h2>
+                <p class="events-tip">Klik event untuk fokus ke koordinat kejadian.</p>
+                <ol id="events-list" class="events-list">
+                    <li class="event-item event-item-empty">Belum ada event.</li>
+                </ol>
             </section>
         </aside>
 

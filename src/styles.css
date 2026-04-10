@@ -147,8 +147,8 @@ orbinex-app,
     left: 50%;
     right: auto;
     transform: translateX(-50%);
-    width: min(1240px, calc(100vw - 24px));
-    min-height: 52px;
+    width: min(1020px, calc(100vw - 24px));
+    min-height: 48px;
     z-index: 70;
     border: 1px solid var(--line);
     border-radius: 13px;
@@ -158,31 +158,32 @@ orbinex-app,
     align-items: center;
     justify-content: space-between;
     gap: 0.9rem;
-    padding: 0.45rem 0.78rem;
+    padding: 0.34rem 0.58rem;
 }
 
 .brand-mark {
     display: flex;
-    flex-direction: column;
-    gap: 0.06rem;
-    min-width: 184px;
-    padding: 0 0.16rem;
+    align-items: center;
+    gap: 0.44rem;
+    min-width: 156px;
+    padding: 0 0.1rem;
 }
 
 .brand-logo {
     display: block;
-    width: auto;
-    height: 34px;
-    max-width: 188px;
+    width: 40px;
+    height: 40px;
+    max-width: none;
     object-fit: contain;
     filter: drop-shadow(0 4px 10px rgba(88, 151, 255, 0.28));
 }
 
 .brand-mark span {
-    font-size: 0.66rem;
+    font-size: 0.64rem;
     color: #8ba8d7;
     text-transform: uppercase;
     letter-spacing: 0.07em;
+    white-space: nowrap;
 }
 
 .button-row {
@@ -284,8 +285,8 @@ input:focus-visible {
     position: absolute;
     top: 74px;
     right: 12px;
-    bottom: 12px;
-    width: min(360px, calc(100vw - 24px));
+    bottom: clamp(220px, 33vh, 282px);
+    width: min(390px, calc(100vw - 24px));
     display: flex;
     flex-direction: column;
     gap: 0.52rem;
@@ -297,17 +298,37 @@ input:focus-visible {
     pointer-events: auto;
 }
 
-.hud-panel {
-    top: 74px;
-    left: 12px;
-    width: min(500px, calc(100vw - 24px));
-    z-index: 55;
+.bottom-stack {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 12px;
+    width: min(1140px, calc(100vw - 24px));
+    display: grid;
+    grid-template-columns: minmax(290px, 1.1fr) minmax(260px, 0.9fr) minmax(310px, 1.15fr);
+    gap: 0.52rem;
+    z-index: 61;
+    pointer-events: none;
+}
+
+.bottom-stack>* {
+    pointer-events: auto;
+}
+
+.summary-panel {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    padding: 0.52rem 0.62rem;
+    z-index: 1;
 }
 
 #hud-text {
     margin: 0;
-    padding: 0.66rem 0.76rem;
-    min-height: 124px;
+    padding: 0;
+    min-height: 176px;
+    max-height: min(30vh, 258px);
+    overflow: auto;
     font-family: "JetBrains Mono", monospace;
     font-size: 0.72rem;
     line-height: 1.45;
@@ -319,7 +340,8 @@ input:focus-visible {
     position: relative;
     inset: auto;
     width: 100%;
-    max-height: min(34vh, 320px);
+    flex: 1 1 260px;
+    max-height: none;
     overflow: auto;
     padding: 0.62rem;
     z-index: 1;
@@ -413,6 +435,8 @@ input:focus-visible {
 .search-panel,
 .search-results,
 .hierarchy-panel,
+.summary-panel,
+#hud-text,
 .info-panel,
 .events-list {
     scrollbar-width: none;
@@ -422,6 +446,8 @@ input:focus-visible {
 .search-panel:hover,
 .search-results:hover,
 .hierarchy-panel:hover,
+.summary-panel:hover,
+#hud-text:hover,
 .info-panel:hover,
 .events-list:hover {
     scrollbar-width: thin;
@@ -430,6 +456,8 @@ input:focus-visible {
 .search-panel::-webkit-scrollbar,
 .search-results::-webkit-scrollbar,
 .hierarchy-panel::-webkit-scrollbar,
+.summary-panel::-webkit-scrollbar,
+#hud-text::-webkit-scrollbar,
 .info-panel::-webkit-scrollbar,
 .events-list::-webkit-scrollbar {
     width: 0;
@@ -439,6 +467,8 @@ input:focus-visible {
 .search-panel:hover::-webkit-scrollbar,
 .search-results:hover::-webkit-scrollbar,
 .hierarchy-panel:hover::-webkit-scrollbar,
+.summary-panel:hover::-webkit-scrollbar,
+#hud-text:hover::-webkit-scrollbar,
 .info-panel:hover::-webkit-scrollbar,
 .events-list:hover::-webkit-scrollbar {
     width: 8px;
@@ -448,6 +478,8 @@ input:focus-visible {
 .search-panel::-webkit-scrollbar-thumb,
 .search-results::-webkit-scrollbar-thumb,
 .hierarchy-panel::-webkit-scrollbar-thumb,
+.summary-panel::-webkit-scrollbar-thumb,
+#hud-text::-webkit-scrollbar-thumb,
 .info-panel::-webkit-scrollbar-thumb,
 .events-list::-webkit-scrollbar-thumb {
     border-radius: 999px;
@@ -457,6 +489,8 @@ input:focus-visible {
 .search-panel:hover::-webkit-scrollbar-thumb,
 .search-results:hover::-webkit-scrollbar-thumb,
 .hierarchy-panel:hover::-webkit-scrollbar-thumb,
+.summary-panel:hover::-webkit-scrollbar-thumb,
+#hud-text:hover::-webkit-scrollbar-thumb,
 .info-panel:hover::-webkit-scrollbar-thumb,
 .events-list:hover::-webkit-scrollbar-thumb {
     background: rgba(126, 174, 255, 0.66);
@@ -465,6 +499,8 @@ input:focus-visible {
 .search-panel::-webkit-scrollbar-track,
 .search-results::-webkit-scrollbar-track,
 .hierarchy-panel::-webkit-scrollbar-track,
+.summary-panel::-webkit-scrollbar-track,
+#hud-text::-webkit-scrollbar-track,
 .info-panel::-webkit-scrollbar-track,
 .events-list::-webkit-scrollbar-track {
     background: transparent;
@@ -481,7 +517,8 @@ input:focus-visible {
     position: relative;
     inset: auto;
     width: 100%;
-    max-height: min(34vh, 320px);
+    flex: 1 1 280px;
+    max-height: none;
     overflow: auto;
     padding: 0.68rem;
     opacity: 0;
@@ -571,9 +608,8 @@ input:focus-visible {
     position: relative;
     inset: auto;
     width: 100%;
-    flex: 1 1 220px;
-    min-height: 170px;
-    max-height: none;
+    min-height: 176px;
+    max-height: min(30vh, 258px);
     margin-top: 0;
     display: grid;
     grid-template-rows: auto auto 1fr;
@@ -684,7 +720,7 @@ input:focus-visible {
 .bottom-hint {
     position: absolute;
     left: 12px;
-    bottom: 12px;
+    bottom: clamp(232px, 35vh, 296px);
     margin: 0;
     z-index: 45;
     border: 1px solid rgba(115, 160, 231, 0.34);
@@ -712,9 +748,9 @@ input:focus-visible {
 
     .button-row {
         width: 100%;
+        justify-content: flex-start;
     }
 
-    .hud-panel,
     .help-panel,
     .bottom-hint {
         left: 8px;
@@ -724,20 +760,25 @@ input:focus-visible {
     }
 
     .right-stack {
-        top: 262px;
+        top: 126px;
         left: 8px;
         right: 8px;
-        bottom: 8px;
+        bottom: clamp(246px, 42vh, 328px);
         width: auto;
     }
 
-    .hud-panel {
-        top: 128px;
+    .bottom-stack {
+        left: 8px;
+        right: 8px;
+        transform: none;
+        width: auto;
+        bottom: 8px;
+        grid-template-columns: 1fr;
     }
 
     .events-panel {
         min-height: 130px;
-        max-height: none;
+        max-height: 42vh;
     }
 
     .help-panel {
