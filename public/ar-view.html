@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Orbinex AR Viewer</title>
+  <meta name="description" content="Viewer AR Orbinex untuk menampilkan objek semesta dari parameter model lewat QR code." />
+  <meta name="theme-color" content="#07142d" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07142d;
+      --panel: rgba(8, 20, 44, 0.86);
+      --panel-border: rgba(117, 164, 239, 0.42);
+      --text: #e5efff;
+      --muted: #a7bee4;
+      --accent: #86beff;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
+
+    #ar-app {
+      position: fixed;
+      inset: 0;
+    }
+
+    .ar-overlay {
+      position: fixed;
+      left: 10px;
+      right: 10px;
+      top: 10px;
+      z-index: 12;
+      padding: 0.65rem 0.72rem;
+      border-radius: 12px;
+      border: 1px solid var(--panel-border);
+      background: var(--panel);
+      backdrop-filter: blur(10px) saturate(125%);
+      pointer-events: auto;
+    }
+
+    .ar-overlay h1 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+    }
+
+    .ar-overlay p {
+      margin: 0.25rem 0 0;
+      color: var(--muted);
+      font-size: 0.8rem;
+      line-height: 1.35;
+    }
+
+    .ar-toolbar {
+      margin-top: 0.44rem;
+      display: flex;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+
+    .ar-toolbar a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 0.35rem 0.56rem;
+      border-radius: 9px;
+      border: 1px solid rgba(133, 177, 247, 0.55);
+      background: rgba(16, 36, 70, 0.9);
+      color: #dbe9ff;
+      font-size: 0.75rem;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .ar-toolbar a:hover {
+      background: rgba(25, 52, 98, 0.95);
+    }
+
+    .ar-marker-hint {
+      position: fixed;
+      right: 10px;
+      bottom: 10px;
+      width: 84px;
+      height: 84px;
+      z-index: 11;
+      border-radius: 10px;
+      border: 1px solid rgba(137, 178, 239, 0.5);
+      background: rgba(255, 255, 255, 0.94);
+      padding: 4px;
+      box-sizing: border-box;
+      pointer-events: auto;
+    }
+
+    .ar-marker-hint img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 6px;
+      display: block;
+    }
+
+    .a-enter-vr-button,
+    .a-orientation-modal,
+    .a-canvas-loader {
+      display: none !important;
+    }
+  </style>
+
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.min.js"></script>
+</head>
+
+<body>
+  <div id="ar-app">
+    <section class="ar-overlay" aria-live="polite">
+      <h1>Orbinex AR Viewer: <span id="ar-model-name">Bumi</span></h1>
+      <p id="ar-status">Aktifkan kamera, scan marker Hiro, lalu objek akan muncul di atas marker.</p>
+      <div class="ar-toolbar">
+        <a id="open-desktop" href="#" rel="noopener noreferrer">Buka Simulasi Desktop</a>
+        <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank"
+          rel="noopener noreferrer">Buka Marker Hiro</a>
+      </div>
+    </section>
+
+    <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" class="ar-marker-hint"
+      target="_blank" rel="noopener noreferrer" aria-label="Marker Hiro">
+      <img src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
+        alt="Marker Hiro untuk tracking AR" />
+    </a>
+
+    <a-scene embedded vr-mode-ui="enabled: false" renderer="antialias: true; alpha: true"
+      arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false;">
+      <a-marker id="orbinex-marker" preset="hiro">
+        <a-entity id="model-root" position="0 0 0"></a-entity>
+      </a-marker>
+      <a-entity camera></a-entity>
+    </a-scene>
+  </div>
+
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const requestedModel = (params.get("model") || "Bumi").trim() || "Bumi";
+      const modelNameEl = document.getElementById("ar-model-name");
+      const statusEl = document.getElementById("ar-status");
+      const markerEl = document.getElementById("orbinex-marker");
+      const modelRoot = document.getElementById("model-root");
+      const openDesktopLink = document.getElementById("open-desktop");
+
+      modelNameEl.textContent = requestedModel;
+
+      const baseUrl = new URL(".", window.location.href);
+      const desktopUrl = new URL("./", baseUrl);
+      desktopUrl.searchParams.set("desktop", "1");
+      desktopUrl.searchParams.set("model", requestedModel);
+      openDesktopLink.href = desktopUrl.toString();
+
+      function profileForModel(name) {
+        const text = (name || "").toLowerCase();
+        if (/matahari|sun/.test(text)) {
+          return {
+            geometry: "primitive: sphere; radius: 0.42",
+            material: "color: #ffd67f; emissive: #f8c862; emissiveIntensity: 0.9; roughness: 0.35; metalness: 0.05",
+            ring: false,
+            tail: false,
+            pulse: true,
+          };
+        }
+        if (/saturn|saturnus/.test(text)) {
+          return {
+            geometry: "primitive: sphere; radius: 0.34",
+            material: "color: #dcbf8b; roughness: 0.7; metalness: 0.08",
+            ring: true,
+            tail: false,
+            pulse: false,
+          };
+        }
+        if (/jupiter/.test(text)) {
+          return {
+            geometry: "primitive: sphere; radius: 0.36",
+            material: "color: #d3aa73; roughness: 0.74; metalness: 0.06",
+            ring: false,
+            tail: false,
+            pulse: false,
+          };
+        }
+        if (/mars/.test(text)) {
+          return {
+            geometry: "primitive: sphere; radius: 0.29",
+            material: "color: #c45f4c; roughness: 0.78; metalness: 0.06",
+            ring: false,
+            tail: false,
+            pulse: false,
+          };
+        }
+        if (/bulan|moon/.test(text)) {
+          return {
+            geometry: "primitive: sphere; radius: 0.22",
+            material: "color: #d8d8d8; roughness: 0.9; metalness: 0.02",
+            ring: false,
+            tail: false,
+            pulse: false,
+          };
+        }
+        if (/komet|comet/.test(text)) {
+          return {
+            geometry: "primitive: sphere; radius: 0.18",
+            material: "color: #cfddef; roughness: 0.65; metalness: 0.03",
+            ring: false,
+            tail: true,
+            pulse: false,
+          };
+        }
+        if (/meteor|asteroid|kuiper/.test(text)) {
+          return {
+            geometry: "primitive: dodecahedron; radius: 0.17",
+            material: "color: #af8c67; roughness: 0.88; metalness: 0.06",
+            ring: false,
+            tail: false,
+            pulse: false,
+          };
+        }
+
+        return {
+          geometry: "primitive: sphere; radius: 0.31",
+          material: "color: #4ea7ff; roughness: 0.62; metalness: 0.08",
+          ring: false,
+          tail: false,
+          pulse: false,
+        };
+      }
+
+      function createEntity(tagName, attrs) {
+        const node = document.createElement(tagName);
+        Object.keys(attrs).forEach((key) => {
+          node.setAttribute(key, attrs[key]);
+        });
+        return node;
+      }
+
+      function mountModel(name) {
+        const profile = profileForModel(name);
+        modelRoot.innerHTML = "";
+
+        const body = createEntity("a-entity", {
+          geometry: profile.geometry,
+          material: profile.material,
+          position: "0 0.34 0",
+          "animation__spin": "property: rotation; to: 0 360 0; loop: true; dur: 12000; easing: linear",
+        });
+
+        if (profile.pulse) {
+          body.setAttribute(
+            "animation__pulse",
+            "property: scale; dir: alternate; loop: true; dur: 1200; from: 1 1 1; to: 1.08 1.08 1.08",
+          );
+        }
+
+        modelRoot.appendChild(body);
+
+        if (profile.ring) {
+          const ring = createEntity("a-entity", {
+            geometry: "primitive: torus; radius: 0.54; radiusTubular: 0.04; segmentsTubular: 56; segmentsRadial: 12",
+            material: "color: #c7ae84; roughness: 0.82; metalness: 0.04; opacity: 0.76; transparent: true",
+            rotation: "90 12 0",
+            position: "0 0.34 0",
+          });
+          modelRoot.appendChild(ring);
+        }
+
+        if (profile.tail) {
+          const tail = createEntity("a-entity", {
+            geometry: "primitive: cone; radiusBottom: 0.18; radiusTop: 0.01; height: 0.9",
+            material: "color: #dcecff; opacity: 0.45; transparent: true",
+            position: "0 0.34 -0.52",
+            rotation: "-90 0 0",
+          });
+          modelRoot.appendChild(tail);
+        }
+
+        const label = createEntity("a-text", {
+          value: name,
+          align: "center",
+          color: "#d8e8ff",
+          position: "0 0.95 0",
+          scale: "0.75 0.75 0.75",
+          side: "double",
+          width: "2.4",
+        });
+        modelRoot.appendChild(label);
+      }
+
+      mountModel(requestedModel);
+
+      markerEl.addEventListener("markerFound", function () {
+        statusEl.textContent = "Marker terdeteksi. Objek AR aktif di atas marker.";
+      });
+
+      markerEl.addEventListener("markerLost", function () {
+        statusEl.textContent = "Marker hilang. Arahkan kamera ke marker Hiro agar objek muncul lagi.";
+      });
+
+      if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
+        statusEl.textContent = "Perlu HTTPS agar izin kamera AR bisa aktif di browser modern.";
+      }
+    })();
+  </script>
+</body>
+
+</html>

@@ -50,6 +50,35 @@
 <body>
   <a class="skip-link" href="#sim-main">Lewati ke simulasi utama</a>
   <orbinex-app id="app"></orbinex-app>
+  <script>
+    (function () {
+      const ua = navigator.userAgent || "";
+      const isMobile = /android|iphone|ipad|ipod|windows phone|mobile/i.test(ua);
+      if (!isMobile) {
+        return;
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("desktop") === "1") {
+        return;
+      }
+
+      const pathname = window.location.pathname.toLowerCase();
+      if (pathname.endsWith("/ar-view.html") || pathname.endsWith("ar-view.html")) {
+        return;
+      }
+
+      const baseUrl = new URL(".", window.location.href);
+      const targetUrl = new URL("ar-view.html", baseUrl);
+      const model = params.get("model");
+      if (model) {
+        targetUrl.searchParams.set("model", model);
+      }
+      targetUrl.searchParams.set("from", "mobile-auto");
+
+      window.location.replace(targetUrl.toString());
+    })();
+  </script>
   <script type="module" src="/src/main.ts"></script>
 </body>
 

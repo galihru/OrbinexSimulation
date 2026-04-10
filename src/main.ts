@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import QRCode from "qrcode";
 
 import {
     constants,
@@ -312,7 +313,21 @@ app.innerHTML = `
 
             <section id="info-panel" class="info-panel" aria-live="polite" aria-label="Panel detail objek">
                 <div class="info-head">
-                    <canvas id="info-preview" class="info-image" aria-label="Pratinjau 3D objek"></canvas>
+                    <div class="info-media">
+                        <canvas id="info-preview" class="info-image" aria-label="Pratinjau 3D objek"></canvas>
+                        <figure id="info-ar-card" class="info-ar-card" aria-label="QR AR objek aktif">
+                            <img id="info-ar-qr" class="info-ar-qr" alt="QR AR belum tersedia" />
+                            <figcaption id="info-ar-caption" class="info-ar-caption">Scan HP untuk AR objek aktif</figcaption>
+                            <a id="info-ar-link" class="info-ar-link" href="#" target="_blank" rel="noopener noreferrer">Buka AR di HP</a>
+                            <img
+                                id="info-ar-marker"
+                                class="info-ar-marker"
+                                src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
+                                alt="Marker Hiro untuk tracking AR"
+                                loading="lazy"
+                            />
+                        </figure>
+                    </div>
                     <div>
                         <h2 id="info-name">Tidak ada objek dipilih</h2>
                         <p id="info-kind">-</p>
@@ -417,6 +432,10 @@ const hierarchyResetButton = byId<HTMLButtonElement>("hierarchy-reset");
 
 const infoPanel = byId<HTMLElement>("info-panel");
 const infoPreviewCanvas = byId<HTMLCanvasElement>("info-preview");
+const infoArCard = byId<HTMLElement>("info-ar-card");
+const infoArQr = byId<HTMLImageElement>("info-ar-qr");
+const infoArCaption = byId<HTMLElement>("info-ar-caption");
+const infoArLink = byId<HTMLAnchorElement>("info-ar-link");
 const infoName = byId<HTMLElement>("info-name");
 const infoKind = byId<HTMLElement>("info-kind");
 const infoSource = byId<HTMLElement>("info-source");
@@ -442,6 +461,10 @@ const infoPosition = byId<HTMLElement>("info-position");
 const infoVelocity = byId<HTMLElement>("info-velocity");
 const infoDescription = byId<HTMLElement>("info-description");
 const infoPinButton = byId<HTMLButtonElement>("info-pin");
+
+let infoArQrCurrentUrl = "";
+let infoArQrPendingUrl = "";
+let infoArQrRenderToken = 0;
 
 const runButton = byId<HTMLButtonElement>("btn-run");
 const focusButton = byId<HTMLButtonElement>("btn-focus");
@@ -4892,6 +4915,7 @@ function updateInfoPanel(): void {
     if (!uiState.showInfo || !body) {
         infoPanel.classList.remove("is-visible");
         clearInfoPreviewBody();
+        resetInfoArCard();
         return;
     }
 
@@ -4962,6 +4986,7 @@ function updateInfoPanel(): void {
         ?? "Objek kosmik aktif dalam simulasi. Klik pin untuk menahan panel saat eksplorasi.";
 
     setInfoPreviewBody(body);
+    void updateInfoArCard(body);
 
     infoPinButton.textContent = uiState.infoPinned ? "Unpin Panel" : "Pin Panel";
 }
@@ -5130,6 +5155,75 @@ function formatOrbitDistance(distanceMeters: number): string {
         return `${(ly / 1000).toFixed(3)} kly`;
     }
     return `${(ly / 1_000_000).toFixed(3)} Mly`;
+}
+
+function arViewerUrlForObject(objectName?: string): string {
+    const baseUrl = new URL(".", window.location.href);
+    const arUrl = new URL("ar-view.html", baseUrl);
+    const trimmed = objectName?.trim();
+    if (trimmed) {
+        arUrl.searchParams.set("model", trimmed);
+    }
+    arUrl.searchParams.set("from", "qr");
+    return arUrl.toString();
+}
+
+function resetInfoArCard(): void {
+    infoArQrCurrentUrl = "";
+    infoArQrPendingUrl = "";
+    infoArQrRenderToken += 1;
+    infoArCard.classList.remove("is-loading");
+    infoArQr.removeAttribute("src");
+    infoArQr.alt = "QR AR belum tersedia";
+    infoArCaption.textContent = "Scan HP untuk AR objek aktif";
+    infoArLink.textContent = "Buka AR di HP";
+    infoArLink.href = arViewerUrlForObject();
+}
+
+async function updateInfoArCard(body: UniverseBody): Promise<void> {
+    const arUrl = arViewerUrlForObject(body.name);
+    infoArLink.href = arUrl;
+    infoArLink.textContent = `Buka AR ${body.name}`;
+    infoArCaption.textContent = "Scan QR HP, lalu arahkan ke marker Hiro.";
+    infoArQr.alt = `QR AR untuk ${body.name}`;
+
+    if (infoArQrCurrentUrl === arUrl && !!infoArQr.getAttribute("src")) {
+        return;
+    }
+    if (infoArQrPendingUrl === arUrl) {
+        return;
+    }
+
+    infoArQrPendingUrl = arUrl;
+    infoArCard.classList.add("is-loading");
+    const token = ++infoArQrRenderToken;
+    try {
+        const qrDataUrl = await QRCode.toDataURL(arUrl, {
+            width: 152,
+            margin: 1,
+            errorCorrectionLevel: "M",
+            color: {
+                dark: "#082557",
+                light: "#f6f9ff",
+            },
+        });
+
+        if (token !== infoArQrRenderToken) {
+            return;
+        }
+
+        infoArQrPendingUrl = "";
+        infoArQr.src = qrDataUrl;
+        infoArQrCurrentUrl = arUrl;
+        infoArCard.classList.remove("is-loading");
+    } catch {
+        if (token !== infoArQrRenderToken) {
+            return;
+        }
+        infoArQrPendingUrl = "";
+        infoArCard.classList.remove("is-loading");
+        infoArCaption.textContent = "QR gagal dibuat. Gunakan tombol Buka AR di HP.";
+    }
 }
 
 function fallbackParentNameForBody(body: UniverseBody): string | null {
