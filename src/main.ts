@@ -33,6 +33,10 @@ type UiState = {
     focusName: string;
     hoverKey: string | null;
     selectedKey: string | null;
+    pointedKey: string | null;
+    pointerClientX: number;
+    pointerClientY: number;
+    pointerInsideCanvas: boolean;
     infoPinned: boolean;
     showInfo: boolean;
     showSearch: boolean;
@@ -247,11 +251,18 @@ const YEAR_SECONDS = 365.25 * 86400;
 const AUTO_REFRESH_MS = 45 * 1000;
 const PLANCK_REDUCED = 1.054571817e-34;
 const BOLTZMANN = 1.380649e-23;
+const LIGHT_YEAR_METERS = 9.4607304725808e15;
 
 const app = byId<HTMLElement>("app");
 app.innerHTML = `
   <main id="sim-main" class="sim-root" aria-label="Orbinex full canvas simulation">
         <canvas id="universe-canvas" aria-label="Kanvas simulasi semesta tiga dimensi"></canvas>
+
+        <section id="hover-card" class="hover-card is-hidden" aria-live="polite" aria-label="Ringkasan objek di bawah kursor">
+            <p id="hover-card-name" class="hover-card-name">-</p>
+            <p id="hover-card-parent" class="hover-card-parent">-</p>
+            <p id="hover-card-distance" class="hover-card-distance">-</p>
+        </section>
 
         <section id="splash" class="splash is-visible" role="dialog" aria-modal="true" aria-label="Memuat OrbinexSimulation">
             <img src="${splashLogoUrl}" alt="Logo Orbinex" width="128" height="128" />
@@ -379,6 +390,10 @@ const splash = byId<HTMLElement>("splash");
 const splashStatus = byId<HTMLElement>("splash-status");
 const splashProgress = byId<HTMLProgressElement>("splash-progress");
 const splashPercent = byId<HTMLElement>("splash-percent");
+const hoverCard = byId<HTMLElement>("hover-card");
+const hoverCardName = byId<HTMLElement>("hover-card-name");
+const hoverCardParent = byId<HTMLElement>("hover-card-parent");
+const hoverCardDistance = byId<HTMLElement>("hover-card-distance");
 
 const hudText = byId<HTMLPreElement>("hud-text");
 const eventsList = byId<HTMLOListElement>("events-list");
@@ -519,6 +534,10 @@ const uiState: UiState = {
     focusName: "Bumi",
     hoverKey: null,
     selectedKey: null,
+    pointedKey: null,
+    pointerClientX: 0,
+    pointerClientY: 0,
+    pointerInsideCanvas: false,
     infoPinned: false,
     showInfo: true,
     showSearch: true,
@@ -575,10 +594,10 @@ const starfield = (() => {
     geo.setAttribute("position", new THREE.BufferAttribute(points, 3));
     const mat = new THREE.PointsMaterial({
         color: 0xbad5ff,
-        size: 0.82,
+        size: 0.68,
         sizeAttenuation: true,
         transparent: true,
-        opacity: 0.44,
+        opacity: 0.22,
     });
     const cloud = new THREE.Points(geo, mat);
     scene.add(cloud);
@@ -4606,6 +4625,95 @@ function formatDistanceKm(distanceKm: number): string {
     return `${safe.toFixed(2)} km`;
 }
 
+function formatOrbitDistance(distanceMeters: number): string {
+    const safe = Math.max(distanceMeters, 0);
+    const au = safe / constants.auMeters;
+    if (au < 0.02) {
+        return `${(safe / 1000).toLocaleString(undefined, { maximumFractionDigits: 0 })} km`;
+    }
+    if (au < 3000) {
+        return `${au.toFixed(3)} AU`;
+    }
+
+    const ly = safe / LIGHT_YEAR_METERS;
+    if (ly < 1000) {
+        return `${ly.toFixed(3)} ly`;
+    }
+    if (ly < 1_000_000) {
+        return `${(ly / 1000).toFixed(3)} kly`;
+    }
+    return `${(ly / 1_000_000).toFixed(3)} Mly`;
+}
+
+function fallbackParentNameForBody(body: UniverseBody): string | null {
+    if (body.parentName) {
+        return body.parentName;
+    }
+
+    if (body.name === "Matahari" && bodyByNameAny("Bima Sakti")) {
+        return "Bima Sakti";
+    }
+    if (body.kind === "galaxy" && bodyByNameAny("Grup Lokal")) {
+        return "Grup Lokal";
+    }
+    if (body.kind === "cluster" && body.name !== "Laniakea" && bodyByNameAny("Laniakea")) {
+        return "Laniakea";
+    }
+    return null;
+}
+
+function hoverCardBody(): UniverseBody | null {
+    if (uiState.pointedKey) {
+        return bodyNodes.get(uiState.pointedKey)?.body ?? null;
+    }
+    return null;
+}
+
+function updateHoverCard(): void {
+    const body = hoverCardBody();
+    if (!uiState.pointerInsideCanvas || !body) {
+        hoverCard.classList.add("is-hidden");
+        return;
+    }
+
+    const parentName = fallbackParentNameForBody(body);
+    const parentBody = parentName ? bodyByNameAny(parentName) : null;
+    const orbitDistanceMeters = parentBody
+        ? Math.hypot(
+            body.position.x - parentBody.position.x,
+            body.position.y - parentBody.position.y,
+            body.position.z - parentBody.position.z,
+        )
+        : null;
+
+    hoverCardName.textContent = `${body.name} [${body.kind}]`;
+    hoverCardParent.textContent = `Orbit ke: ${parentName ?? "root / tanpa parent"}`;
+    hoverCardDistance.textContent = orbitDistanceMeters === null
+        ? "Jarak orbit: n/a"
+        : `Jarak orbit: ${formatOrbitDistance(orbitDistanceMeters)}`;
+
+    hoverCard.classList.remove("is-hidden");
+
+    const cardWidth = hoverCard.offsetWidth || 260;
+    const cardHeight = hoverCard.offsetHeight || 108;
+    const pad = 16;
+    let left = uiState.pointerClientX + pad;
+    let top = uiState.pointerClientY + pad;
+
+    if (left + cardWidth > window.innerWidth - 8) {
+        left = uiState.pointerClientX - cardWidth - pad;
+    }
+    if (top + cardHeight > window.innerHeight - 8) {
+        top = uiState.pointerClientY - cardHeight - pad;
+    }
+
+    left = clamp(left, 8, Math.max(8, window.innerWidth - cardWidth - 8));
+    top = clamp(top, 8, Math.max(8, window.innerHeight - cardHeight - 8));
+
+    hoverCard.style.left = `${left}px`;
+    hoverCard.style.top = `${top}px`;
+}
+
 function bodyByNameAny(name: string): UniverseBody | null {
     return bodyByName(name) ?? findExistingBodyByName(name);
 }
@@ -5131,28 +5239,8 @@ function updatePanelVisibility(): void {
 }
 
 function currentNodeTargets(): BodyNode[] {
-    const zoomSpan = cameraZoomSpan();
-    const nodeBodies = Array.from(bodyNodes.values()).map((node) => node.body);
-    const bodyIndex = new Map<string, UniverseBody>(nodeBodies.map((body) => [body.name, body]));
-    const focusBody = bodyIndex.get(uiState.focusName) ?? bodyByNameAny(uiState.focusName);
-    const structureRoot = focusedStructureRoot(focusBody, bodyIndex);
-
     return Array.from(bodyNodes.values())
-        .filter((node) => node.mesh.visible)
-        .filter((node) => {
-            if (zoomSpan >= 240) {
-                return true;
-            }
-
-            if (structureRoot) {
-                const relation = bodyInFocusedBranch(node.body, structureRoot, bodyIndex);
-                return relation.inBranch || node.body.name === structureRoot.name || uiState.selectedKey === node.key;
-            }
-
-            return isSolarSystemBody(node.body)
-                || node.body.name === uiState.focusName
-                || uiState.selectedKey === node.key;
-        });
+        .filter((node) => node.mesh.visible);
 }
 
 function currentMeshTargets(): THREE.Object3D[] {
@@ -5167,6 +5255,8 @@ function nearestBodyKeyFromPointer(): string | null {
 
     let bestKey: string | null = null;
     let bestScore = Number.POSITIVE_INFINITY;
+    let fallbackKey: string | null = null;
+    let fallbackDistance = Number.POSITIVE_INFINITY;
     const zoomSpan = cameraZoomSpan();
     const maxNdcDistance = zoomSpan < 120 ? 0.14 : zoomSpan < 500 ? 0.11 : 0.085;
 
@@ -5179,10 +5269,14 @@ function nearestBodyKeyFromPointer(): string | null {
         const dx = projected.x - pointer.x;
         const dy = projected.y - pointer.y;
         const ndcDistance = Math.hypot(dx, dy);
+        if (ndcDistance < fallbackDistance) {
+            fallbackDistance = ndcDistance;
+            fallbackKey = node.key;
+        }
         const distanceCamera = Math.max(camera.position.distanceTo(node.mesh.position), 1);
         const worldRadius = Math.max(node.mesh.scale.length() / Math.sqrt(3), 0.04);
         const projectedRadiusNdc = clamp((worldRadius / distanceCamera) * 6.2, 0.012, 0.11);
-        const allowedNdc = Math.max(maxNdcDistance, projectedRadiusNdc * 2.4);
+        const allowedNdc = Math.max(maxNdcDistance, projectedRadiusNdc * 3.0);
         if (ndcDistance > allowedNdc) {
             continue;
         }
@@ -5197,7 +5291,15 @@ function nearestBodyKeyFromPointer(): string | null {
         }
     }
 
-    return bestKey;
+    if (bestKey) {
+        return bestKey;
+    }
+
+    if (fallbackKey && fallbackDistance < 0.21) {
+        return fallbackKey;
+    }
+
+    return null;
 }
 
 function updateHoverByRaycast(): void {
@@ -5205,6 +5307,7 @@ function updateHoverByRaycast(): void {
         if (!uiState.infoPinned) {
             uiState.hoverKey = null;
         }
+        uiState.pointedKey = null;
         canvas.style.cursor = "default";
         return;
     }
@@ -5223,6 +5326,7 @@ function updateHoverByRaycast(): void {
     const object = preferredHit?.object as THREE.Mesh | undefined;
     const raycastKey = typeof object?.userData.bodyKey === "string" ? object.userData.bodyKey as string : null;
     const key = raycastKey ?? nearestBodyKeyFromPointer();
+    uiState.pointedKey = key;
 
     if (!uiState.infoPinned) {
         uiState.hoverKey = key;
@@ -5374,26 +5478,33 @@ function bindUiHandlers(): void {
 
         pointer.x = x * 2 - 1;
         pointer.y = -(y * 2 - 1);
+        uiState.pointerClientX = event.clientX;
+        uiState.pointerClientY = event.clientY;
+        uiState.pointerInsideCanvas = true;
     });
 
     canvas.addEventListener("pointerleave", () => {
         pointer.x = 2;
         pointer.y = 2;
+        uiState.pointerInsideCanvas = false;
+        uiState.pointedKey = null;
         if (!uiState.infoPinned) {
             uiState.hoverKey = null;
             updateInfoPanel();
         }
+        updateHoverCard();
     });
 
     canvas.addEventListener("click", () => {
-        if (uiState.hoverKey) {
-            const hoveredBody = bodyNodes.get(uiState.hoverKey)?.body;
+        const targetKey = uiState.pointedKey ?? uiState.hoverKey;
+        if (targetKey) {
+            const hoveredBody = bodyNodes.get(targetKey)?.body;
             if (hoveredBody) {
                 const selectedBody = normalizeClickedFocusBody(hoveredBody);
                 const preferredDistance = preferredFocusDistance(selectedBody);
                 setFocusBody(selectedBody, { pinInfo: true, preferredDistance, durationMs: 760 });
             } else {
-                uiState.selectedKey = uiState.hoverKey;
+                uiState.selectedKey = targetKey;
                 uiState.infoPinned = true;
                 updateInfoPanel();
             }
@@ -5581,6 +5692,7 @@ function animate(now: number): void {
     updateNodes(dtMs);
     rebuildOrbitGuides();
     updateHoverByRaycast();
+    updateHoverCard();
     updateFocusTarget();
     updateCameraFlight(now);
     updateEventPulses(dtMs);

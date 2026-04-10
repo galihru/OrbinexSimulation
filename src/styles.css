@@ -153,7 +153,7 @@ orbinex-app,
     border: 1px solid var(--line);
     border-radius: 13px;
     background: linear-gradient(165deg, rgba(8, 20, 45, 0.9), rgba(7, 15, 31, 0.82));
-    backdrop-filter: blur(6px);
+    backdrop-filter: blur(12px) saturate(130%);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -232,9 +232,52 @@ input:focus-visible {
     border: 1px solid var(--line);
     border-radius: 12px;
     background: linear-gradient(160deg, var(--panel), var(--panel-soft));
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(12px) saturate(125%);
     box-shadow: 0 14px 30px rgba(2, 8, 20, 0.4);
     z-index: 46;
+}
+
+.hover-card {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: min(300px, calc(100vw - 18px));
+    padding: 0.5rem 0.62rem;
+    border-radius: 12px;
+    border: 1px solid rgba(139, 187, 255, 0.55);
+    background: linear-gradient(155deg, rgba(11, 24, 54, 0.84), rgba(7, 16, 36, 0.8));
+    backdrop-filter: blur(14px) saturate(132%);
+    box-shadow: 0 12px 26px rgba(1, 7, 18, 0.46);
+    z-index: 120;
+    pointer-events: none;
+    transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.hover-card.is-hidden {
+    opacity: 0;
+    transform: translateY(4px) scale(0.985);
+}
+
+.hover-card:not(.is-hidden) {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.hover-card-name {
+    margin: 0;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #e8f2ff;
+}
+
+.hover-card-parent,
+.hover-card-distance {
+    margin: 0.2rem 0 0;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.68rem;
+    line-height: 1.36;
+    color: #b7cef1;
 }
 
 .right-stack {
@@ -647,6 +690,7 @@ input:focus-visible {
     border: 1px solid rgba(115, 160, 231, 0.34);
     border-radius: 10px;
     background: rgba(4, 12, 27, 0.76);
+    backdrop-filter: blur(12px) saturate(120%);
     color: #a7c2eb;
     font-size: 0.7rem;
     padding: 0.36rem 0.55rem;
