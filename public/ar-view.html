@@ -599,12 +599,6 @@
                 <a id="open-marker" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
                     target="_blank" rel="noopener noreferrer">Buka Marker Aktif</a>
                 <button id="install-pwa" type="button">Install App</button>
-                <button id="device-access" type="button">Akses Device</button>
-                <button id="request-all-access" type="button">Minta Semua Akses</button>
-                <button id="request-camera-access" type="button">Izin Kamera</button>
-                <button id="request-location-access" type="button">Izin Lokasi</button>
-                <button id="request-microphone-access" type="button">Izin Mikrofon</button>
-                <button id="request-sensor-access" type="button">Izin Sensor</button>
                 <button id="zoom-in" type="button">Zoom +</button>
                 <button id="zoom-out" type="button">Zoom -</button>
                 <button id="rot-left" type="button">Rotasi -</button>
@@ -694,12 +688,6 @@
             const openDesktopLink = document.getElementById("open-desktop");
             const openMarkerLink = document.getElementById("open-marker");
             const installPwaButton = document.getElementById("install-pwa");
-            const deviceAccessButton = document.getElementById("device-access");
-            const requestAllAccessButton = document.getElementById("request-all-access");
-            const requestCameraAccessButton = document.getElementById("request-camera-access");
-            const requestLocationAccessButton = document.getElementById("request-location-access");
-            const requestMicrophoneAccessButton = document.getElementById("request-microphone-access");
-            const requestSensorAccessButton = document.getElementById("request-sensor-access");
             const zoomInButton = document.getElementById("zoom-in");
             const zoomOutButton = document.getElementById("zoom-out");
             const rotLeftButton = document.getElementById("rot-left");
@@ -782,6 +770,8 @@
             let arLowLagModeActive = false;
             let arWakeLockHandle = null;
             let arSystem = null;
+            let naturalArAccessRequested = false;
+            let naturalArAccessInFlight = false;
 
             function updateInstallPwaButton() {
                 if (!installPwaButton) {
@@ -798,26 +788,6 @@
                 installPwaButton.title = deferredInstallPrompt
                     ? "Install app ke home screen"
                     : "Gunakan menu browser > Add to Home Screen";
-
-                if (deviceAccessButton) {
-                    deviceAccessButton.title = "Minta akses aplikasi/layanan perangkat";
-                }
-
-                if (requestAllAccessButton) {
-                    requestAllAccessButton.title = "Meminta akses VR/AR/device dalam satu tindakan";
-                }
-                if (requestCameraAccessButton) {
-                    requestCameraAccessButton.title = "Meminta izin kamera";
-                }
-                if (requestLocationAccessButton) {
-                    requestLocationAccessButton.title = "Meminta izin lokasi";
-                }
-                if (requestMicrophoneAccessButton) {
-                    requestMicrophoneAccessButton.title = "Meminta izin mikrofon";
-                }
-                if (requestSensorAccessButton) {
-                    requestSensorAccessButton.title = "Meminta izin sensor gerak";
-                }
             }
 
             function permissionSummary(label, result) {
@@ -857,19 +827,46 @@
             }
 
             function capabilityReportLines(capabilities) {
-                return [
-                    permissionSummary("Virtual reality", capabilities.virtualReality),
-                    permissionSummary("Augmented reality", capabilities.augmentedReality),
-                    permissionSummary("Your device use", capabilities.deviceUse),
-                    permissionSummary("Lokasi perangkat", capabilities.geolocation),
-                    permissionSummary("Sensor gerak", capabilities.motionSensors),
-                    permissionSummary("Mikrofon", capabilities.microphone),
-                    permissionSummary("Device services", capabilities.relatedAppsProbe),
-                    permissionSummary("Akses kamera AR", capabilities.camera),
-                    permissionSummary("Notifikasi", capabilities.notifications),
-                    permissionSummary("Penyimpanan offline", capabilities.persistentStorage),
-                    permissionSummary("Aktifkan layar saat AR", capabilities.wakeLock),
+                const entries = [
+                    ["Virtual reality", capabilities.virtualReality],
+                    ["Augmented reality", capabilities.augmentedReality],
+                    ["Your device use", capabilities.deviceUse],
+                    ["Lokasi perangkat", capabilities.geolocation],
+                    ["Sensor gerak", capabilities.motionSensors],
+                    ["Mikrofon", capabilities.microphone],
+                    ["Device services", capabilities.relatedAppsProbe],
+                    ["Akses kamera AR", capabilities.camera],
+                    ["Notifikasi", capabilities.notifications],
+                    ["Penyimpanan offline", capabilities.persistentStorage],
+                    ["Aktifkan layar saat AR", capabilities.wakeLock],
                 ];
+
+                const supportedLines = entries
+                    .filter(([, result]) => result !== "unsupported")
+                    .map(([label, result]) => permissionSummary(label, result));
+
+                if (supportedLines.length > 0) {
+                    return supportedLines;
+                }
+
+                return ["Akses tambahan tidak didukung di browser ini."];
+            }
+
+            async function requestNaturalArAccess(trigger) {
+                if (naturalArAccessRequested || naturalArAccessInFlight) {
+                    return;
+                }
+
+                naturalArAccessInFlight = true;
+                try {
+                    const capabilities = await requestArAccessPermissions();
+                    await applyArPermissionDrivenOptimizations(capabilities, trigger);
+                    naturalArAccessRequested = true;
+                } catch {
+                    naturalArAccessRequested = false;
+                } finally {
+                    naturalArAccessInFlight = false;
+                }
             }
 
             function hasGrantedCapability(capabilities) {
@@ -1122,22 +1119,6 @@
                 return capabilities;
             }
 
-            async function runSinglePermissionPrompt(buttonEl, label, permissionFn) {
-                if (!buttonEl) {
-                    return;
-                }
-
-                buttonEl.disabled = true;
-                try {
-                    const result = await permissionFn();
-                    const line = permissionSummary(label, result);
-                    statusEl.textContent = line;
-                    systemMetaEl.textContent = line;
-                } finally {
-                    buttonEl.disabled = false;
-                }
-            }
-
             async function applyArPermissionDrivenOptimizations(capabilities, trigger) {
                 if (capabilities.persistentStorage === "granted") {
                     await cachePwaDatabaseAssets();
@@ -1188,6 +1169,13 @@
                 updateInstallPwaButton();
                 void registerArPwaServiceWorker();
 
+                const handleNaturalAccessBootstrap = () => {
+                    void requestNaturalArAccess("interaksi awal");
+                };
+
+                window.addEventListener("pointerdown", handleNaturalAccessBootstrap, { once: true, passive: true });
+                window.addEventListener("keydown", handleNaturalAccessBootstrap, { once: true });
+
                 window.addEventListener("beforeinstallprompt", (event) => {
                     event.preventDefault();
                     deferredInstallPrompt = event;
@@ -1216,8 +1204,7 @@
                             return;
                         }
 
-                        const capabilities = await requestArAccessPermissions();
-                        await applyArPermissionDrivenOptimizations(capabilities, "akses install");
+                        await requestNaturalArAccess("akses install");
                         statusEl.textContent = "Meminta konfirmasi install dari browser...";
 
                         const promptEvent = deferredInstallPrompt;
@@ -1235,55 +1222,6 @@
                     });
                 }
 
-                if (deviceAccessButton) {
-                    deviceAccessButton.addEventListener("click", async () => {
-                        deviceAccessButton.disabled = true;
-                        try {
-                            const capabilities = await requestArAccessPermissions();
-                            await applyArPermissionDrivenOptimizations(capabilities, "akses manual");
-                            statusEl.textContent = "Akses perangkat selesai diproses.";
-                        } finally {
-                            deviceAccessButton.disabled = false;
-                        }
-                    });
-                }
-
-                if (requestAllAccessButton) {
-                    requestAllAccessButton.addEventListener("click", async () => {
-                        requestAllAccessButton.disabled = true;
-                        try {
-                            const capabilities = await requestArAccessPermissions();
-                            await applyArPermissionDrivenOptimizations(capabilities, "akses semua");
-                            statusEl.textContent = "Permintaan semua akses sudah dijalankan.";
-                        } finally {
-                            requestAllAccessButton.disabled = false;
-                        }
-                    });
-                }
-
-                if (requestCameraAccessButton) {
-                    requestCameraAccessButton.addEventListener("click", async () => {
-                        await runSinglePermissionPrompt(requestCameraAccessButton, "Akses kamera AR", requestCameraPermissionForAr);
-                    });
-                }
-
-                if (requestLocationAccessButton) {
-                    requestLocationAccessButton.addEventListener("click", async () => {
-                        await runSinglePermissionPrompt(requestLocationAccessButton, "Lokasi perangkat", requestGeolocationPermission);
-                    });
-                }
-
-                if (requestMicrophoneAccessButton) {
-                    requestMicrophoneAccessButton.addEventListener("click", async () => {
-                        await runSinglePermissionPrompt(requestMicrophoneAccessButton, "Mikrofon", requestMicrophonePermission);
-                    });
-                }
-
-                if (requestSensorAccessButton) {
-                    requestSensorAccessButton.addEventListener("click", async () => {
-                        await runSinglePermissionPrompt(requestSensorAccessButton, "Sensor gerak", requestMotionSensorPermission);
-                    });
-                }
             }
 
             setupArPwaInstallFlow();

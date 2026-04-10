@@ -351,7 +351,6 @@ app.innerHTML = `
                 <button id="btn-info" type="button">INFO</button>
                 <button id="btn-search" type="button">CARI</button>
                 <button id="btn-install" type="button">INSTALL</button>
-                <button id="btn-device-access" type="button">AKSES DEVICE</button>
                 <button id="btn-ref" type="button">REF</button>
                 <button id="btn-help" type="button">BANTU</button>
                 <button id="btn-language" type="button">BAHASA: ID</button>
@@ -546,7 +545,6 @@ const labelButton = byId<HTMLButtonElement>("btn-label");
 const infoButton = byId<HTMLButtonElement>("btn-info");
 const searchButton = byId<HTMLButtonElement>("btn-search");
 const installButton = byId<HTMLButtonElement>("btn-install");
-const deviceAccessButton = byId<HTMLButtonElement>("btn-device-access");
 const refButton = byId<HTMLButtonElement>("btn-ref");
 const helpButton = byId<HTMLButtonElement>("btn-help");
 const languageButton = byId<HTMLButtonElement>("btn-language");
@@ -759,6 +757,8 @@ let deferredInstallPrompt: DeferredInstallPromptEvent | null = null;
 let pwaInstalled = window.matchMedia("(display-mode: standalone)").matches
     || ((window.navigator as NavigatorWithInstalledRelatedApps).standalone === true);
 let pwaListenersBound = false;
+let naturalInstallAccessRequested = false;
+let naturalInstallAccessInFlight = false;
 
 const bodyDescriptions: Record<string, string> = {
     Matahari: "Bintang pusat sistem; sumber utama energi dan referensi gravitasi.",
@@ -2782,19 +2782,47 @@ function permissionSummary(label: string, result: PermissionProbeResult): string
 }
 
 function permissionReportLines(capabilities: PermissionCapabilityState): string[] {
-    return [
-        permissionSummary("Virtual reality", capabilities.virtualReality),
-        permissionSummary("Augmented reality", capabilities.augmentedReality),
-        permissionSummary("Your device use", capabilities.deviceUse),
-        permissionSummary("Lokasi perangkat", capabilities.geolocation),
-        permissionSummary("Sensor gerak", capabilities.motionSensors),
-        permissionSummary("Mikrofon", capabilities.microphone),
-        permissionSummary("Device services", capabilities.relatedAppsProbe),
-        permissionSummary("Akses kamera AR", capabilities.camera),
-        permissionSummary("Notifikasi", capabilities.notifications),
-        permissionSummary("Penyimpanan offline", capabilities.persistentStorage),
-        permissionSummary("Aktifkan layar saat simulasi", capabilities.wakeLock),
+    const entries: Array<[string, PermissionProbeResult]> = [
+        ["Virtual reality", capabilities.virtualReality],
+        ["Augmented reality", capabilities.augmentedReality],
+        ["Your device use", capabilities.deviceUse],
+        ["Lokasi perangkat", capabilities.geolocation],
+        ["Sensor gerak", capabilities.motionSensors],
+        ["Mikrofon", capabilities.microphone],
+        ["Device services", capabilities.relatedAppsProbe],
+        ["Akses kamera AR", capabilities.camera],
+        ["Notifikasi", capabilities.notifications],
+        ["Penyimpanan offline", capabilities.persistentStorage],
+        ["Aktifkan layar saat simulasi", capabilities.wakeLock],
     ];
+
+    const supportedLines = entries
+        .filter(([, result]) => result !== "unsupported")
+        .map(([label, result]) => permissionSummary(label, result));
+
+    if (supportedLines.length > 0) {
+        return supportedLines;
+    }
+
+    return ["Akses perangkat tambahan tidak didukung di browser ini."];
+}
+
+async function requestNaturalInstallAccess(trigger: string): Promise<void> {
+    if (naturalInstallAccessRequested || naturalInstallAccessInFlight) {
+        return;
+    }
+
+    naturalInstallAccessInFlight = true;
+    try {
+        const permissionCapabilities = await requestInstallAccessPermissions();
+        addLocalEvent(permissionReportLines(permissionCapabilities).join(" | "));
+        await applyPermissionDrivenOptimizations(permissionCapabilities, trigger);
+        naturalInstallAccessRequested = true;
+    } catch {
+        naturalInstallAccessRequested = false;
+    } finally {
+        naturalInstallAccessInFlight = false;
+    }
 }
 
 function hasGrantedCapability(capabilities: PermissionCapabilityState): boolean {
@@ -6529,8 +6557,6 @@ function updateActionButtons(): void {
     labelButton.textContent = viewState.showLabels ? t.labelOn : t.labelOff;
     infoButton.textContent = uiState.showInfo ? t.infoOn : t.infoOff;
     searchButton.textContent = uiState.showSearch ? t.searchOn : t.searchOff;
-    deviceAccessButton.textContent = t.deviceAccess;
-    deviceAccessButton.title = t.deviceAccessHint;
     helpButton.textContent = uiState.showHelp ? t.helpOn : t.helpOff;
     languageButton.textContent = t.lang;
     bottomHint.textContent = t.bottomHint;
@@ -6643,6 +6669,13 @@ function updateHoverByRaycast(): void {
 }
 
 function bindUiHandlers(): void {
+    const handleNaturalAccessBootstrap = () => {
+        void requestNaturalInstallAccess("interaksi awal");
+    };
+
+    window.addEventListener("pointerdown", handleNaturalAccessBootstrap, { once: true, passive: true });
+    window.addEventListener("keydown", handleNaturalAccessBootstrap, { once: true });
+
     runButton.addEventListener("click", () => {
         uiState.running = !uiState.running;
         engine.setPaused(!uiState.running);
@@ -6695,9 +6728,7 @@ function bindUiHandlers(): void {
             return;
         }
 
-        const permissionCapabilities = await requestInstallAccessPermissions();
-        addLocalEvent(permissionReportLines(permissionCapabilities).join(" | "));
-        await applyPermissionDrivenOptimizations(permissionCapabilities, "akses install");
+        await requestNaturalInstallAccess("akses install");
 
         const promptEvent = deferredInstallPrompt;
         deferredInstallPrompt = null;
@@ -6714,18 +6745,6 @@ function bindUiHandlers(): void {
         }
 
         updateInstallButtonState();
-    });
-
-    deviceAccessButton.addEventListener("click", async () => {
-        deviceAccessButton.disabled = true;
-        try {
-            const permissionCapabilities = await requestInstallAccessPermissions();
-            addLocalEvent(permissionReportLines(permissionCapabilities).join(" | "));
-            await applyPermissionDrivenOptimizations(permissionCapabilities, "akses manual");
-        } finally {
-            deviceAccessButton.disabled = false;
-            updateActionButtons();
-        }
     });
 
     helpButton.addEventListener("click", () => {
