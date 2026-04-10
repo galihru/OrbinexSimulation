@@ -311,6 +311,7 @@ app.innerHTML = `
                     <div><dt>Suhu perkiraan</dt><dd id="info-temperature">-</dd></div>
                     <div><dt>Rotasi</dt><dd id="info-rotation">-</dd></div>
                     <div><dt>Revolusi</dt><dd id="info-revolution">-</dd></div>
+                    <div><dt>Tingkat struktur</dt><dd id="info-hierarchy">-</dd></div>
                     <div><dt>Tipe orbit</dt><dd id="info-orbit-type">-</dd></div>
                     <div><dt>Gravitasi permukaan</dt><dd id="info-gravity">-</dd></div>
                     <div><dt>Kecepatan lepas</dt><dd id="info-escape">-</dd></div>
@@ -382,6 +383,7 @@ const infoSpeed = byId<HTMLElement>("info-speed");
 const infoTemperature = byId<HTMLElement>("info-temperature");
 const infoRotation = byId<HTMLElement>("info-rotation");
 const infoRevolution = byId<HTMLElement>("info-revolution");
+const infoHierarchy = byId<HTMLElement>("info-hierarchy");
 const infoOrbitType = byId<HTMLElement>("info-orbit-type");
 const infoGravity = byId<HTMLElement>("info-gravity");
 const infoEscape = byId<HTMLElement>("info-escape");
@@ -960,6 +962,25 @@ function normalizeCatalogKind(
 }
 
 function preferredFocusDistance(body: UniverseBody): number {
+    const rank = hierarchyRankForBody(body);
+    if (rank >= 13) {
+        return 5400;
+    }
+    if (rank === 12) {
+        return 3600;
+    }
+    if (rank === 11) {
+        return 2400;
+    }
+    if (rank === 10) {
+        return 1500;
+    }
+    if (rank === 9) {
+        return 980;
+    }
+    if (rank === 8) {
+        return 760;
+    }
     if (body.kind === "cluster") {
         return 760;
     }
@@ -979,6 +1000,98 @@ function preferredFocusDistance(body: UniverseBody): number {
         return 34;
     }
     return 180;
+}
+
+function hierarchyRankForBody(body: UniverseBody): number {
+    const name = body.name.toLowerCase();
+
+    if (name.includes("observable universe") || name.includes("alam semesta teramati")) {
+        return 13;
+    }
+    if (name.includes("void")) {
+        return 12;
+    }
+    if (name.includes("filamen") || name.includes("filament") || name.includes("cosmic web")) {
+        return 11;
+    }
+    if (name.includes("supercluster") || name.includes("superklaster") || name.includes("laniakea")) {
+        return 10;
+    }
+    if (name.includes("local group") || name.includes("grup lokal") || name.includes("group")) {
+        return 8;
+    }
+    if (body.kind === "cluster") {
+        return 9;
+    }
+    if (body.kind === "galaxy") {
+        return 7;
+    }
+    if (name.includes("lengan") || name.includes("arm")) {
+        return 6;
+    }
+    if (name.includes("sistem") || name.includes("system")) {
+        return 5;
+    }
+    if (body.kind === "star" || body.kind === "black-hole") {
+        return 4;
+    }
+    if (body.kind === "planet" || body.kind === "dwarf") {
+        return 3;
+    }
+    if (body.kind === "moon") {
+        return 1;
+    }
+    if (body.kind === "comet" || body.kind === "meteor" || body.kind === "asteroid" || body.kind === "kuiper") {
+        return 2;
+    }
+
+    return 5;
+}
+
+function hierarchyLabelForBody(body: UniverseBody): string {
+    const rank = hierarchyRankForBody(body);
+    const labels: Record<number, string> = {
+        1: "1. Satelit alami",
+        2: "2. Asteroid/Komet/Meteoroid",
+        3: "3. Planet",
+        4: "4. Bintang / Remnan kompak",
+        5: "5. Sistem gravitasi lokal",
+        6: "6. Lengan spiral galaksi",
+        7: "7. Galaksi",
+        8: "8. Galaxy Group",
+        9: "9. Galaxy Cluster",
+        10: "10. Supercluster",
+        11: "11. Filamen kosmik",
+        12: "12. Void kosmik",
+        13: "13. Observable Universe",
+    };
+    return labels[rank] ?? "5. Sistem gravitasi lokal";
+}
+
+function orbitGuideForBody(bodyName: string): UniverseOrbitGuide | undefined {
+    const guide = engine.getOrbitGuides(true).find((entry) => entry.bodyName === bodyName);
+    if (guide) {
+        return guide;
+    }
+
+    const dynamic = dynamicCatalogOrbits.get(bodyName);
+    if (!dynamic) {
+        return undefined;
+    }
+
+    const body = bodyByNameAny(bodyName);
+    return {
+        bodyName: dynamic.bodyName,
+        parentName: dynamic.parentName,
+        kind: body?.kind ?? "other",
+        isHypothesis: body?.isHypothesis ?? false,
+        semiMajorMeters: dynamic.semiMajorMeters,
+        orbitalPeriodSeconds: (2 * Math.PI) / Math.max(Math.abs(dynamic.omegaRadPerSec), 1e-15),
+        eccentricity: dynamic.eccentricity,
+        inclinationRad: dynamic.inclinationRad,
+        ascendingNodeRad: dynamic.ascendingNodeRad,
+        argumentPeriapsisRad: dynamic.argumentPeriapsisRad,
+    };
 }
 
 function catalogEntryToBody(entry: ExternalCatalogEntry): UniverseBody {
@@ -1113,6 +1226,172 @@ function estimateOrbitalPeriodDays(semiMajorMeters: number, parentMassKg: number
     return clamp(periodSec / 86400, 8, 2.0e12);
 }
 
+function upsertSyntheticBody(
+    body: UniverseBody,
+    description: string,
+    sources: string[] = ["Scientific Hierarchy Model"],
+): UniverseBody {
+    const existing = findExistingBodyByName(body.name);
+    if (existing) {
+        mergeBodySources(existing.name, sources);
+        bodyDescriptionsDynamic.set(existing.name, description);
+        if (existing.kind !== body.kind) {
+            existing.kind = body.kind;
+        }
+        if (!existing.parentName && body.parentName) {
+            existing.parentName = body.parentName;
+        }
+        return existing;
+    }
+
+    pushCatalogBody(body, {
+        sources,
+        description,
+    });
+    syntheticGalaxyBodyNames.add(body.name);
+    return body;
+}
+
+function ensureCosmicHierarchyBodies(): void {
+    const milkyWay = findExistingBodyByName("Bima Sakti");
+    const localGroup = findExistingBodyByName("Grup Lokal");
+    const laniakea = findExistingBodyByName("Laniakea");
+    const filament = findExistingBodyByName("Filamen Kosmik");
+    const sun = findExistingBodyByName("Matahari");
+
+    const solarSystemNode = upsertSyntheticBody({
+        name: "Sistem Surya Lokal",
+        kind: "other",
+        massKg: Math.max((sun?.massKg ?? constants.solarMassKg) * 1.002, constants.solarMassKg),
+        radiusMeters: 1.3e13,
+        colorHex: "#7fb0ff",
+        position: sun ? { ...sun.position } : { x: 0, y: 0, z: 0 },
+        velocity: sun ? { ...sun.velocity } : { x: 0, y: 0, z: 0 },
+        alive: true,
+        parentName: "Bima Sakti",
+        isHypothesis: false,
+    }, "Representasi sistem bintang lokal (bintang+planet+satelit+small bodies).");
+
+    if (milkyWay) {
+        registerDynamicOrbit(
+            solarSystemNode.name,
+            milkyWay.name,
+            Math.max(milkyWay.radiusMeters * 0.42, 2.3e20),
+            226_000_000 * 365.25,
+            6.2,
+            0.08,
+            `${solarSystemNode.name}:hierarchy`,
+        );
+    }
+
+    const orionArmNode = upsertSyntheticBody({
+        name: "Lengan Orion",
+        kind: "other",
+        massKg: Math.max((milkyWay?.massKg ?? 1e12 * constants.solarMassKg) * 0.03, 1e10 * constants.solarMassKg),
+        radiusMeters: 2.8e20,
+        colorHex: "#8ac4ff",
+        position: milkyWay ? { ...milkyWay.position } : { x: 0, y: 0, z: 0 },
+        velocity: milkyWay ? { ...milkyWay.velocity } : { x: 0, y: 0, z: 0 },
+        alive: true,
+        parentName: "Bima Sakti",
+        isHypothesis: false,
+    }, "Lengan spiral tempat Matahari berada di Bima Sakti.");
+
+    if (milkyWay) {
+        registerDynamicOrbit(
+            orionArmNode.name,
+            milkyWay.name,
+            Math.max(milkyWay.radiusMeters * 0.58, 3.4e20),
+            260_000_000 * 365.25,
+            4.4,
+            0.12,
+            `${orionArmNode.name}:hierarchy`,
+        );
+    }
+
+    const virgoClusterNode = upsertSyntheticBody({
+        name: "Virgo Cluster",
+        kind: "cluster",
+        massKg: 1.2e15 * constants.solarMassKg,
+        radiusMeters: 7.8e22,
+        colorHex: "#9ec0de",
+        position: laniakea ? { ...laniakea.position } : { x: 0, y: 0, z: 0 },
+        velocity: laniakea ? { ...laniakea.velocity } : { x: 0, y: 0, z: 0 },
+        alive: true,
+        parentName: "Laniakea",
+        isHypothesis: false,
+    }, "Klaster galaksi padat (skala ratusan-ribuan galaksi).", ["Scientific Hierarchy Model", "NASA", "ESA"]);
+
+    if (laniakea) {
+        registerDynamicOrbit(
+            virgoClusterNode.name,
+            laniakea.name,
+            Math.max(laniakea.radiusMeters * 0.24, 6.6e23),
+            980_000_000 * 365.25,
+            3.8,
+            0.13,
+            `${virgoClusterNode.name}:hierarchy`,
+        );
+    }
+
+    const superclusterNode = upsertSyntheticBody({
+        name: "Superklaster Laniakea",
+        kind: "cluster",
+        massKg: 3.0e13 * constants.solarMassKg,
+        radiusMeters: 1.8e24,
+        colorHex: "#a7d9d2",
+        position: laniakea ? { ...laniakea.position } : { x: 0, y: 0, z: 0 },
+        velocity: laniakea ? { ...laniakea.velocity } : { x: 0, y: 0, z: 0 },
+        alive: true,
+        parentName: "Filamen Kosmik",
+        isHypothesis: false,
+    }, "Representasi supercluster pada jaringan kosmik skala sangat besar.");
+
+    if (filament) {
+        registerDynamicOrbit(
+            superclusterNode.name,
+            filament.name,
+            Math.max(filament.radiusMeters * 0.12, 2.6e24),
+            1_900_000_000 * 365.25,
+            2.5,
+            0.06,
+            `${superclusterNode.name}:hierarchy`,
+        );
+    }
+
+    upsertSyntheticBody({
+        name: "Void Lokal",
+        kind: "other",
+        massKg: 1e10,
+        radiusMeters: 3.2e24,
+        colorHex: "#4d5f87",
+        position: filament
+            ? {
+                x: filament.position.x + 2.2e24,
+                y: filament.position.y + 0.2e24,
+                z: filament.position.z - 1.5e24,
+            }
+            : { x: 2.2e24, y: 0.2e24, z: -1.5e24 },
+        velocity: { x: 0, y: 0, z: 0 },
+        alive: true,
+        parentName: "Filamen Kosmik",
+        isHypothesis: false,
+    }, "Wilayah kosmik sangat jarang galaksi (void), bukan benda pejal.");
+
+    upsertSyntheticBody({
+        name: "Observable Universe",
+        kind: "other",
+        massKg: 1e53,
+        radiusMeters: 4.4e26,
+        colorHex: "#9fb6e6",
+        position: localGroup ? { ...localGroup.position } : { x: 0, y: 0, z: 0 },
+        velocity: { x: 0, y: 0, z: 0 },
+        alive: true,
+        parentName: null,
+        isHypothesis: false,
+    }, "Batas alam semesta teramati (~93 miliar tahun cahaya diameter).", ["Scientific Hierarchy Model", "NASA"]);
+}
+
 function addSyntheticGalaxySystems(): void {
     clearSyntheticGalaxyBodies();
 
@@ -1127,10 +1406,10 @@ function addSyntheticGalaxySystems(): void {
     for (const parent of parentMap.values()) {
         const parentSeed = parent.name;
         const isGalaxy = parent.kind === "galaxy";
-        const starCount = isGalaxy ? 12 : 7;
-        const planetPerStar = isGalaxy ? 3 : 2;
-        const cometCount = isGalaxy ? 5 : 3;
-        const meteorCount = isGalaxy ? 4 : 2;
+        const starCount = isGalaxy ? 24 : 12;
+        const planetPerStar = isGalaxy ? 4 : 3;
+        const cometCount = isGalaxy ? 10 : 6;
+        const meteorCount = isGalaxy ? 14 : 8;
 
         const existingCore = findExistingBodyByName(`${parent.name} Core BH`);
         if (!existingCore) {
@@ -1276,6 +1555,8 @@ function addSyntheticGalaxySystems(): void {
             );
         }
     }
+
+    ensureCosmicHierarchyBodies();
 
     nasaCatalogEntries = nasaCatalogBodies.length;
     addLocalEvent(`Model sintetis galaksi diperbarui: +${syntheticGalaxyBodyNames.size} objek dinamis.`);
@@ -1514,6 +1795,7 @@ function applyNasaRows(rows: NasaExoplanetRow[]): number {
 function ingestFallbackCatalogs(): IngestStatus[] {
     const statuses: IngestStatus[] = [];
 
+    setSplashProgress(40, "Fallback: memproses NASA...");
     const nasaAdded = applyNasaRows(fallbackNasaRows);
     const nasa: IngestStatus = {
         source: "NASA",
@@ -1525,6 +1807,7 @@ function ingestFallbackCatalogs(): IngestStatus[] {
     addLocalEvent(`NASA ingest fallback aktif: +${nasaAdded} objek referensi.`);
     statuses.push(nasa);
 
+    setSplashProgress(44, "Fallback: memproses ESA...");
     const esaAdded = applyCatalogEntries(esaFallbackEntries, "ESA");
     const esa: IngestStatus = {
         source: "ESA",
@@ -1536,6 +1819,7 @@ function ingestFallbackCatalogs(): IngestStatus[] {
     addLocalEvent(`ESA ingest fallback aktif: +${esaAdded} objek katalog.`);
     statuses.push(esa);
 
+    setSplashProgress(48, "Fallback: memproses JAXA...");
     const jaxaAdded = applyCatalogEntries(jaxaFallbackEntries, "JAXA");
     const jaxa: IngestStatus = {
         source: "JAXA",
@@ -1547,6 +1831,7 @@ function ingestFallbackCatalogs(): IngestStatus[] {
     addLocalEvent(`JAXA ingest fallback aktif: +${jaxaAdded} objek katalog.`);
     statuses.push(jaxa);
 
+    setSplashProgress(52, "Fallback: memproses NED...");
     const nedAdded = applyCatalogEntries(nedFallbackEntries, "NED");
     const ned: IngestStatus = {
         source: "NED",
@@ -1564,6 +1849,7 @@ function ingestFallbackCatalogs(): IngestStatus[] {
 function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[] {
     const statuses: IngestStatus[] = [];
 
+    setSplashProgress(40, "Sinkronisasi NASA Exoplanet Archive...");
     const nasaRows = payload.nasa?.rows;
     const hasNasaRows = Array.isArray(nasaRows) && nasaRows.length > 0;
     const nasaAdded = applyNasaRows(hasNasaRows ? nasaRows : fallbackNasaRows);
@@ -1584,7 +1870,9 @@ function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[]
         NED: nedFallbackEntries,
     };
 
+    const sourceProgress: Record<string, number> = { ESA: 44, JAXA: 48, NED: 52 };
     for (const sourceName of ["ESA", "JAXA", "NED"]) {
+        setSplashProgress(sourceProgress[sourceName], `Sinkronisasi ${sourceName} catalog...`);
         const sourceFile = agencyEntries[sourceName];
         const sourceRows = sourceFile?.entries;
         const entries = Array.isArray(sourceRows) && sourceRows.length > 0
@@ -1838,7 +2126,27 @@ function isSolarSystemBody(body: UniverseBody): boolean {
         return true;
     }
 
-    return bodyLooksRocky(body) || bodyLooksComet(body);
+    if (!(bodyLooksRocky(body) || bodyLooksComet(body))) {
+        return false;
+    }
+
+    const parent = (body.parentName ?? "").toLowerCase();
+    if (parent.length === 0) {
+        return body.name.startsWith("Asteroid-")
+            || body.name.startsWith("Kuiper-")
+            || body.name.startsWith("Meteor-")
+            || body.name.startsWith("Comet-");
+    }
+
+    return parent === "matahari"
+        || parent === "bumi"
+        || parent === "jupiter"
+        || parent === "saturnus"
+        || parent === "uranus"
+        || parent === "neptunus"
+        || parent.includes("solar")
+        || parent.includes("sistem surya")
+        || parent.includes("sistem surya lokal");
 }
 
 function isLargeScaleStructure(body: UniverseBody | null): boolean {
@@ -3223,7 +3531,7 @@ function updateInfoPanel(): void {
 
     const kelvin = estimateTemperature(body);
     const rotationHours = bodyRotationHoursByName[body.name];
-    const orbitGuide = engine.getOrbitGuides(true).find((entry) => entry.bodyName === body.name);
+    const orbitGuide = orbitGuideForBody(body.name);
     const orbitType = orbitTypeLabel(orbitGuide, body);
     const gravity = surfaceGravity(body);
     const vEscape = escapeVelocity(body);
@@ -3253,6 +3561,7 @@ function updateInfoPanel(): void {
     } else {
         infoRevolution.textContent = "Model dinamis";
     }
+    infoHierarchy.textContent = hierarchyLabelForBody(body);
     infoOrbitType.textContent = orbitType;
     infoGravity.textContent = `${gravity.toExponential(3)} m/s²`;
     infoEscape.textContent = `${(vEscape / 1000).toFixed(3)} km/s`;
@@ -3326,8 +3635,13 @@ function updateSearchResults(): void {
 
     const blackHoleCount = targets.filter((body) => body.kind === "black-hole").length;
     const galaxyCount = targets.filter((body) => body.kind === "galaxy").length;
+    const groupCount = targets.filter((body) => hierarchyRankForBody(body) === 8).length;
+    const clusterCount = targets.filter((body) => hierarchyRankForBody(body) === 9).length;
+    const superclusterCount = targets.filter((body) => hierarchyRankForBody(body) === 10).length;
+    const filamentCount = targets.filter((body) => hierarchyRankForBody(body) === 11).length;
+    const voidCount = targets.filter((body) => hierarchyRankForBody(body) === 12).length;
     const hypothesisCount = targets.filter((body) => body.isHypothesis).length;
-    searchMeta.textContent = `Indeks: ${targets.length} | BH:${blackHoleCount} Galaxy:${galaxyCount} Hypothesis:${hypothesisCount} | Eksternal:${nasaCatalogEntries} ${nasaCatalogStatus}`;
+    searchMeta.textContent = `Indeks:${targets.length} | BH:${blackHoleCount} Gal:${galaxyCount} Group:${groupCount} Cluster:${clusterCount} Super:${superclusterCount} Fil:${filamentCount} Void:${voidCount} Hyp:${hypothesisCount} | Eksternal:${nasaCatalogEntries} ${nasaCatalogStatus}`;
 }
 
 function updateHudPanel(): void {
