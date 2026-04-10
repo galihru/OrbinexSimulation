@@ -19,20 +19,32 @@
             --accent: #86beff;
         }
 
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
         html,
         body {
             margin: 0;
             padding: 0;
             position: fixed;
             inset: 0;
+            width: 100vw;
+            height: 100vh;
             width: 100dvw;
             height: 100dvh;
             background: transparent;
             color: var(--text);
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 100vw;
+            max-height: 100vh;
             max-width: 100dvw;
             max-height: 100dvh;
             overflow: hidden !important;
+            overflow-x: hidden !important;
+            overflow-y: hidden !important;
             overscroll-behavior: none;
             touch-action: none;
         }
@@ -46,6 +58,8 @@
         #ar-app {
             position: fixed;
             inset: 0;
+            width: 100vw;
+            height: 100vh;
             width: 100dvw;
             height: 100dvh;
             background: #000;
@@ -56,6 +70,8 @@
         a-scene {
             position: fixed !important;
             inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
             width: 100dvw !important;
             height: 100dvh !important;
             z-index: 1 !important;
@@ -66,13 +82,29 @@
         .arjs-video,
         .ar-main-video {
             position: fixed !important;
-            inset: 0 !important;
-            width: 100dvw !important;
-            height: 100dvh !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 1px !important;
+            height: 1px !important;
             object-fit: cover !important;
-            z-index: 0 !important;
-            background: #000 !important;
-            opacity: 1 !important;
+            z-index: -5 !important;
+            background: transparent !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
+        .camera-display-video {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            width: 100dvw;
+            height: 100dvh;
+            object-fit: cover;
+            background: #000;
+            z-index: 0;
+            opacity: 1;
+            pointer-events: none;
             transition: opacity 260ms ease;
         }
 
@@ -90,17 +122,13 @@
             transition: opacity 260ms ease, transform 260ms ease, border-radius 260ms ease;
         }
 
-        body.mode-ar-main #arjs-video,
-        body.mode-ar-main .arjs-video,
-        body.mode-ar-main .ar-main-video {
+        body.mode-ar-main .camera-display-video {
             opacity: 1 !important;
             pointer-events: none !important;
             z-index: 0 !important;
         }
 
-        body.mode-camera-main #arjs-video,
-        body.mode-camera-main .arjs-video,
-        body.mode-camera-main .ar-main-video {
+        body.mode-camera-main .camera-display-video {
             opacity: 1 !important;
             pointer-events: none !important;
             z-index: 2 !important;
@@ -375,6 +403,8 @@
             left: 0 !important;
             right: auto !important;
             bottom: auto !important;
+            width: 100vw !important;
+            height: 100vh !important;
             width: 100dvw !important;
             height: 100dvh !important;
             z-index: 1 !important;
@@ -444,6 +474,7 @@
         body.swap-animating .arjs-video,
         body.swap-animating .a-canvas,
         body.swap-animating a-scene canvas,
+        body.swap-animating .camera-display-video,
         body.swap-animating .pip-swap {
             transition-duration: 340ms !important;
         }
@@ -543,6 +574,8 @@
                 alt="Marker Hiro untuk tracking AR" />
         </a>
 
+        <video id="camera-display-video" class="camera-display-video" autoplay muted playsinline webkit-playsinline></video>
+
         <div id="gesture-pad" class="gesture-pad" aria-hidden="true"></div>
 
         <button id="pip-swap" class="pip-swap" type="button" aria-label="Tukar tampilan ke kamera utama">
@@ -590,6 +623,7 @@
             const sheetEl = document.getElementById("ar-overlay");
             const sheetHandle = document.getElementById("sheet-handle");
             const sheetToggleButton = document.getElementById("sheet-toggle");
+            const cameraDisplayVideo = document.getElementById("camera-display-video");
             const pipSwapButton = document.getElementById("pip-swap");
             const pipCameraVideo = document.getElementById("pip-camera-video");
             const pipSwapLabel = document.getElementById("pip-swap-label");
@@ -643,28 +677,55 @@
 
             function applyMainVideoLayer() {
                 const mainVideo = cameraVideoElement();
-                if (!mainVideo) {
+                if (mainVideo) {
+                    mainVideo.classList.add("ar-main-video");
+                    mainVideo.setAttribute("playsinline", "true");
+                    mainVideo.setAttribute("webkit-playsinline", "true");
+                    mainVideo.style.setProperty("position", "fixed", "important");
+                    mainVideo.style.setProperty("top", "0", "important");
+                    mainVideo.style.setProperty("left", "0", "important");
+                    mainVideo.style.setProperty("width", "1px", "important");
+                    mainVideo.style.setProperty("height", "1px", "important");
+                    mainVideo.style.setProperty("opacity", "0", "important");
+                    mainVideo.style.setProperty("z-index", "-5", "important");
+                    mainVideo.style.setProperty("pointer-events", "none", "important");
+                    mainVideo.style.setProperty("background", "transparent", "important");
+                }
+
+                if (!cameraDisplayVideo) {
                     return;
                 }
 
-                mainVideo.classList.add("ar-main-video");
-                mainVideo.style.setProperty("position", "fixed", "important");
-                mainVideo.style.setProperty("inset", "0", "important");
-                mainVideo.style.setProperty("top", "0", "important");
-                mainVideo.style.setProperty("left", "0", "important");
-                mainVideo.style.setProperty("width", "100dvw", "important");
-                mainVideo.style.setProperty("height", "100dvh", "important");
-                mainVideo.style.setProperty("object-fit", "cover", "important");
-                mainVideo.style.setProperty("background", "#000", "important");
+                cameraDisplayVideo.style.setProperty("position", "fixed", "important");
+                cameraDisplayVideo.style.setProperty("inset", "0", "important");
+                cameraDisplayVideo.style.setProperty("top", "0", "important");
+                cameraDisplayVideo.style.setProperty("left", "0", "important");
+                cameraDisplayVideo.style.setProperty("width", "100vw", "important");
+                cameraDisplayVideo.style.setProperty("width", "100dvw", "important");
+                cameraDisplayVideo.style.setProperty("height", "100vh", "important");
+                cameraDisplayVideo.style.setProperty("height", "100dvh", "important");
+                cameraDisplayVideo.style.setProperty("object-fit", "cover", "important");
+                cameraDisplayVideo.style.setProperty("background", "#000", "important");
+                cameraDisplayVideo.style.setProperty("opacity", "1", "important");
+                cameraDisplayVideo.style.setProperty("z-index", currentViewMode === "camera-main" ? "2" : "0", "important");
+                cameraDisplayVideo.style.setProperty("pointer-events", "none", "important");
+            }
 
-                if (currentViewMode === "camera-main") {
-                    mainVideo.style.setProperty("opacity", "1", "important");
-                    mainVideo.style.setProperty("z-index", "2", "important");
-                } else {
-                    mainVideo.style.setProperty("opacity", "1", "important");
-                    mainVideo.style.setProperty("z-index", "0", "important");
+            function syncStreamToVideo(outputVideo, stream) {
+                if (!outputVideo || !stream) {
+                    return;
                 }
-                mainVideo.style.setProperty("pointer-events", "none", "important");
+
+                if (outputVideo.srcObject !== stream) {
+                    outputVideo.srcObject = stream;
+                }
+
+                outputVideo.setAttribute("playsinline", "true");
+                outputVideo.setAttribute("webkit-playsinline", "true");
+                const playResult = outputVideo.play();
+                if (playResult && typeof playResult.catch === "function") {
+                    playResult.catch(() => { });
+                }
             }
 
             function sceneCanvasElement() {
@@ -710,7 +771,9 @@
                     sceneEl.style.setProperty("right", "auto", "important");
                     sceneEl.style.setProperty("left", "0", "important");
                     sceneEl.style.setProperty("bottom", "auto", "important");
+                    sceneEl.style.setProperty("width", "100vw", "important");
                     sceneEl.style.setProperty("width", "100dvw", "important");
+                    sceneEl.style.setProperty("height", "100vh", "important");
                     sceneEl.style.setProperty("height", "100dvh", "important");
                     sceneEl.style.setProperty("z-index", "1", "important");
                     sceneEl.style.setProperty("border-radius", "0", "important");
@@ -800,14 +863,8 @@
                 }
 
                 applyMainVideoLayer();
-
-                if (pipCameraVideo.srcObject !== mainVideo.srcObject) {
-                    pipCameraVideo.srcObject = mainVideo.srcObject;
-                    const playResult = pipCameraVideo.play();
-                    if (playResult && typeof playResult.catch === "function") {
-                        playResult.catch(() => { });
-                    }
-                }
+                syncStreamToVideo(cameraDisplayVideo, mainVideo.srcObject);
+                syncStreamToVideo(pipCameraVideo, mainVideo.srcObject);
             }
 
             sheetToggleButton.addEventListener("click", () => {
@@ -1651,7 +1708,6 @@
 
                 video.setAttribute("playsinline", "true");
                 video.setAttribute("webkit-playsinline", "true");
-                video.style.opacity = "1";
                 applyMainVideoLayer();
                 applySceneCanvasLayout();
                 syncPipCameraStream();
