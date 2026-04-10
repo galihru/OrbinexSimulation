@@ -144,11 +144,11 @@ orbinex-app,
 .top-command {
     position: absolute;
     top: 10px;
-    left: 248px;
-    right: 370px;
-    transform: none;
-    width: auto;
-    min-height: 48px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(1240px, calc(100vw - 24px));
+    min-height: 52px;
     z-index: 70;
     border: 1px solid var(--line);
     border-radius: 13px;
@@ -156,20 +156,26 @@ orbinex-app,
     backdrop-filter: blur(6px);
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 0.9rem;
-    padding: 0.45rem 0.65rem;
+    padding: 0.45rem 0.78rem;
 }
 
 .brand-mark {
-    display: grid;
-    gap: 0.08rem;
-    min-width: 110px;
-    padding: 0 0.24rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.06rem;
+    min-width: 184px;
+    padding: 0 0.16rem;
 }
 
-.brand-mark strong {
-    font-family: "Space Grotesk", sans-serif;
-    font-size: 0.9rem;
+.brand-logo {
+    display: block;
+    width: auto;
+    height: 34px;
+    max-width: 188px;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 10px rgba(88, 151, 255, 0.28));
 }
 
 .brand-mark span {
@@ -183,6 +189,8 @@ orbinex-app,
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem;
+    justify-content: flex-end;
+    flex: 1 1 auto;
 }
 
 button,
@@ -283,10 +291,11 @@ input:focus-visible {
     inset: auto;
     width: 100%;
     padding: 0.56rem 0.62rem;
-    max-height: none;
-    overflow: visible;
+    max-height: min(26vh, 220px);
+    overflow: auto;
     display: grid;
     gap: 0.18rem;
+    flex: 0 0 auto;
     z-index: 1;
 }
 
@@ -360,6 +369,7 @@ input:focus-visible {
 
 .search-panel,
 .search-results,
+.hierarchy-panel,
 .info-panel,
 .events-list {
     scrollbar-width: none;
@@ -368,6 +378,7 @@ input:focus-visible {
 
 .search-panel:hover,
 .search-results:hover,
+.hierarchy-panel:hover,
 .info-panel:hover,
 .events-list:hover {
     scrollbar-width: thin;
@@ -375,6 +386,7 @@ input:focus-visible {
 
 .search-panel::-webkit-scrollbar,
 .search-results::-webkit-scrollbar,
+.hierarchy-panel::-webkit-scrollbar,
 .info-panel::-webkit-scrollbar,
 .events-list::-webkit-scrollbar {
     width: 0;
@@ -383,6 +395,7 @@ input:focus-visible {
 
 .search-panel:hover::-webkit-scrollbar,
 .search-results:hover::-webkit-scrollbar,
+.hierarchy-panel:hover::-webkit-scrollbar,
 .info-panel:hover::-webkit-scrollbar,
 .events-list:hover::-webkit-scrollbar {
     width: 8px;
@@ -391,6 +404,7 @@ input:focus-visible {
 
 .search-panel::-webkit-scrollbar-thumb,
 .search-results::-webkit-scrollbar-thumb,
+.hierarchy-panel::-webkit-scrollbar-thumb,
 .info-panel::-webkit-scrollbar-thumb,
 .events-list::-webkit-scrollbar-thumb {
     border-radius: 999px;
@@ -399,6 +413,7 @@ input:focus-visible {
 
 .search-panel:hover::-webkit-scrollbar-thumb,
 .search-results:hover::-webkit-scrollbar-thumb,
+.hierarchy-panel:hover::-webkit-scrollbar-thumb,
 .info-panel:hover::-webkit-scrollbar-thumb,
 .events-list:hover::-webkit-scrollbar-thumb {
     background: rgba(126, 174, 255, 0.66);
@@ -406,6 +421,7 @@ input:focus-visible {
 
 .search-panel::-webkit-scrollbar-track,
 .search-results::-webkit-scrollbar-track,
+.hierarchy-panel::-webkit-scrollbar-track,
 .info-panel::-webkit-scrollbar-track,
 .events-list::-webkit-scrollbar-track {
     background: transparent;
@@ -515,7 +531,7 @@ input:focus-visible {
     flex: 1 1 220px;
     min-height: 170px;
     max-height: none;
-    margin-top: auto;
+    margin-top: 0;
     display: grid;
     grid-template-rows: auto auto 1fr;
     z-index: 1;

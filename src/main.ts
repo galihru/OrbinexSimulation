@@ -238,7 +238,8 @@ const bodyRotationHoursByName: Record<string, number> = {
     Triton: -141.1,
 };
 
-const logoUrl = `${import.meta.env.BASE_URL}orbinex-logo.svg`;
+const splashLogoUrl = `${import.meta.env.BASE_URL}orbinex-logo.svg`;
+const brandLogoUrl = `${import.meta.env.BASE_URL}orbinex.png`;
 const EARTH_MASS = 5.9722e24;
 const EARTH_RADIUS = 6.371e6;
 const SOLAR_RADIUS = 6.9634e8;
@@ -253,7 +254,7 @@ app.innerHTML = `
         <canvas id="universe-canvas" aria-label="Kanvas simulasi semesta tiga dimensi"></canvas>
 
         <section id="splash" class="splash is-visible" role="dialog" aria-modal="true" aria-label="Memuat OrbinexSimulation">
-            <img src="${logoUrl}" alt="Logo Orbinex" width="128" height="128" />
+            <img src="${splashLogoUrl}" alt="Logo Orbinex" width="128" height="128" />
             <p class="splash-kicker">ORBINEXSIMULATION</p>
             <h1>Universe Sandbox Scientific 3D</h1>
             <p id="splash-status">Menyalakan mesin fisika...</p>
@@ -263,7 +264,7 @@ app.innerHTML = `
 
         <header class="top-command" aria-label="Quick controls">
             <div class="brand-mark">
-                <strong>Orbinex</strong>
+                <img class="brand-logo" src="${brandLogoUrl}" alt="Orbinex" width="176" height="38" />
                 <span>Web Universe Sandbox</span>
             </div>
             <div class="button-row">
@@ -295,22 +296,6 @@ app.innerHTML = `
                 <datalist id="search-suggestions"></datalist>
                 <p id="search-meta">Indeks pencarian: 0</p>
                 <ol id="search-results" class="search-results"></ol>
-            </section>
-
-            <section id="hierarchy-panel" class="hierarchy-panel" aria-label="Panel filter hirarki kosmik">
-                <h2>Filter Hirarki 1-13</h2>
-                <div class="hierarchy-row">
-                    <label for="hierarchy-min">Min</label>
-                    <input id="hierarchy-min" type="range" min="1" max="13" step="1" value="1" />
-                    <span id="hierarchy-min-value">1</span>
-                </div>
-                <div class="hierarchy-row">
-                    <label for="hierarchy-max">Max</label>
-                    <input id="hierarchy-max" type="range" min="1" max="13" step="1" value="13" />
-                    <span id="hierarchy-max-value">13</span>
-                </div>
-                <p id="hierarchy-note">Menampilkan level 1 sampai 13.</p>
-                <button id="hierarchy-reset" type="button">RESET HIRARKI</button>
             </section>
 
             <section id="info-panel" class="info-panel" aria-live="polite" aria-label="Panel detail objek">
@@ -354,6 +339,22 @@ app.innerHTML = `
                 <ol id="events-list" class="events-list">
                     <li class="event-item event-item-empty">Belum ada event.</li>
                 </ol>
+            </section>
+
+            <section id="hierarchy-panel" class="hierarchy-panel" aria-label="Panel filter hirarki kosmik">
+                <h2>Filter Hirarki 1-13</h2>
+                <div class="hierarchy-row">
+                    <label for="hierarchy-min">Min</label>
+                    <input id="hierarchy-min" type="range" min="1" max="13" step="1" value="1" />
+                    <span id="hierarchy-min-value">1</span>
+                </div>
+                <div class="hierarchy-row">
+                    <label for="hierarchy-max">Max</label>
+                    <input id="hierarchy-max" type="range" min="1" max="13" step="1" value="13" />
+                    <span id="hierarchy-max-value">13</span>
+                </div>
+                <p id="hierarchy-note">Menampilkan level 1 sampai 13.</p>
+                <button id="hierarchy-reset" type="button">RESET HIRARKI</button>
             </section>
         </aside>
 
@@ -678,6 +679,7 @@ const sourceQualityScore: Record<string, number> = {
     "Orbinex Engine": 1,
     "External Catalog": 3,
     "Synthetic Galaxy Model": 1,
+    "Synthetic Planetary Model": 2,
     "Scientific Hierarchy Model": 2,
     NASA: 5,
     ESA: 5,
@@ -685,6 +687,7 @@ const sourceQualityScore: Record<string, number> = {
     NED: 5,
     SIMBAD: 4,
     MPC: 4,
+    "JPL Horizons": 5,
 };
 
 function sourceQualityLabel(source: string): string {
@@ -1641,6 +1644,426 @@ function ensureCosmicHierarchyBodies(): void {
     }, "Batas alam semesta teramati (~93 miliar tahun cahaya diameter).", ["Scientific Hierarchy Model", "NASA"]);
 }
 
+type PlanetaryMoonSeed = {
+    name: string;
+    parentName: string;
+    massKg: number;
+    radiusMeters: number;
+    colorHex: string;
+    semiMajorMeters: number;
+    periodDays: number;
+    inclinationDeg: number;
+    eccentricity: number;
+    description: string;
+};
+
+const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
+    {
+        name: "Phobos (Mars)",
+        parentName: "Mars",
+        massKg: 1.0659e16,
+        radiusMeters: 11_266,
+        colorHex: "#b8a486",
+        semiMajorMeters: 9.376e6,
+        periodDays: 0.319,
+        inclinationDeg: 1.1,
+        eccentricity: 0.015,
+        description: "Satelit alami terdalam Mars; orbit sangat dekat dan cepat.",
+    },
+    {
+        name: "Deimos (Mars)",
+        parentName: "Mars",
+        massKg: 1.476e15,
+        radiusMeters: 6200,
+        colorHex: "#c5b08d",
+        semiMajorMeters: 2.346e7,
+        periodDays: 1.263,
+        inclinationDeg: 1.8,
+        eccentricity: 0.0002,
+        description: "Satelit alami terluar Mars dengan orbit lebih stabil.",
+    },
+    {
+        name: "Io (Jupiter)",
+        parentName: "Jupiter",
+        massKg: 8.93e22,
+        radiusMeters: 1.8216e6,
+        colorHex: "#d8bd87",
+        semiMajorMeters: 4.218e8,
+        periodDays: 1.769,
+        inclinationDeg: 0.04,
+        eccentricity: 0.004,
+        description: "Satelit Galilean dengan aktivitas vulkanik sangat tinggi.",
+    },
+    {
+        name: "Europa (Jupiter)",
+        parentName: "Jupiter",
+        massKg: 4.8e22,
+        radiusMeters: 1.5608e6,
+        colorHex: "#d0d8e7",
+        semiMajorMeters: 6.711e8,
+        periodDays: 3.551,
+        inclinationDeg: 0.47,
+        eccentricity: 0.009,
+        description: "Satelit Galilean dengan indikasi samudra bawah permukaan es.",
+    },
+    {
+        name: "Ganymede (Jupiter)",
+        parentName: "Jupiter",
+        massKg: 1.48e23,
+        radiusMeters: 2.6341e6,
+        colorHex: "#b8c5ce",
+        semiMajorMeters: 1.0704e9,
+        periodDays: 7.154,
+        inclinationDeg: 0.2,
+        eccentricity: 0.001,
+        description: "Satelit terbesar Tata Surya, memiliki medan magnet intrinsik.",
+    },
+    {
+        name: "Callisto (Jupiter)",
+        parentName: "Jupiter",
+        massKg: 1.08e23,
+        radiusMeters: 2.4103e6,
+        colorHex: "#9f9f9f",
+        semiMajorMeters: 1.8827e9,
+        periodDays: 16.689,
+        inclinationDeg: 0.28,
+        eccentricity: 0.007,
+        description: "Satelit Galilean terluar dengan permukaan berkrater tua.",
+    },
+    {
+        name: "Amalthea (Jupiter)",
+        parentName: "Jupiter",
+        massKg: 2.08e18,
+        radiusMeters: 83_500,
+        colorHex: "#cc8f6e",
+        semiMajorMeters: 1.814e8,
+        periodDays: 0.498,
+        inclinationDeg: 0.37,
+        eccentricity: 0.003,
+        description: "Satelit kecil Jupiter di wilayah dalam sistem Jovian.",
+    },
+    {
+        name: "Titan (Saturnus)",
+        parentName: "Saturnus",
+        massKg: 1.3452e23,
+        radiusMeters: 2.575e6,
+        colorHex: "#d3b385",
+        semiMajorMeters: 1.2219e9,
+        periodDays: 15.945,
+        inclinationDeg: 0.35,
+        eccentricity: 0.029,
+        description: "Satelit terbesar Saturnus dengan atmosfer tebal kaya nitrogen.",
+    },
+    {
+        name: "Rhea (Saturnus)",
+        parentName: "Saturnus",
+        massKg: 2.306e21,
+        radiusMeters: 763_800,
+        colorHex: "#c8c6c4",
+        semiMajorMeters: 5.271e8,
+        periodDays: 4.518,
+        inclinationDeg: 0.35,
+        eccentricity: 0.001,
+        description: "Satelit es besar Saturnus dengan crater terrain luas.",
+    },
+    {
+        name: "Iapetus (Saturnus)",
+        parentName: "Saturnus",
+        massKg: 1.806e21,
+        radiusMeters: 734_600,
+        colorHex: "#b5a07f",
+        semiMajorMeters: 3.561e9,
+        periodDays: 79.322,
+        inclinationDeg: 15.5,
+        eccentricity: 0.028,
+        description: "Satelit Saturnus dengan kontras albedo dua belahan sangat khas.",
+    },
+    {
+        name: "Dione (Saturnus)",
+        parentName: "Saturnus",
+        massKg: 1.095e21,
+        radiusMeters: 561_300,
+        colorHex: "#d2d2d2",
+        semiMajorMeters: 3.774e8,
+        periodDays: 2.737,
+        inclinationDeg: 0.02,
+        eccentricity: 0.002,
+        description: "Satelit es Saturnus pada orbit menengah.",
+    },
+    {
+        name: "Tethys (Saturnus)",
+        parentName: "Saturnus",
+        massKg: 6.174e20,
+        radiusMeters: 531_100,
+        colorHex: "#d8dce2",
+        semiMajorMeters: 2.946e8,
+        periodDays: 1.888,
+        inclinationDeg: 1.1,
+        eccentricity: 0.0,
+        description: "Satelit es Saturnus dengan crater dan graben besar.",
+    },
+    {
+        name: "Enceladus (Saturnus)",
+        parentName: "Saturnus",
+        massKg: 1.08e20,
+        radiusMeters: 252_100,
+        colorHex: "#e2eef9",
+        semiMajorMeters: 2.380e8,
+        periodDays: 1.37,
+        inclinationDeg: 0.0,
+        eccentricity: 0.005,
+        description: "Satelit aktif geologi dengan plume kriovolkanik.",
+    },
+    {
+        name: "Mimas (Saturnus)",
+        parentName: "Saturnus",
+        massKg: 3.75e19,
+        radiusMeters: 198_300,
+        colorHex: "#c9ccd3",
+        semiMajorMeters: 1.855e8,
+        periodDays: 0.942,
+        inclinationDeg: 1.6,
+        eccentricity: 0.02,
+        description: "Satelit kecil Saturnus dengan crater raksasa Herschel.",
+    },
+    {
+        name: "Titania (Uranus)",
+        parentName: "Uranus",
+        massKg: 3.4e21,
+        radiusMeters: 788_900,
+        colorHex: "#c7d3db",
+        semiMajorMeters: 4.363e8,
+        periodDays: 8.706,
+        inclinationDeg: 0.1,
+        eccentricity: 0.002,
+        description: "Satelit terbesar Uranus dengan lembah tektonik panjang.",
+    },
+    {
+        name: "Oberon (Uranus)",
+        parentName: "Uranus",
+        massKg: 3.01e21,
+        radiusMeters: 761_400,
+        colorHex: "#b4c1cc",
+        semiMajorMeters: 5.835e8,
+        periodDays: 13.463,
+        inclinationDeg: 0.1,
+        eccentricity: 0.001,
+        description: "Satelit luar Uranus dengan permukaan es gelap.",
+    },
+    {
+        name: "Triton (Neptunus)",
+        parentName: "Neptunus",
+        massKg: 2.14e22,
+        radiusMeters: 1.353e6,
+        colorHex: "#cdd7e5",
+        semiMajorMeters: 3.548e8,
+        periodDays: 5.877,
+        inclinationDeg: 156.8,
+        eccentricity: 0.0,
+        description: "Satelit retrograde Neptunus dengan aktivitas kriovolkanik.",
+    },
+];
+
+type PlanetaryDebrisProfile = {
+    parentName: string;
+    kind: "meteor" | "comet";
+    count: number;
+    semiMajorMinMeters: number;
+    semiMajorMaxMeters: number;
+    periodMinDays: number;
+    periodMaxDays: number;
+    inclinationMaxDeg: number;
+    eccentricityMax: number;
+    radiusMinMeters: number;
+    radiusMaxMeters: number;
+    massMinKg: number;
+    massMaxKg: number;
+    colorHex: string;
+    sources: string[];
+    note: string;
+};
+
+const planetaryDebrisProfiles: PlanetaryDebrisProfile[] = [
+    {
+        parentName: "Mars",
+        kind: "meteor",
+        count: 14,
+        semiMajorMinMeters: 9.5e6,
+        semiMajorMaxMeters: 3.8e7,
+        periodMinDays: 0.2,
+        periodMaxDays: 2.2,
+        inclinationMaxDeg: 35,
+        eccentricityMax: 0.28,
+        radiusMinMeters: 520,
+        radiusMaxMeters: 3800,
+        massMinKg: 1.2e10,
+        massMaxKg: 8e12,
+        colorHex: "#caa482",
+        sources: ["MPC", "NASA", "Synthetic Planetary Model"],
+        note: "Meteoroid cluster sintetis koridor Mars.",
+    },
+    {
+        parentName: "Jupiter",
+        kind: "meteor",
+        count: 22,
+        semiMajorMinMeters: 2.1e8,
+        semiMajorMaxMeters: 2.6e9,
+        periodMinDays: 0.4,
+        periodMaxDays: 65,
+        inclinationMaxDeg: 30,
+        eccentricityMax: 0.42,
+        radiusMinMeters: 700,
+        radiusMaxMeters: 4600,
+        massMinKg: 2e10,
+        massMaxKg: 2e13,
+        colorHex: "#d0b08a",
+        sources: ["MPC", "NASA", "Synthetic Planetary Model"],
+        note: "Meteoroid swarm sintetis zona Jovian.",
+    },
+    {
+        parentName: "Jupiter",
+        kind: "comet",
+        count: 10,
+        semiMajorMinMeters: 4.5e8,
+        semiMajorMaxMeters: 4.2e9,
+        periodMinDays: 1.5,
+        periodMaxDays: 240,
+        inclinationMaxDeg: 55,
+        eccentricityMax: 0.7,
+        radiusMinMeters: 1400,
+        radiusMaxMeters: 22_000,
+        massMinKg: 7e11,
+        massMaxKg: 9e14,
+        colorHex: "#9cd5ff",
+        sources: ["MPC", "ESA", "Synthetic Planetary Model"],
+        note: "Komet terperangkap sintetis gravitasi Jupiter.",
+    },
+    {
+        parentName: "Saturnus",
+        kind: "meteor",
+        count: 18,
+        semiMajorMinMeters: 1.6e8,
+        semiMajorMaxMeters: 3.6e9,
+        periodMinDays: 0.5,
+        periodMaxDays: 120,
+        inclinationMaxDeg: 42,
+        eccentricityMax: 0.52,
+        radiusMinMeters: 620,
+        radiusMaxMeters: 4200,
+        massMinKg: 1e10,
+        massMaxKg: 1.6e13,
+        colorHex: "#cdbb9f",
+        sources: ["MPC", "NASA", "Synthetic Planetary Model"],
+        note: "Meteoroid swarm sintetis zona Saturnian.",
+    },
+    {
+        parentName: "Saturnus",
+        kind: "comet",
+        count: 9,
+        semiMajorMinMeters: 5e8,
+        semiMajorMaxMeters: 4.6e9,
+        periodMinDays: 2,
+        periodMaxDays: 280,
+        inclinationMaxDeg: 60,
+        eccentricityMax: 0.72,
+        radiusMinMeters: 1500,
+        radiusMaxMeters: 26_000,
+        massMinKg: 8e11,
+        massMaxKg: 1e15,
+        colorHex: "#9ac9f0",
+        sources: ["MPC", "ESA", "Synthetic Planetary Model"],
+        note: "Komet terperangkap sintetis gravitasi Saturnus.",
+    },
+];
+
+function addSyntheticPlanetarySystems(): void {
+    for (const seed of planetaryMoonSeeds) {
+        const parent = findExistingBodyByName(seed.parentName);
+        if (!parent || findExistingBodyByName(seed.name)) {
+            continue;
+        }
+
+        const moon: UniverseBody = {
+            name: seed.name,
+            kind: "moon",
+            massKg: seed.massKg,
+            radiusMeters: seed.radiusMeters,
+            colorHex: seed.colorHex,
+            position: { ...parent.position },
+            velocity: { ...parent.velocity },
+            alive: true,
+            parentName: parent.name,
+            isHypothesis: false,
+        };
+
+        pushCatalogBody(moon, {
+            sources: ["NASA", "JPL Horizons", "Synthetic Planetary Model"],
+            description: seed.description,
+        });
+        syntheticGalaxyBodyNames.add(seed.name);
+
+        registerDynamicOrbit(
+            seed.name,
+            parent.name,
+            seed.semiMajorMeters,
+            seed.periodDays,
+            seed.inclinationDeg,
+            seed.eccentricity,
+            `${seed.name}:moon`,
+        );
+    }
+
+    for (const profile of planetaryDebrisProfiles) {
+        const parent = findExistingBodyByName(profile.parentName);
+        if (!parent) {
+            continue;
+        }
+
+        for (let i = 0; i < profile.count; i += 1) {
+            const kindLabel = profile.kind === "meteor" ? "Meteoroid" : "Comet";
+            const bodyName = `${profile.parentName} ${kindLabel}-${i + 1}`;
+            if (findExistingBodyByName(bodyName)) {
+                continue;
+            }
+
+            const seedLabel = `${bodyName}:${profile.parentName}`;
+            const semiMajorMeters = seededRange(seedLabel, 1, profile.semiMajorMinMeters, profile.semiMajorMaxMeters);
+            const periodDays = seededRange(seedLabel, 2, profile.periodMinDays, profile.periodMaxDays);
+            const inclinationDeg = seededRange(seedLabel, 3, 0, profile.inclinationMaxDeg);
+            const eccentricity = seededRange(seedLabel, 4, 0.01, profile.eccentricityMax);
+
+            const body: UniverseBody = {
+                name: bodyName,
+                kind: profile.kind,
+                massKg: seededRange(seedLabel, 5, profile.massMinKg, profile.massMaxKg),
+                radiusMeters: seededRange(seedLabel, 6, profile.radiusMinMeters, profile.radiusMaxMeters),
+                colorHex: profile.colorHex,
+                position: { ...parent.position },
+                velocity: { ...parent.velocity },
+                alive: true,
+                parentName: parent.name,
+                isHypothesis: false,
+            };
+
+            pushCatalogBody(body, {
+                sources: profile.sources,
+                description: `${profile.note} Parent ${profile.parentName}.`,
+            });
+            syntheticGalaxyBodyNames.add(bodyName);
+
+            registerDynamicOrbit(
+                bodyName,
+                parent.name,
+                semiMajorMeters,
+                periodDays,
+                inclinationDeg,
+                eccentricity,
+                `${bodyName}:orbit`,
+            );
+        }
+    }
+}
+
 function addSyntheticGalaxySystems(): void {
     clearSyntheticGalaxyBodies();
 
@@ -1806,9 +2229,10 @@ function addSyntheticGalaxySystems(): void {
     }
 
     ensureCosmicHierarchyBodies();
+    addSyntheticPlanetarySystems();
 
     nasaCatalogEntries = nasaCatalogBodies.length;
-    addLocalEvent(`Model sintetis galaksi diperbarui: +${syntheticGalaxyBodyNames.size} objek dinamis.`);
+    addLocalEvent(`Model sintetis galaksi+tata surya diperbarui: +${syntheticGalaxyBodyNames.size} objek dinamis.`);
 }
 
 function updateDynamicCatalogBodies(dtMs: number): void {
@@ -2403,6 +2827,22 @@ function toRenderRadius(body: UniverseBody, zoomSpan = cameraZoomSpan()): number
         const base = clamp(0.95 + (logRadius - 13.5) * 0.32, 0.78, 3.4);
         const zoomBlend = clamp(0.7 + zoomFactor / 3400, 0.7, 1.12);
         return clamp(base * zoomBlend, 0.72, 4.0);
+    }
+
+    if (body.kind === "meteor") {
+        const base = clamp(0.05 + (logRadius - 3.3) * 0.12, 0.04, 0.22);
+        if (body.parentName === "Jupiter" || body.parentName === "Saturnus" || body.parentName === "Mars") {
+            return clamp(base * 1.65, 0.07, 0.34);
+        }
+        return base;
+    }
+
+    if (body.kind === "comet") {
+        const base = clamp(0.06 + (logRadius - 3.6) * 0.14, 0.05, 0.24);
+        if (body.parentName === "Jupiter" || body.parentName === "Saturnus" || body.parentName === "Mars") {
+            return clamp(base * 1.42, 0.08, 0.34);
+        }
+        return base;
     }
 
     if (bodyLooksRocky(body)) {
@@ -3129,10 +3569,27 @@ function shouldLabelBody(body: UniverseBody): boolean {
         "Latar Energi Gelap",
         "Sirius A",
         "Betelgeuse",
+        "Phobos (Mars)",
+        "Deimos (Mars)",
+        "Io (Jupiter)",
+        "Europa (Jupiter)",
+        "Ganymede (Jupiter)",
+        "Callisto (Jupiter)",
+        "Titan (Saturnus)",
+        "Enceladus (Saturnus)",
+        "Triton (Neptunus)",
     ]);
 
     if (priorityNames.has(body.name)) {
         return true;
+    }
+
+    if (body.kind === "moon" && body.parentName && solarSystemAnchors.has(body.parentName)) {
+        return body.parentName === uiState.focusName || body.name === uiState.focusName || cameraZoomSpan() < 1800;
+    }
+
+    if ((body.kind === "comet" || body.kind === "meteor") && body.parentName && solarSystemAnchors.has(body.parentName)) {
+        return body.parentName === uiState.focusName || body.name === uiState.focusName;
     }
 
     return body.name === uiState.focusName || body.kind === "black-hole";
