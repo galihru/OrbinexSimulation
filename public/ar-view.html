@@ -141,9 +141,10 @@
 
         .ar-overlay {
             position: fixed;
+            top: calc(58px + env(safe-area-inset-top));
             left: max(10px, env(safe-area-inset-left));
             right: max(10px, env(safe-area-inset-right));
-            bottom: calc(10px + env(safe-area-inset-bottom));
+            bottom: auto;
             z-index: 12;
             padding: 0.4rem 0.72rem 0.78rem;
             border-radius: 16px;
@@ -152,7 +153,7 @@
             backdrop-filter: blur(18px) saturate(140%);
             -webkit-backdrop-filter: blur(18px) saturate(140%);
             pointer-events: auto;
-            max-height: min(62vh, 430px);
+            max-height: min(42vh, 320px);
             max-width: min(560px, calc(100vw - 20px));
             margin: 0 auto;
             overflow-y: auto;
@@ -167,7 +168,7 @@
         }
 
         .ar-overlay.sheet-closed {
-            transform: translate3d(0, calc(100% + 28px), 0);
+            transform: translate3d(0, -16px, 0) scale(0.98);
             opacity: 0;
             pointer-events: none;
         }
@@ -491,7 +492,8 @@
 
         @media (max-width: 560px) {
             .ar-overlay {
-                max-height: min(58vh, 360px);
+                top: calc(56px + env(safe-area-inset-top));
+                max-height: min(40vh, 300px);
                 border-radius: 15px;
                 left: max(8px, env(safe-area-inset-left));
                 right: max(8px, env(safe-area-inset-right));
@@ -1083,16 +1085,16 @@
             ]);
 
             const rawCatalog = [
-                { name: "Matahari", kind: "star", massKg: 1.98847e30, radiusMeters: 6.9634e8, color: "#ffdb83", rotationHours: 609 },
-                { name: "Merkurius", kind: "planet", massKg: 3.3011e23, radiusMeters: 2.4397e6, color: "#a9a8a2", parentName: "Matahari", semiMajorMeters: 0.3871 * AU_METERS, periodDays: 87.97, rotationHours: 1407.6 },
-                { name: "Venus", kind: "planet", massKg: 4.8675e24, radiusMeters: 6.0518e6, color: "#eac384", parentName: "Matahari", semiMajorMeters: 0.7233 * AU_METERS, periodDays: 224.7, rotationHours: -5832.5 },
-                { name: "Bumi", kind: "planet", massKg: 5.9722e24, radiusMeters: 6.371e6, color: "#46aaff", parentName: "Matahari", semiMajorMeters: 1.0 * AU_METERS, periodDays: 365.256, rotationHours: 23.934 },
-                { name: "Mars", kind: "planet", massKg: 6.4171e23, radiusMeters: 3.3895e6, color: "#ff7554", parentName: "Matahari", semiMajorMeters: 1.5237 * AU_METERS, periodDays: 686.98, rotationHours: 24.623 },
-                { name: "Jupiter", kind: "planet", massKg: 1.89813e27, radiusMeters: 6.9911e7, color: "#d7b07f", parentName: "Matahari", semiMajorMeters: 5.2044 * AU_METERS, periodDays: 4332.59, rotationHours: 9.925 },
-                { name: "Saturnus", kind: "planet", massKg: 5.6834e26, radiusMeters: 5.8232e7, color: "#e0c787", parentName: "Matahari", semiMajorMeters: 9.5826 * AU_METERS, periodDays: 10759.2, rotationHours: 10.7 },
-                { name: "Uranus", kind: "planet", massKg: 8.6810e25, radiusMeters: 2.5362e7, color: "#96dcdc", parentName: "Matahari", semiMajorMeters: 19.201 * AU_METERS, periodDays: 30688.5, rotationHours: -17.24 },
-                { name: "Neptunus", kind: "planet", massKg: 1.02413e26, radiusMeters: 2.4622e7, color: "#5a87ff", parentName: "Matahari", semiMajorMeters: 30.047 * AU_METERS, periodDays: 60182.0, rotationHours: 16.11 },
-                { name: "Bulan", kind: "moon", massKg: 7.3476e22, radiusMeters: 1.7374e6, color: "#e4e4e4", parentName: "Bumi", semiMajorMeters: 384400000, periodDays: 27.3217, rotationHours: 655.7 },
+                { name: "Matahari", kind: "star", massKg: 1.98847e30, radiusMeters: 6.9634e8, color: "#ffd37c", rotationHours: 609 },
+                { name: "Merkurius", kind: "planet", massKg: 3.3011e23, radiusMeters: 2.4397e6, color: "#91867b", parentName: "Matahari", semiMajorMeters: 0.3871 * AU_METERS, periodDays: 87.97, rotationHours: 1407.6 },
+                { name: "Venus", kind: "planet", massKg: 4.8675e24, radiusMeters: 6.0518e6, color: "#dcb988", parentName: "Matahari", semiMajorMeters: 0.7233 * AU_METERS, periodDays: 224.7, rotationHours: -5832.5 },
+                { name: "Bumi", kind: "planet", massKg: 5.9722e24, radiusMeters: 6.371e6, color: "#2d6fa3", parentName: "Matahari", semiMajorMeters: 1.0 * AU_METERS, periodDays: 365.256, rotationHours: 23.934 },
+                { name: "Mars", kind: "planet", massKg: 6.4171e23, radiusMeters: 3.3895e6, color: "#b65e44", parentName: "Matahari", semiMajorMeters: 1.5237 * AU_METERS, periodDays: 686.98, rotationHours: 24.623 },
+                { name: "Jupiter", kind: "planet", massKg: 1.89813e27, radiusMeters: 6.9911e7, color: "#c8a17d", parentName: "Matahari", semiMajorMeters: 5.2044 * AU_METERS, periodDays: 4332.59, rotationHours: 9.925 },
+                { name: "Saturnus", kind: "planet", massKg: 5.6834e26, radiusMeters: 5.8232e7, color: "#d7c08f", parentName: "Matahari", semiMajorMeters: 9.5826 * AU_METERS, periodDays: 10759.2, rotationHours: 10.7 },
+                { name: "Uranus", kind: "planet", massKg: 8.6810e25, radiusMeters: 2.5362e7, color: "#88c1cb", parentName: "Matahari", semiMajorMeters: 19.201 * AU_METERS, periodDays: 30688.5, rotationHours: -17.24 },
+                { name: "Neptunus", kind: "planet", massKg: 1.02413e26, radiusMeters: 2.4622e7, color: "#3e64b7", parentName: "Matahari", semiMajorMeters: 30.047 * AU_METERS, periodDays: 60182.0, rotationHours: 16.11 },
+                { name: "Bulan", kind: "moon", massKg: 7.3476e22, radiusMeters: 1.7374e6, color: "#c9cdd0", parentName: "Bumi", semiMajorMeters: 384400000, periodDays: 27.3217, rotationHours: 655.7 },
                 { name: "Phobos", kind: "moon", massKg: 1.0659e16, radiusMeters: 1.1267e4, color: "#a08f82", parentName: "Mars", semiMajorMeters: 9.376e6, periodDays: 0.319, rotationHours: 7.65 },
                 { name: "Deimos", kind: "moon", massKg: 1.476e15, radiusMeters: 6.2e3, color: "#988c83", parentName: "Mars", semiMajorMeters: 2.346e7, periodDays: 1.263, rotationHours: 30.3 },
                 { name: "Io", kind: "moon", massKg: 8.9319e22, radiusMeters: 1.8216e6, color: "#f0d782", parentName: "Jupiter", semiMajorMeters: 4.217e8, periodDays: 1.769, rotationHours: 42.46 },
@@ -1127,6 +1129,17 @@
 
             const catalogByName = new Map();
             const normalizedNameIndex = new Map();
+            const realisticMaterialByName = new Map([
+                ["Merkurius", "color: #91867b; roughness: 0.93; metalness: 0.02"],
+                ["Venus", "color: #dcb988; roughness: 0.88; metalness: 0.01"],
+                ["Bumi", "color: #2d6fa3; roughness: 0.8; metalness: 0.02"],
+                ["Mars", "color: #b65e44; roughness: 0.9; metalness: 0.01"],
+                ["Jupiter", "color: #c8a17d; roughness: 0.86; metalness: 0.02"],
+                ["Saturnus", "color: #d7c08f; roughness: 0.87; metalness: 0.02"],
+                ["Uranus", "color: #88c1cb; roughness: 0.83; metalness: 0.02"],
+                ["Neptunus", "color: #3e64b7; roughness: 0.83; metalness: 0.03"],
+                ["Bulan", "color: #c9cdd0; roughness: 0.97; metalness: 0.01"],
+            ]);
 
             function registerBody(entry) {
                 const body = {
@@ -1416,6 +1429,15 @@
 
             function appearanceForBody(body, displayRadius) {
                 const kind = body.kind;
+                const realisticMaterial = realisticMaterialByName.get(body.name);
+
+                if (realisticMaterial) {
+                    return {
+                        geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
+                        material: realisticMaterial,
+                    };
+                }
+
                 if (kind === "meteor") {
                     return {
                         geometry: `primitive: dodecahedron; radius: ${displayRadius.toFixed(4)}`,
@@ -1473,6 +1495,16 @@
                 });
                 orbitAnchorEl.appendChild(bodyMeshEl);
 
+                let atmosphereEl = null;
+                if (body.name === "Bumi") {
+                    atmosphereEl = createEntity("a-entity", {
+                        geometry: `primitive: sphere; radius: ${(displayRadius * 1.024).toFixed(4)}`,
+                        material: "color: #dff1ff; opacity: 0.24; transparent: true; roughness: 0.15; metalness: 0",
+                        position: "0 0 0",
+                    });
+                    orbitAnchorEl.appendChild(atmosphereEl);
+                }
+
                 let glowEl = null;
                 if (body.kind === "star") {
                     glowEl = createEntity("a-entity", {
@@ -1520,15 +1552,6 @@
                     orbitAnchorEl.appendChild(diskEl);
                 }
 
-                if (body.name === focusName) {
-                    const focusRing = createEntity("a-entity", {
-                        geometry: `primitive: torus; radius: ${(displayRadius * 1.38).toFixed(4)}; radiusTubular: ${(displayRadius * 0.05).toFixed(4)}; segmentsTubular: 52; segmentsRadial: 8`,
-                        material: "color: #9dc8ff; opacity: 0.74; transparent: true",
-                        rotation: "90 0 0",
-                    });
-                    orbitAnchorEl.appendChild(focusRing);
-                }
-
                 const label = createEntity("a-text", {
                     value: body.name === focusName ? `${body.name} [fokus]` : body.name,
                     align: "center",
@@ -1563,6 +1586,7 @@
                     parentNode,
                     orbitAnchorEl,
                     bodyMeshEl,
+                    atmosphereEl,
                     glowEl,
                     cometTailEl,
                     orbitTrackEl,
