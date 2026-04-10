@@ -2985,17 +2985,42 @@ async function requestScreenWakeLockPermission(): Promise<PermissionProbeResult>
 }
 
 async function requestInstallAccessPermissions(): Promise<PermissionCapabilityState> {
-    const virtualReality = await requestXrSessionPermission("immersive-vr");
-    const augmentedReality = await requestXrSessionPermission("immersive-ar");
-    const geolocation = await requestGeolocationPermission();
-    const motionSensors = await requestMotionSensorPermission();
-    const microphone = await requestMicrophonePermission();
-    const relatedAppsProbe = await requestRelatedAppsPermission();
+    const virtualRealityPromise = requestXrSessionPermission("immersive-vr");
+    const augmentedRealityPromise = requestXrSessionPermission("immersive-ar");
+    const geolocationPromise = requestGeolocationPermission();
+    const motionSensorsPromise = requestMotionSensorPermission();
+    const microphonePromise = requestMicrophonePermission();
+    const relatedAppsProbePromise = requestRelatedAppsPermission();
+    const cameraPromise = requestCameraPermissionForAr();
+    const notificationsPromise = requestNotificationPermissionForPwa();
+    const persistentStoragePromise = requestPersistentStoragePermission();
+    const wakeLockPromise = requestScreenWakeLockPermission();
+
+    const [
+        virtualReality,
+        augmentedReality,
+        geolocation,
+        motionSensors,
+        microphone,
+        relatedAppsProbe,
+        camera,
+        notifications,
+        persistentStorage,
+        wakeLock,
+    ] = await Promise.all([
+        virtualRealityPromise,
+        augmentedRealityPromise,
+        geolocationPromise,
+        motionSensorsPromise,
+        microphonePromise,
+        relatedAppsProbePromise,
+        cameraPromise,
+        notificationsPromise,
+        persistentStoragePromise,
+        wakeLockPromise,
+    ]);
+
     const deviceUse = mergePermissionResults([geolocation, motionSensors, microphone, relatedAppsProbe]);
-    const camera = await requestCameraPermissionForAr();
-    const notifications = await requestNotificationPermissionForPwa();
-    const persistentStorage = await requestPersistentStoragePermission();
-    const wakeLock = await requestScreenWakeLockPermission();
 
     return {
         virtualReality,
@@ -3057,8 +3082,9 @@ async function registerPwaServiceWorker(): Promise<void> {
 
     try {
         const base = new URL(import.meta.env.BASE_URL, window.location.origin);
-        const swUrl = new URL("sw.js", base).toString();
-        await navigator.serviceWorker.register(swUrl, { scope: base.pathname });
+        const swUrl = new URL("sw.js", base);
+        swUrl.searchParams.set("v", APP_BUILD_HASH);
+        await navigator.serviceWorker.register(swUrl.toString(), { scope: base.pathname });
     } catch {
         addLocalEvent("Service worker gagal didaftarkan. Mode offline terbatas.");
     }

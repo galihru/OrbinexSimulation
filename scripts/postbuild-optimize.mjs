@@ -103,6 +103,18 @@ function collectClassNamesFromCss(cssCode) {
     return classNames;
 }
 
+function collectClassNamesFromHtmlStyles(htmlCode) {
+    const classNames = new Set();
+    const stylePattern = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+    let styleMatch;
+    while ((styleMatch = stylePattern.exec(htmlCode)) !== null) {
+        const cssBlock = styleMatch[1] || "";
+        const fromCss = collectClassNamesFromCss(cssBlock);
+        fromCss.forEach((name) => classNames.add(name));
+    }
+    return classNames;
+}
+
 function escapeRegExp(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -119,6 +131,7 @@ function applyClassMap(content, classMap) {
 
 async function mangleClassNames(files) {
     const cssFiles = files.filter((filePath) => path.extname(filePath).toLowerCase() === ".css");
+    const htmlFiles = files.filter((filePath) => path.extname(filePath).toLowerCase() === ".html");
     const targetFiles = files.filter((filePath) => {
         const ext = path.extname(filePath).toLowerCase();
         return ext === ".css" || ext === ".js" || ext === ".html";
@@ -129,6 +142,12 @@ async function mangleClassNames(files) {
         const cssCode = await fs.readFile(cssFile, "utf8");
         const fromFile = collectClassNamesFromCss(cssCode);
         fromFile.forEach((name) => discoveredClassNames.add(name));
+    }
+
+    for (const htmlFile of htmlFiles) {
+        const htmlCode = await fs.readFile(htmlFile, "utf8");
+        const fromHtmlStyles = collectClassNamesFromHtmlStyles(htmlCode);
+        fromHtmlStyles.forEach((name) => discoveredClassNames.add(name));
     }
 
     const classMap = new Map();

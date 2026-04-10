@@ -9,6 +9,8 @@
     content="OrbinexSimulation adalah website simulasi semesta 3D berbasis @galihru/orbinex: planet, satelit, komet, meteor, nebula, galaksi, black hole, prediksi event, dan terminal interaktif." />
   <meta name="keywords"
     content="Orbinex, simulation, universe sandbox, 3D astronomy, physics engine, galihru orbinex, orbital mechanics" />
+  <meta name="author" content="galihru" />
+  <meta name="format-detection" content="telephone=no" />
   <meta name="robots" content="index,follow,max-image-preview:large" />
   <meta name="theme-color" content="#0a1838" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -54,6 +56,12 @@
 
 <body>
   <a class="skip-link" href="#sim-main">Lewati ke simulasi utama</a>
+  <noscript>
+    <main id="sim-main" aria-label="Orbinex fallback content">
+      <h1>OrbinexSimulation</h1>
+      <p>JavaScript diperlukan untuk menjalankan simulasi 3D, mode AR, dan kontrol interaktif Orbinex.</p>
+    </main>
+  </noscript>
   <orbinex-app id="app"></orbinex-app>
   <script>
     (function () {
