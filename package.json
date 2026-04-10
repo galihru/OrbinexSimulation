@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "catalog:update": "node scripts/update-agency-catalog.mjs",
-    "build": "npm run catalog:update && vite build",
+    "build": "npm run catalog:update && vite build && node scripts/postbuild-optimize.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -17,6 +17,8 @@
   "devDependencies": {
     "@types/qrcode": "^1.5.6",
     "@types/three": "^0.183.1",
+    "html-minifier-terser": "^7.2.0",
+    "terser": "^5.43.1",
     "typescript": "^5.9.3",
     "vite": "^7.1.7"
   }

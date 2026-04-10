@@ -17,7 +17,25 @@ export default defineConfig(({ mode }) => ({
   build: {
     manifest: true,
     sourcemap: false,
+    target: "es2020",
+    minify: "terser",
+    cssMinify: true,
     cssCodeSplit: true,
+    terserOptions: {
+      compress: {
+        passes: 3,
+        drop_console: true,
+        drop_debugger: true,
+        toplevel: true,
+      },
+      mangle: {
+        toplevel: true,
+      },
+      format: {
+        comments: false,
+        ascii_only: true,
+      },
+    },
     rollupOptions: {
       output: {
         entryFileNames: "assets/[name]-[hash].js",

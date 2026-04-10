@@ -768,6 +768,32 @@
                 return `${label}: tidak didukung`;
             }
 
+            async function requestXrSessionPermission(mode) {
+                if (!window.isSecureContext || !navigator.xr || typeof navigator.xr.requestSession !== "function") {
+                    return "unsupported";
+                }
+
+                try {
+                    if (typeof navigator.xr.isSessionSupported === "function") {
+                        const supported = await navigator.xr.isSessionSupported(mode);
+                        if (!supported) {
+                            return "unsupported";
+                        }
+                    }
+
+                    const session = await navigator.xr.requestSession(mode, {
+                        optionalFeatures: ["local-floor", "bounded-floor", "anchors", "hit-test", "dom-overlay"],
+                        domOverlay: { root: document.body },
+                    });
+                    if (session && typeof session.end === "function") {
+                        await session.end();
+                    }
+                    return "granted";
+                } catch {
+                    return "denied";
+                }
+            }
+
             async function requestRelatedAppsPermission() {
                 if (!window.isSecureContext || typeof navigator.getInstalledRelatedApps !== "function") {
                     return "unsupported";
@@ -828,7 +854,9 @@
 
             async function requestArAccessPermissions() {
                 const results = [];
-                results.push(permissionSummary("Akses app/service perangkat", await requestRelatedAppsPermission()));
+                results.push(permissionSummary("Virtual reality", await requestXrSessionPermission("immersive-vr")));
+                results.push(permissionSummary("Augmented reality", await requestXrSessionPermission("immersive-ar")));
+                results.push(permissionSummary("Your device use", await requestRelatedAppsPermission()));
                 results.push(permissionSummary("Akses kamera AR", await requestCameraPermissionForAr()));
                 results.push(permissionSummary("Notifikasi", await requestNotificationPermissionForPwa()));
                 results.push(permissionSummary("Penyimpanan offline", await requestPersistentStoragePermission()));

@@ -150,8 +150,21 @@ type PermissionProbeResult = "granted" | "denied" | "unsupported";
 
 type NavigatorWithInstalledRelatedApps = Navigator & {
     getInstalledRelatedApps?: () => Promise<Array<{ id?: string; platform?: string; url?: string }>>;
+    xr?: {
+        isSessionSupported?: (mode: "immersive-vr" | "immersive-ar" | "inline") => Promise<boolean>;
+        requestSession?: (
+            mode: "immersive-vr" | "immersive-ar",
+            options?: {
+                requiredFeatures?: string[];
+                optionalFeatures?: string[];
+                domOverlay?: { root: Element };
+            },
+        ) => Promise<{ end?: () => Promise<void> | void }>;
+    };
     standalone?: boolean;
 };
+
+type XrSessionMode = "immersive-vr" | "immersive-ar";
 
 type DynamicCatalogOrbitState = {
     bodyName: string;
@@ -2747,6 +2760,36 @@ async function requestRelatedAppsPermission(): Promise<PermissionProbeResult> {
     }
 }
 
+async function requestXrSessionPermission(mode: XrSessionMode): Promise<PermissionProbeResult> {
+    if (!window.isSecureContext) {
+        return "unsupported";
+    }
+
+    const nav = window.navigator as NavigatorWithInstalledRelatedApps;
+    const xr = nav.xr;
+    if (!xr || typeof xr.requestSession !== "function") {
+        return "unsupported";
+    }
+
+    try {
+        if (typeof xr.isSessionSupported === "function") {
+            const supported = await xr.isSessionSupported(mode);
+            if (!supported) {
+                return "unsupported";
+            }
+        }
+
+        const session = await xr.requestSession(mode, {
+            optionalFeatures: ["local-floor", "bounded-floor", "anchors", "hit-test", "dom-overlay"],
+            domOverlay: { root: document.body },
+        });
+        await session.end?.();
+        return "granted";
+    } catch {
+        return "denied";
+    }
+}
+
 async function requestCameraPermissionForAr(): Promise<PermissionProbeResult> {
     if (!window.isSecureContext || !("mediaDevices" in navigator) || !navigator.mediaDevices?.getUserMedia) {
         return "unsupported";
@@ -2794,8 +2837,15 @@ async function requestPersistentStoragePermission(): Promise<PermissionProbeResu
 
 async function requestInstallAccessPermissions(): Promise<string[]> {
     const results: string[] = [];
+
+    const virtualReality = await requestXrSessionPermission("immersive-vr");
+    results.push(permissionSummary("Virtual reality", virtualReality));
+
+    const augmentedReality = await requestXrSessionPermission("immersive-ar");
+    results.push(permissionSummary("Augmented reality", augmentedReality));
+
     const relatedApps = await requestRelatedAppsPermission();
-    results.push(permissionSummary("Akses app/service perangkat", relatedApps));
+    results.push(permissionSummary("Your device use", relatedApps));
 
     const camera = await requestCameraPermissionForAr();
     results.push(permissionSummary("Akses kamera AR", camera));
