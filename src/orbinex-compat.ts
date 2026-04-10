@@ -1000,10 +1000,34 @@ class UniverseEngine {
         }
     }
 
+    private captureRadiusForBody(body: UniverseBody): number {
+        const baseRadius = Math.max(body.radiusMeters, 1);
+        if (body.kind === "black-hole") {
+            return baseRadius * 12;
+        }
+        if (body.kind === "star") {
+            return baseRadius * 1.45;
+        }
+        if (body.kind === "planet" || body.kind === "dwarf") {
+            return baseRadius * 8;
+        }
+        if (body.kind === "moon") {
+            return baseRadius * 6;
+        }
+        return baseRadius * 4;
+    }
+
     private updateSmallBodies(dtSec: number): void {
-        const sun = this.findBody("Matahari");
-        const earth = this.findBody("Bumi");
-        if (!sun) {
+        const gravityTargets = this.majorBodies.filter((body) =>
+            body.alive
+            && (body.kind === "star"
+                || body.kind === "planet"
+                || body.kind === "moon"
+                || body.kind === "dwarf"
+                || body.kind === "black-hole"),
+        );
+
+        if (gravityTargets.length === 0) {
             return;
         }
 
@@ -1012,26 +1036,51 @@ class UniverseEngine {
                 continue;
             }
 
-            const toSun = subVec3(sun.position, dyn.body.position);
-            const dist = Math.max(magVec3(toSun), sun.radiusMeters);
-            const gravAcc = gravitationalParameter(sun.massKg) / (dist * dist);
-            dyn.body.velocity = addVec3(dyn.body.velocity, scaleVec3(normalizeVec3(toSun), gravAcc * dtSec));
+            let totalAcceleration = vec3();
+            for (const target of gravityTargets) {
+                if (target.name === dyn.body.name) {
+                    continue;
+                }
+
+                const toTarget = subVec3(target.position, dyn.body.position);
+                const distance = Math.max(magVec3(toTarget), target.radiusMeters * 0.65, 1);
+                const gravAcc = gravitationalParameter(Math.max(target.massKg, 1)) / (distance * distance);
+                const gravVector = scaleVec3(normalizeVec3(toTarget), gravAcc);
+                totalAcceleration = addVec3(totalAcceleration, gravVector);
+            }
+
+            dyn.body.velocity = addVec3(dyn.body.velocity, scaleVec3(totalAcceleration, dtSec));
             dyn.body.position = addVec3(dyn.body.position, scaleVec3(dyn.body.velocity, dtSec));
             dyn.ttlSec -= dtSec;
 
-            if (earth) {
-                const rel = magVec3(subVec3(dyn.body.position, earth.position));
-                if (rel <= earth.radiusMeters * 8) {
-                    this.collisions += 1;
-                    dyn.body.alive = false;
-                    this.addEvent("impact", `${dyn.body.name} impacted near Earth corridor.`, earth.position, dyn.body.name, "Bumi", magVec3(dyn.body.velocity));
+            let absorbedBy: UniverseBody | null = null;
+            for (const target of gravityTargets) {
+                if (target.name === dyn.body.name || !target.alive) {
+                    continue;
+                }
+
+                const relativeDistance = magVec3(subVec3(dyn.body.position, target.position));
+                if (relativeDistance <= this.captureRadiusForBody(target)) {
+                    absorbedBy = target;
+                    break;
                 }
             }
 
-            if (dist <= sun.radiusMeters * 1.4) {
+            if (absorbedBy) {
                 this.collisions += 1;
                 dyn.body.alive = false;
-                this.addEvent("accretion", `${dyn.body.name} accreted into Matahari.`, sun.position, dyn.body.name, "Matahari", magVec3(dyn.body.velocity));
+                const eventKind = absorbedBy.kind === "star" || absorbedBy.kind === "black-hole"
+                    ? "accretion"
+                    : "impact";
+                this.addEvent(
+                    eventKind,
+                    `${dyn.body.name} was captured by ${absorbedBy.name} and destroyed.`,
+                    absorbedBy.position,
+                    dyn.body.name,
+                    absorbedBy.name,
+                    magVec3(dyn.body.velocity),
+                );
+                continue;
             }
 
             if (dyn.ttlSec <= 0) {

@@ -2437,11 +2437,45 @@ function updateDynamicCatalogBodies(dtMs: number): void {
         return;
     }
 
+    const isDestructibleMinor = (body: UniverseBody): boolean =>
+        body.kind === "comet"
+        || body.kind === "meteor"
+        || body.name.startsWith("Asteroid-")
+        || body.name.startsWith("Kuiper-")
+        || body.name.includes("Meteoroid")
+        || body.name.includes("Comet-");
+
+    const captureRadiusForTarget = (body: UniverseBody): number => {
+        const baseRadius = Math.max(body.radiusMeters, 1);
+        if (body.kind === "black-hole") {
+            return baseRadius * 10;
+        }
+        if (body.kind === "star") {
+            return baseRadius * 1.4;
+        }
+        if (body.kind === "planet" || body.kind === "dwarf") {
+            return baseRadius * 7;
+        }
+        if (body.kind === "moon") {
+            return baseRadius * 5;
+        }
+        return baseRadius * 3;
+    };
+
     const dtSec = (dtMs / 1000) * clamp(engine.currentTimeScale / 120, 2, 64);
     const bodyIndex = new Map<string, UniverseBody>();
     engine.getMajorBodies().forEach((body) => bodyIndex.set(body.name, body));
     engine.getContextBodies().forEach((body) => bodyIndex.set(body.name, body));
     nasaCatalogBodies.forEach((body) => bodyIndex.set(body.name, body));
+    const sinkTargets = Array.from(bodyIndex.values()).filter((body) =>
+        body.alive
+        && (body.kind === "star"
+            || body.kind === "planet"
+            || body.kind === "moon"
+            || body.kind === "dwarf"
+            || body.kind === "black-hole"),
+    );
+    const capturedBodies = new Map<string, string>();
 
     for (const orbit of dynamicCatalogOrbits.values()) {
         const body = bodyIndex.get(orbit.bodyName);
@@ -2469,6 +2503,47 @@ function updateDynamicCatalogBodies(dtMs: number): void {
             y: parent.velocity.y + (ty / mag) * speed,
             z: parent.velocity.z + (tz / mag) * speed,
         };
+
+        if (!isDestructibleMinor(body)) {
+            continue;
+        }
+
+        for (const target of sinkTargets) {
+            if (!target.alive || target.name === body.name) {
+                continue;
+            }
+            const distance = Math.hypot(
+                body.position.x - target.position.x,
+                body.position.y - target.position.y,
+                body.position.z - target.position.z,
+            );
+            if (distance <= captureRadiusForTarget(target)) {
+                body.alive = false;
+                capturedBodies.set(body.name, target.name);
+                break;
+            }
+        }
+    }
+
+    if (capturedBodies.size > 0) {
+        for (const bodyName of capturedBodies.keys()) {
+            dynamicCatalogOrbits.delete(bodyName);
+        }
+
+        for (let i = nasaCatalogBodies.length - 1; i >= 0; i -= 1) {
+            if (!nasaCatalogBodies[i].alive) {
+                nasaCatalogBodies.splice(i, 1);
+            }
+        }
+
+        const samples = Array.from(capturedBodies.entries())
+            .slice(0, 3)
+            .map(([bodyName, targetName]) => `${bodyName} -> ${targetName}`)
+            .join(", ");
+        const extraCount = capturedBodies.size - 3;
+        addLocalEvent(
+            `Objek minor tersedot gravitasi dan hancur: ${samples}${extraCount > 0 ? ` (+${extraCount} lainnya)` : ""}.`,
+        );
     }
 }
 
