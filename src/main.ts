@@ -2207,7 +2207,46 @@ function cycleFocus(): void {
 
     const current = targets.findIndex((body) => body.name === uiState.focusName);
     const next = targets[(current + 1 + targets.length) % targets.length];
-    uiState.focusName = next.name;
+    const preferredDistance = next.kind === "galaxy" || next.kind === "cluster"
+        ? 220
+        : next.kind === "star"
+            ? 80
+            : 56;
+    setFocusBody(next, { pinInfo: false, preferredDistance, durationMs: 640 });
+}
+
+function setFocusBody(
+    body: UniverseBody,
+    options?: {
+        pinInfo?: boolean;
+        preferredDistance?: number;
+        durationMs?: number;
+    },
+): void {
+    uiState.focusName = body.name;
+    uiState.selectedKey = bodyKey(body);
+    uiState.infoPinned = options?.pinInfo ?? true;
+
+    const target = toRenderPosition(body.position);
+    const preferredDistance = options?.preferredDistance ?? (isSolarSystemBody(body) ? 56 : 180);
+    focusSuspendUntilMs = performance.now() + Math.max(900, (options?.durationMs ?? 920) + 200);
+
+    const offset = camera.position.clone().sub(controls.target);
+    if (offset.lengthSq() < 1e-6) {
+        offset.set(42, 26, 68);
+    }
+    offset.setLength(clamp(preferredDistance, 24, 380));
+
+    cameraFlight = {
+        fromPosition: camera.position.clone(),
+        toPosition: target.clone().add(offset),
+        fromTarget: controls.target.clone(),
+        toTarget: target,
+        startMs: performance.now(),
+        durationMs: options?.durationMs ?? 920,
+    };
+
+    updateInfoPanel();
 }
 
 function updateFocusTarget(): void {
@@ -2229,8 +2268,8 @@ function updateFocusTarget(): void {
 
 function resetCameraToEarthView(): void {
     uiState.focusName = "Bumi";
-    uiState.selectedKey = null;
-    uiState.infoPinned = false;
+    uiState.selectedKey = "planet:Bumi";
+    uiState.infoPinned = true;
     cameraFlight = null;
     focusSuspendUntilMs = 0;
 
@@ -2404,10 +2443,12 @@ function focusBodyBySearchTerm(term: string): boolean {
         return false;
     }
 
-    uiState.focusName = target.name;
-    uiState.selectedKey = bodyKey(target);
-    uiState.infoPinned = true;
-    updateInfoPanel();
+    const preferredDistance = target.kind === "galaxy" || target.kind === "cluster"
+        ? 220
+        : target.kind === "star"
+            ? 80
+            : 56;
+    setFocusBody(target, { pinInfo: true, preferredDistance, durationMs: 820 });
     return true;
 }
 
@@ -2436,10 +2477,12 @@ function updateSearchResults(): void {
         const sourceHint = bodySourceText(body.name).split(" | ").slice(0, 2).join("+");
         button.textContent = `${body.name} [${body.kind}] <${sourceHint}>`;
         button.addEventListener("click", () => {
-            uiState.focusName = body.name;
-            uiState.selectedKey = bodyKey(body);
-            uiState.infoPinned = true;
-            updateInfoPanel();
+            const preferredDistance = body.kind === "galaxy" || body.kind === "cluster"
+                ? 220
+                : body.kind === "star"
+                    ? 80
+                    : 56;
+            setFocusBody(body, { pinInfo: true, preferredDistance, durationMs: 820 });
         });
         item.appendChild(button);
         searchResults.appendChild(item);
@@ -2976,7 +3019,18 @@ function updatePanelVisibility(): void {
 }
 
 function currentMeshTargets(): THREE.Object3D[] {
-    return Array.from(bodyNodes.values()).map((node) => node.mesh);
+    const zoomSpan = cameraZoomSpan();
+    return Array.from(bodyNodes.values())
+        .filter((node) => node.mesh.visible)
+        .filter((node) => {
+            if (zoomSpan >= 320) {
+                return true;
+            }
+            return isSolarSystemBody(node.body)
+                || node.body.name === uiState.focusName
+                || uiState.selectedKey === node.key;
+        })
+        .map((node) => node.mesh);
 }
 
 function updateHoverByRaycast(): void {
@@ -3136,13 +3190,19 @@ function bindUiHandlers(): void {
 
     canvas.addEventListener("click", () => {
         if (uiState.hoverKey) {
-            uiState.selectedKey = uiState.hoverKey;
             const selectedBody = bodyNodes.get(uiState.hoverKey)?.body;
             if (selectedBody) {
-                uiState.focusName = selectedBody.name;
+                const preferredDistance = selectedBody.kind === "galaxy" || selectedBody.kind === "cluster"
+                    ? 220
+                    : selectedBody.kind === "star"
+                        ? 80
+                        : 56;
+                setFocusBody(selectedBody, { pinInfo: true, preferredDistance, durationMs: 760 });
+            } else {
+                uiState.selectedKey = uiState.hoverKey;
+                uiState.infoPinned = true;
+                updateInfoPanel();
             }
-            uiState.infoPinned = true;
-            updateInfoPanel();
         } else {
             uiState.infoPinned = false;
             uiState.selectedKey = null;
