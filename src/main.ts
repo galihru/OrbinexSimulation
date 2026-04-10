@@ -146,6 +146,13 @@ type DeferredInstallPromptEvent = Event & {
     }>;
 };
 
+type PermissionProbeResult = "granted" | "denied" | "unsupported";
+
+type NavigatorWithInstalledRelatedApps = Navigator & {
+    getInstalledRelatedApps?: () => Promise<Array<{ id?: string; platform?: string; url?: string }>>;
+    standalone?: boolean;
+};
+
 type DynamicCatalogOrbitState = {
     bodyName: string;
     parentName: string;
@@ -304,6 +311,7 @@ app.innerHTML = `
                 <button id="btn-info" type="button">INFO</button>
                 <button id="btn-search" type="button">CARI</button>
                 <button id="btn-install" type="button">INSTALL</button>
+                <button id="btn-device-access" type="button">AKSES DEVICE</button>
                 <button id="btn-ref" type="button">REF</button>
                 <button id="btn-help" type="button">BANTU</button>
                 <button id="btn-language" type="button">BAHASA: ID</button>
@@ -498,6 +506,7 @@ const labelButton = byId<HTMLButtonElement>("btn-label");
 const infoButton = byId<HTMLButtonElement>("btn-info");
 const searchButton = byId<HTMLButtonElement>("btn-search");
 const installButton = byId<HTMLButtonElement>("btn-install");
+const deviceAccessButton = byId<HTMLButtonElement>("btn-device-access");
 const refButton = byId<HTMLButtonElement>("btn-ref");
 const helpButton = byId<HTMLButtonElement>("btn-help");
 const languageButton = byId<HTMLButtonElement>("btn-language");
@@ -522,6 +531,8 @@ const i18n = {
         install: "INSTALL APP",
         installDone: "APP:TERPASANG",
         installUnavailable: "Install via menu browser (Add to Home Screen)",
+        deviceAccess: "AKSES DEVICE",
+        deviceAccessHint: "Minta akses aplikasi/layanan perangkat",
         helpOn: "BANTU",
         helpOff: "BANTU:OFF",
         lang: "BAHASA: ID",
@@ -545,6 +556,8 @@ const i18n = {
         install: "INSTALL APP",
         installDone: "APP:INSTALLED",
         installUnavailable: "Install via browser menu (Add to Home Screen)",
+        deviceAccess: "DEVICE ACCESS",
+        deviceAccessHint: "Request access to device apps/services",
         helpOn: "HELP",
         helpOff: "HELP:OFF",
         lang: "LANG: EN",
@@ -692,7 +705,7 @@ let latestCatalogGeneratedAt = "";
 let catalogRefreshTimer: number | null = null;
 let deferredInstallPrompt: DeferredInstallPromptEvent | null = null;
 let pwaInstalled = window.matchMedia("(display-mode: standalone)").matches
-    || ((window.navigator as Navigator & { standalone?: boolean }).standalone === true);
+    || ((window.navigator as NavigatorWithInstalledRelatedApps).standalone === true);
 let pwaListenersBound = false;
 
 const bodyDescriptions: Record<string, string> = {
@@ -2706,22 +2719,94 @@ function updateInstallButtonState(): void {
     installButton.title = installHintText();
 }
 
-async function requestInstallAccessPermissions(): Promise<void> {
-    if (window.isSecureContext && "Notification" in window && Notification.permission === "default") {
-        try {
-            await Notification.requestPermission();
-        } catch {
-            // Ignore unsupported permission prompt failures.
-        }
+function permissionSummary(label: string, result: PermissionProbeResult): string {
+    if (result === "granted") {
+        return `${label}: diizinkan`;
+    }
+    if (result === "denied") {
+        return `${label}: ditolak`;
+    }
+    return `${label}: tidak didukung`;
+}
+
+async function requestRelatedAppsPermission(): Promise<PermissionProbeResult> {
+    if (!window.isSecureContext) {
+        return "unsupported";
     }
 
-    if ("storage" in navigator && "persist" in navigator.storage) {
-        try {
-            await navigator.storage.persist();
-        } catch {
-            // Ignore storage persistence failures.
-        }
+    const nav = window.navigator as NavigatorWithInstalledRelatedApps;
+    if (typeof nav.getInstalledRelatedApps !== "function") {
+        return "unsupported";
     }
+
+    try {
+        await nav.getInstalledRelatedApps();
+        return "granted";
+    } catch {
+        return "denied";
+    }
+}
+
+async function requestCameraPermissionForAr(): Promise<PermissionProbeResult> {
+    if (!window.isSecureContext || !("mediaDevices" in navigator) || !navigator.mediaDevices?.getUserMedia) {
+        return "unsupported";
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" },
+            audio: false,
+        });
+        stream.getTracks().forEach((track) => track.stop());
+        return "granted";
+    } catch {
+        return "denied";
+    }
+}
+
+async function requestNotificationPermissionForPwa(): Promise<PermissionProbeResult> {
+    if (!window.isSecureContext || !("Notification" in window)) {
+        return "unsupported";
+    }
+
+    try {
+        const nextPermission = Notification.permission === "default"
+            ? await Notification.requestPermission()
+            : Notification.permission;
+        return nextPermission === "granted" ? "granted" : "denied";
+    } catch {
+        return "denied";
+    }
+}
+
+async function requestPersistentStoragePermission(): Promise<PermissionProbeResult> {
+    if (!("storage" in navigator) || !("persist" in navigator.storage)) {
+        return "unsupported";
+    }
+
+    try {
+        const persisted = await navigator.storage.persist();
+        return persisted ? "granted" : "denied";
+    } catch {
+        return "denied";
+    }
+}
+
+async function requestInstallAccessPermissions(): Promise<string[]> {
+    const results: string[] = [];
+    const relatedApps = await requestRelatedAppsPermission();
+    results.push(permissionSummary("Akses app/service perangkat", relatedApps));
+
+    const camera = await requestCameraPermissionForAr();
+    results.push(permissionSummary("Akses kamera AR", camera));
+
+    const notification = await requestNotificationPermissionForPwa();
+    results.push(permissionSummary("Notifikasi", notification));
+
+    const persistentStorage = await requestPersistentStoragePermission();
+    results.push(permissionSummary("Penyimpanan offline", persistentStorage));
+
+    return results;
 }
 
 async function predownloadOfflineDatabaseAssets(): Promise<void> {
@@ -6144,6 +6229,8 @@ function updateActionButtons(): void {
     labelButton.textContent = viewState.showLabels ? t.labelOn : t.labelOff;
     infoButton.textContent = uiState.showInfo ? t.infoOn : t.infoOff;
     searchButton.textContent = uiState.showSearch ? t.searchOn : t.searchOff;
+    deviceAccessButton.textContent = t.deviceAccess;
+    deviceAccessButton.title = t.deviceAccessHint;
     helpButton.textContent = uiState.showHelp ? t.helpOn : t.helpOff;
     languageButton.textContent = t.lang;
     bottomHint.textContent = t.bottomHint;
@@ -6308,7 +6395,8 @@ function bindUiHandlers(): void {
             return;
         }
 
-        await requestInstallAccessPermissions();
+        const permissionResults = await requestInstallAccessPermissions();
+        addLocalEvent(permissionResults.join(" | "));
 
         const promptEvent = deferredInstallPrompt;
         deferredInstallPrompt = null;
@@ -6325,6 +6413,17 @@ function bindUiHandlers(): void {
         }
 
         updateInstallButtonState();
+    });
+
+    deviceAccessButton.addEventListener("click", async () => {
+        deviceAccessButton.disabled = true;
+        try {
+            const permissionResults = await requestInstallAccessPermissions();
+            addLocalEvent(permissionResults.join(" | "));
+        } finally {
+            deviceAccessButton.disabled = false;
+            updateActionButtons();
+        }
     });
 
     helpButton.addEventListener("click", () => {

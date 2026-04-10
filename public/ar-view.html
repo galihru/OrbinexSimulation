@@ -1,5 +1,5 @@
 ﻿<!doctype html>
-<html lang="id">
+<html lang="id" xml:lang="id">
 
 <head>
     <meta charset="UTF-8" />
@@ -568,6 +568,7 @@
                 <a id="open-marker" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
                     target="_blank" rel="noopener noreferrer">Buka Marker Aktif</a>
                 <button id="install-pwa" type="button">Install App</button>
+                <button id="device-access" type="button">Akses Device</button>
                 <button id="zoom-in" type="button">Zoom +</button>
                 <button id="zoom-out" type="button">Zoom -</button>
                 <button id="rot-left" type="button">Rotasi -</button>
@@ -656,6 +657,7 @@
             const openDesktopLink = document.getElementById("open-desktop");
             const openMarkerLink = document.getElementById("open-marker");
             const installPwaButton = document.getElementById("install-pwa");
+            const deviceAccessButton = document.getElementById("device-access");
             const zoomInButton = document.getElementById("zoom-in");
             const zoomOutButton = document.getElementById("zoom-out");
             const rotLeftButton = document.getElementById("rot-left");
@@ -750,6 +752,88 @@
                 installPwaButton.title = deferredInstallPrompt
                     ? "Install app ke home screen"
                     : "Gunakan menu browser > Add to Home Screen";
+
+                if (deviceAccessButton) {
+                    deviceAccessButton.title = "Minta akses aplikasi/layanan perangkat";
+                }
+            }
+
+            function permissionSummary(label, result) {
+                if (result === "granted") {
+                    return `${label}: diizinkan`;
+                }
+                if (result === "denied") {
+                    return `${label}: ditolak`;
+                }
+                return `${label}: tidak didukung`;
+            }
+
+            async function requestRelatedAppsPermission() {
+                if (!window.isSecureContext || typeof navigator.getInstalledRelatedApps !== "function") {
+                    return "unsupported";
+                }
+
+                try {
+                    await navigator.getInstalledRelatedApps();
+                    return "granted";
+                } catch {
+                    return "denied";
+                }
+            }
+
+            async function requestCameraPermissionForAr() {
+                if (!window.isSecureContext || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+                    return "unsupported";
+                }
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: "environment" },
+                        audio: false,
+                    });
+                    stream.getTracks().forEach((track) => track.stop());
+                    return "granted";
+                } catch {
+                    return "denied";
+                }
+            }
+
+            async function requestNotificationPermissionForPwa() {
+                if (!window.isSecureContext || !("Notification" in window)) {
+                    return "unsupported";
+                }
+
+                try {
+                    const nextPermission = Notification.permission === "default"
+                        ? await Notification.requestPermission()
+                        : Notification.permission;
+                    return nextPermission === "granted" ? "granted" : "denied";
+                } catch {
+                    return "denied";
+                }
+            }
+
+            async function requestPersistentStoragePermission() {
+                if (!("storage" in navigator) || !("persist" in navigator.storage)) {
+                    return "unsupported";
+                }
+
+                try {
+                    const persisted = await navigator.storage.persist();
+                    return persisted ? "granted" : "denied";
+                } catch {
+                    return "denied";
+                }
+            }
+
+            async function requestArAccessPermissions() {
+                const results = [];
+                results.push(permissionSummary("Akses app/service perangkat", await requestRelatedAppsPermission()));
+                results.push(permissionSummary("Akses kamera AR", await requestCameraPermissionForAr()));
+                results.push(permissionSummary("Notifikasi", await requestNotificationPermissionForPwa()));
+                results.push(permissionSummary("Penyimpanan offline", await requestPersistentStoragePermission()));
+                systemMetaEl.textContent = results.join(" | ");
+                return results;
             }
 
             async function cachePwaDatabaseAssets() {
@@ -816,21 +900,8 @@
                             return;
                         }
 
-                        if (window.isSecureContext && "Notification" in window && Notification.permission === "default") {
-                            try {
-                                await Notification.requestPermission();
-                            } catch {
-                                // Ignore prompt failures.
-                            }
-                        }
-
-                        if ("storage" in navigator && "persist" in navigator.storage) {
-                            try {
-                                await navigator.storage.persist();
-                            } catch {
-                                // Ignore storage persistence failures.
-                            }
-                        }
+                        await requestArAccessPermissions();
+                        statusEl.textContent = "Meminta konfirmasi install dari browser...";
 
                         const promptEvent = deferredInstallPrompt;
                         deferredInstallPrompt = null;
@@ -844,6 +915,18 @@
                             statusEl.textContent = "Install dibatalkan.";
                         }
                         updateInstallPwaButton();
+                    });
+                }
+
+                if (deviceAccessButton) {
+                    deviceAccessButton.addEventListener("click", async () => {
+                        deviceAccessButton.disabled = true;
+                        try {
+                            await requestArAccessPermissions();
+                            statusEl.textContent = "Akses perangkat selesai diproses.";
+                        } finally {
+                            deviceAccessButton.disabled = false;
+                        }
                     });
                 }
             }

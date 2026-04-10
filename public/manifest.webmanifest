@@ -1,26 +1,74 @@
 {
-  "name": "OrbinexSimulation",
-  "short_name": "Orbinex",
-  "description": "Simulasi semesta 3D dengan mode offline, telemetry realtime, dan viewer AR.",
-  "id": "./",
-  "start_url": "./",
-  "scope": "./",
-  "display": "standalone",
-  "orientation": "any",
-  "background_color": "#020814",
-  "theme_color": "#0a1838",
-  "icons": [
-    {
-      "src": "./orbinex-logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
+    "name": "OrbinexSimulation",
+    "short_name": "Orbinex",
+    "description": "Simulasi semesta 3D dengan mode offline, telemetry realtime, dan viewer AR.",
+    "id": "./",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "display_override": [
+        "window-controls-overlay",
+        "standalone",
+        "minimal-ui"
+    ],
+    "orientation": "any",
+    "background_color": "#020814",
+    "theme_color": "#0a1838",
+    "categories": [
+        "education",
+        "science",
+        "utilities"
+    ],
+    "shortcuts": [
+        {
+            "name": "Buka Simulasi 3D",
+            "short_name": "Simulasi",
+            "url": "./?desktop=1"
+        },
+        {
+            "name": "Buka AR Viewer",
+            "short_name": "AR",
+            "url": "./ar-view.html"
+        }
+    ],
+    "share_target": {
+        "action": "./?from=share",
+        "method": "GET",
+        "params": {
+            "title": "title",
+            "text": "text",
+            "url": "url"
+        }
     },
-    {
-      "src": "./orbinex.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ]
+    "protocol_handlers": [
+        {
+            "protocol": "web+orbinex",
+            "url": "./?model=%s"
+        }
+    ],
+    "launch_handler": {
+        "client_mode": "navigate-existing"
+    },
+    "related_applications": [
+        {
+            "platform": "webapp",
+            "url": "https://galihru.github.io/OrbinexSimulation/manifest.webmanifest",
+            "id": "https://galihru.github.io/OrbinexSimulation/"
+        }
+    ],
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "./orbinex-logo.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        },
+        {
+            "src": "./orbinex.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
 }
