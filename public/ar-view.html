@@ -331,8 +331,8 @@
             position: fixed;
             right: 10px;
             bottom: 10px;
-            width: 84px;
-            height: 84px;
+            width: 105px;
+            height: 105px;
             z-index: 11;
             border-radius: 10px;
             border: 1px solid rgba(137, 178, 239, 0.5);
@@ -340,6 +340,15 @@
             padding: 4px;
             box-sizing: border-box;
             pointer-events: auto;
+            transform-origin: bottom right;
+            transition: transform 180ms ease, box-shadow 180ms ease;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.34);
+        }
+
+        .ar-marker-hint:hover,
+        .ar-marker-hint:focus-visible {
+            transform: scale(1.72);
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.48);
         }
 
         .ar-marker-hint img {
@@ -522,8 +531,8 @@
             }
 
             .ar-marker-hint {
-                width: 78px;
-                height: 78px;
+                width: 94px;
+                height: 94px;
             }
 
             .pip-swap,
@@ -553,8 +562,8 @@
             <p id="ar-status">Aktifkan kamera, scan marker Hiro/Kanji, lalu model sesuai marker akan muncul.</p>
             <div class="ar-toolbar">
                 <a id="open-desktop" href="#" rel="noopener noreferrer">Buka Simulasi Desktop</a>
-                <a id="open-marker" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank"
-                    rel="noopener noreferrer">Buka Marker Aktif</a>
+                <a id="open-marker" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
+                    target="_blank" rel="noopener noreferrer">Buka Marker Aktif</a>
                 <button id="zoom-in" type="button">Zoom +</button>
                 <button id="zoom-out" type="button">Zoom -</button>
                 <button id="rot-left" type="button">Rotasi -</button>
@@ -569,13 +578,15 @@
             <p id="ar-system-meta" class="ar-system-meta">Menyiapkan sistem orbit AR...</p>
         </section>
 
-        <a id="ar-marker-hint" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" class="ar-marker-hint"
-            target="_blank" rel="noopener noreferrer" aria-label="Marker AR aktif">
-            <img id="ar-marker-hint-image" src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
+        <a id="ar-marker-hint" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
+            class="ar-marker-hint" target="_blank" rel="noopener noreferrer" aria-label="Marker AR aktif">
+            <img id="ar-marker-hint-image"
+                src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
                 alt="Marker Hiro untuk tracking AR" />
         </a>
 
-        <video id="camera-display-video" class="camera-display-video" autoplay muted playsinline webkit-playsinline></video>
+        <video id="camera-display-video" class="camera-display-video" autoplay muted playsinline
+            webkit-playsinline></video>
 
         <div id="gesture-pad" class="gesture-pad" aria-hidden="true"></div>
 
@@ -585,18 +596,28 @@
         </button>
 
         <a-scene id="ar-scene" embedded loading-screen="enabled: false" vr-mode-ui="enabled: false"
-            renderer="antialias: true; alpha: true; precision: mediump"
+            renderer="antialias: true; alpha: true; precision: mediump; colorManagement: true"
             arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false; detectionMode: mono; matrixCodeType: 3x3; maxDetectionRate: 60; canvasWidth: 1280; canvasHeight: 960;">
-            <a-marker id="orbinex-marker-hiro" data-model="" data-marker-label="Hiro" data-marker-image="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" data-marker-link="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" preset="hiro" emitevents="true" smooth="true" smoothCount="8"
-                smoothTolerance="0.01" smoothThreshold="5">
+            <a-marker id="orbinex-marker-hiro" data-model="" data-marker-label="Hiro"
+                data-marker-image="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
+                data-marker-link="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
+                preset="hiro" emitevents="true" smooth="true" smoothCount="8" smoothTolerance="0.01"
+                smoothThreshold="5">
                 <a-entity id="model-root-hiro" data-model-root position="0 0 0"></a-entity>
             </a-marker>
 
-            <a-marker id="orbinex-marker-kanji" data-model="Mars" data-marker-label="Kanji" data-marker-image="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.png" data-marker-link="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.png" preset="kanji" emitevents="true" smooth="true" smoothCount="8"
-                smoothTolerance="0.01" smoothThreshold="5">
+            <a-marker id="orbinex-marker-kanji" data-model="Mars" data-marker-label="Kanji"
+                data-marker-image="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.png"
+                data-marker-link="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.png"
+                preset="kanji" emitevents="true" smooth="true" smoothCount="8" smoothTolerance="0.01"
+                smoothThreshold="5">
                 <a-entity id="model-root-kanji" data-model-root position="0 0 0"></a-entity>
             </a-marker>
-            <a-entity camera></a-entity>
+            <a-entity camera>
+                <a-entity light="type: ambient; color: #ffffff; intensity: 0.98"></a-entity>
+                <a-entity light="type: directional; color: #ffffff; intensity: 0.85" position="0.05 0.28 1"></a-entity>
+                <a-entity light="type: directional; color: #8fb4ff; intensity: 0.34" position="-0.65 -0.22 -0.9"></a-entity>
+            </a-entity>
         </a-scene>
     </div>
 
@@ -1539,13 +1560,12 @@
                         `metalness: ${Number.isFinite(visualProfile.metalness) ? visualProfile.metalness : 0.02}`,
                     ];
 
-                    if (visualProfile.emissive) {
-                        materialParts.push(`emissive: ${visualProfile.emissive}`);
-                    }
-
-                    if (Number.isFinite(visualProfile.emissiveIntensity)) {
-                        materialParts.push(`emissiveIntensity: ${visualProfile.emissiveIntensity}`);
-                    }
+                    const emissiveColor = visualProfile.emissive || body.color;
+                    const emissiveIntensity = Number.isFinite(visualProfile.emissiveIntensity)
+                        ? visualProfile.emissiveIntensity
+                        : (body.kind === "moon" ? 0.2 : 0.16);
+                    materialParts.push(`emissive: ${emissiveColor}`);
+                    materialParts.push(`emissiveIntensity: ${emissiveIntensity}`);
 
                     return {
                         geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
@@ -1591,7 +1611,7 @@
                 }
                 return {
                     geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
-                    material: `color: ${body.color}; roughness: 0.76; metalness: 0.08`,
+                    material: `color: ${body.color}; roughness: 0.76; metalness: 0.08; emissive: ${body.color}; emissiveIntensity: 0.12`,
                 };
             }
 

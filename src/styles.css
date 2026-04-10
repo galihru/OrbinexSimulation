@@ -537,13 +537,24 @@ input:focus-visible {
     position: absolute;
     right: -3px;
     bottom: -3px;
-    width: 24px;
-    height: 24px;
+    width: 30px;
+    height: 30px;
     border-radius: 7px;
     border: 1px solid rgba(171, 203, 255, 0.74);
     background: rgba(4, 10, 24, 0.94);
     object-fit: cover;
     box-shadow: 0 4px 12px rgba(4, 10, 22, 0.48);
+    transform-origin: bottom right;
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.info-image-wrap:hover .info-preview-marker,
+.info-image-wrap:focus-within .info-preview-marker,
+.info-preview-marker:hover,
+.info-preview-marker:focus-visible {
+    transform: scale(2.35);
+    box-shadow: 0 10px 26px rgba(4, 10, 22, 0.56);
+    z-index: 4;
 }
 
 .info-title-row {
@@ -644,13 +655,24 @@ input:focus-visible {
     position: absolute;
     right: -3px;
     bottom: -3px;
-    width: 26px;
-    height: 26px;
+    width: 33px;
+    height: 33px;
     border-radius: 7px;
     border: 1px solid rgba(165, 198, 255, 0.78);
     background: rgba(4, 10, 24, 0.95);
     object-fit: cover;
     box-shadow: 0 4px 12px rgba(4, 10, 22, 0.42);
+    transform-origin: bottom right;
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.info-ar-code-wrap:hover .info-ar-marker,
+.info-ar-code-wrap:focus-within .info-ar-marker,
+.info-ar-marker:hover,
+.info-ar-marker:focus-visible {
+    transform: scale(2.05);
+    box-shadow: 0 10px 28px rgba(4, 10, 22, 0.56);
+    z-index: 4;
 }
 
 .info-source,
