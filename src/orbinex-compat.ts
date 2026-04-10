@@ -293,6 +293,17 @@ interface DynamicBody {
     ttlSec: number;
 }
 
+interface StellarEvolutionProcess {
+    starName: string;
+    stage: 0 | 1 | 2;
+    outcome: "black-hole" | "white-dwarf";
+    tShockSec: number;
+    tRemnantSec: number;
+    tCollapseSec: number;
+    originMassKg: number;
+    originRadiusMeters: number;
+}
+
 class SeededRandom {
     private state: number;
 
@@ -329,6 +340,7 @@ class UniverseEngine {
 
     private readonly events: UniverseSimulationEvent[] = [];
     private readonly forecasts: UniverseForecast[] = [];
+    private readonly stellarProcesses: StellarEvolutionProcess[] = [];
 
     private paused = false;
     private simTimeSec = 0;
@@ -518,27 +530,93 @@ class UniverseEngine {
     }
 
     triggerSupernova(starName: string): boolean {
-        if (this.supernovaTriggered) {
+        if (this.stellarProcesses.some((process) => process.starName === starName)) {
             return false;
         }
 
         const star = this.findBody(starName);
-        if (!star) {
+        if (!star || !star.alive || star.kind !== "star") {
             return false;
         }
 
-        if (star.kind === "star") {
-            star.kind = "black-hole";
-            star.colorHex = "#7f95ff";
-            star.massKg = Math.max(star.massKg * 0.92, constants.solarMassKg * 3);
-            star.radiusMeters = Math.max(star.radiusMeters * 0.07, 1.4e9);
-            this.addEvent("stellar-collapse", `${starName} collapsed into black hole model.`, star.position, starName, "", 0);
-        }
+        const stellarMass = star.massKg / constants.solarMassKg;
+        const outcome: "black-hole" | "white-dwarf" = stellarMass >= 8 ? "black-hole" : "white-dwarf";
+        const shockEtaYears = 0.03;
+        const remnantEtaYears = 0.09;
+        const collapseEtaYears = outcome === "black-hole" ? 0.16 : 0.34;
+
+        this.stellarProcesses.push({
+            starName,
+            stage: 0,
+            outcome,
+            tShockSec: this.simTimeSec + shockEtaYears * YEAR_SECONDS,
+            tRemnantSec: this.simTimeSec + remnantEtaYears * YEAR_SECONDS,
+            tCollapseSec: this.simTimeSec + collapseEtaYears * YEAR_SECONDS,
+            originMassKg: star.massKg,
+            originRadiusMeters: star.radiusMeters,
+        });
+
+        star.colorHex = "#ffb37c";
+        star.radiusMeters = Math.max(star.radiusMeters * 1.8, star.radiusMeters + 1);
 
         this.supernovaTriggered = true;
-        this.addEvent("supernova", `${starName} supernova trigger registered.`, star.position, starName, "", 0);
+        this.addEvent(
+            "supernova",
+            `${starName} supernova trigger registered (shock ETA ${shockEtaYears.toFixed(3)} tahun, final ${outcome} ETA ${collapseEtaYears.toFixed(3)} tahun).`,
+            star.position,
+            starName,
+            "",
+            0,
+        );
         this.updateForecasts();
         return true;
+    }
+
+    private updateStellarEvolution(): void {
+        for (let i = this.stellarProcesses.length - 1; i >= 0; i -= 1) {
+            const process = this.stellarProcesses[i];
+            const star = this.findBody(process.starName);
+            if (!star || !star.alive) {
+                this.stellarProcesses.splice(i, 1);
+                continue;
+            }
+
+            if (process.stage === 0 && this.simTimeSec >= process.tShockSec) {
+                process.stage = 1;
+                star.colorHex = "#ffd9a0";
+                star.radiusMeters = Math.max(process.originRadiusMeters * 6.4, process.originRadiusMeters + 1);
+                this.addEvent("supernova-shock-front", `${process.starName} shock front expanding.`, star.position, process.starName, "", 0);
+            }
+
+            if (process.stage === 1 && this.simTimeSec >= process.tRemnantSec) {
+                process.stage = 2;
+                star.colorHex = "#ffcf97";
+                star.radiusMeters = Math.max(process.originRadiusMeters * 2.8, process.originRadiusMeters + 1);
+                this.addEvent("supernova-remnant", `${process.starName} enters remnant phase.`, star.position, process.starName, "", 0);
+            }
+
+            if (this.simTimeSec >= process.tCollapseSec) {
+                if (process.outcome === "black-hole") {
+                    star.kind = "black-hole";
+                    star.colorHex = "#7f95ff";
+                    star.massKg = Math.max(process.originMassKg * 0.92, constants.solarMassKg * 3);
+                    star.radiusMeters = Math.max(process.originRadiusMeters * 0.07, 1.4e9);
+                    this.addEvent("stellar-collapse", `${process.starName} collapsed into black hole remnant.`, star.position, process.starName, "", 0);
+                } else {
+                    star.kind = "star";
+                    star.colorHex = "#dff0ff";
+                    star.massKg = Math.max(process.originMassKg * 0.58, constants.solarMassKg * 0.45);
+                    star.radiusMeters = Math.max(process.originRadiusMeters * 0.014, 6.2e6);
+                    this.addEvent("white-dwarf", `${process.starName} settled into white-dwarf remnant.`, star.position, process.starName, "", 0);
+                }
+
+                this.stellarProcesses.splice(i, 1);
+            }
+        }
+
+        if (this.stellarProcesses.length === 0) {
+            this.supernovaTriggered = false;
+        }
     }
 
     step(subSteps: number): UniverseStepSummary {
@@ -560,6 +638,7 @@ class UniverseEngine {
             this.simTimeSec += dt;
             this.updateOrbits(dt);
             this.updateSmallBodies(dt);
+            this.updateStellarEvolution();
             if (i % 2 === 0) {
                 this.detectCloseApproaches();
             }

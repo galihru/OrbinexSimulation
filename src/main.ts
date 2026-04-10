@@ -5,6 +5,7 @@ import {
     constants,
     createUniverseEngine,
     type UniverseBody,
+    type UniverseForecast,
     type UniverseOrbitGuide,
     type UniverseSimulationEvent,
 } from "./orbinex-compat";
@@ -68,6 +69,12 @@ type IngestStatus = {
     mode: "online" | "fallback" | "failed";
     count: number;
     note: string;
+};
+
+type IngestRunSummary = {
+    statuses: IngestStatus[];
+    generatedAt: string | null;
+    durationMs: number;
 };
 
 type AgencyCatalogSourceFile = {
@@ -212,6 +219,8 @@ const logoUrl = `${import.meta.env.BASE_URL}orbinex-logo.svg`;
 const EARTH_MASS = 5.9722e24;
 const EARTH_RADIUS = 6.371e6;
 const SOLAR_RADIUS = 6.9634e8;
+const YEAR_SECONDS = 365.25 * 86400;
+const AUTO_REFRESH_MS = 3 * 60 * 1000;
 
 const app = byId<HTMLElement>("app");
 app.innerHTML = `
@@ -524,10 +533,13 @@ const bodyImagesDynamic = new Map<string, string>();
 const ingestStatuses = new Map<string, IngestStatus>();
 const eventById = new Map<number, UniverseSimulationEvent>();
 const seenEventIds = new Set<number>();
+const forecastByKey = new Map<string, UniverseForecast>();
 const eventPulses: EventPulse[] = [];
 let engineEventsSynced = false;
 let cameraFlight: CameraFlight | null = null;
 let focusSuspendUntilMs = 0;
+let latestCatalogGeneratedAt = "";
+let catalogRefreshTimer: number | null = null;
 
 const bodyDescriptions: Record<string, string> = {
     Matahari: "Bintang pusat sistem; sumber utama energi dan referensi gravitasi.",
@@ -904,6 +916,21 @@ function addLocalEvent(message: string): void {
     }
 }
 
+function setSplashProgress(progress: number, message: string): void {
+    const safeProgress = clamp(progress, 0, 100);
+    splashProgress.value = safeProgress;
+    splashStatus.textContent = message;
+    splashPercent.textContent = `${Math.round(safeProgress)}%`;
+}
+
+function ingestModeBreakdown(statuses: IngestStatus[]): { online: number; fallback: number; failed: number } {
+    return {
+        online: statuses.filter((entry) => entry.mode === "online").length,
+        fallback: statuses.filter((entry) => entry.mode === "fallback").length,
+        failed: statuses.filter((entry) => entry.mode === "failed").length,
+    };
+}
+
 function normalizeIngestMode(mode?: string): IngestStatus["mode"] {
     if (mode === "online") {
         return "online";
@@ -1140,7 +1167,8 @@ function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[]
     return statuses;
 }
 
-async function ingestExternalCatalogs(): Promise<void> {
+async function ingestExternalCatalogs(): Promise<IngestRunSummary> {
+    const startedAt = performance.now();
     const payload = await fetchAgencyCatalogFile();
     const statuses = payload ? ingestFromAgencyCatalogFile(payload) : ingestFallbackCatalogs();
     const online = statuses.filter((entry) => entry.mode === "online").length;
@@ -1148,6 +1176,17 @@ async function ingestExternalCatalogs(): Promise<void> {
     const failed = statuses.filter((entry) => entry.mode === "failed").length;
 
     addLocalEvent(`Ingest selesai: online=${online} fallback=${fallback} failed=${failed}.`);
+
+    const generatedAt = typeof payload?.generatedAt === "string" ? payload.generatedAt : null;
+    if (generatedAt) {
+        latestCatalogGeneratedAt = generatedAt;
+    }
+
+    return {
+        statuses,
+        generatedAt,
+        durationMs: performance.now() - startedAt,
+    };
 }
 
 function setCanvasSize(): void {
@@ -2237,6 +2276,151 @@ function updateHudPanel(): void {
     ].join("\n");
 }
 
+function formatEtaYears(etaYears: number): string {
+    const safeYears = Math.max(etaYears, 0);
+    if (safeYears >= 1) {
+        return `${safeYears.toFixed(3)} tahun`;
+    }
+    const days = safeYears * 365.25;
+    if (days >= 1) {
+        return `${days.toFixed(2)} hari`;
+    }
+    const hours = days * 24;
+    if (hours >= 1) {
+        return `${hours.toFixed(2)} jam`;
+    }
+    const minutes = hours * 60;
+    if (minutes >= 1) {
+        return `${minutes.toFixed(2)} menit`;
+    }
+    return `${(minutes * 60).toFixed(2)} detik`;
+}
+
+function formatDistanceKm(distanceKm: number): string {
+    const safe = Math.max(distanceKm, 0);
+    if (safe >= 1e9) {
+        return `${(safe / 1e9).toFixed(3)}e9 km`;
+    }
+    if (safe >= 1e6) {
+        return `${(safe / 1e6).toFixed(3)}e6 km`;
+    }
+    if (safe >= 1000) {
+        return `${safe.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`;
+    }
+    return `${safe.toFixed(2)} km`;
+}
+
+function bodyByNameAny(name: string): UniverseBody | null {
+    return bodyByName(name) ?? findExistingBodyByName(name);
+}
+
+function relativeSpeedMps(bodyA: UniverseBody | null, bodyB: UniverseBody | null): number {
+    if (!bodyA || !bodyB) {
+        return 0;
+    }
+    return Math.hypot(
+        bodyA.velocity.x - bodyB.velocity.x,
+        bodyA.velocity.y - bodyB.velocity.y,
+        bodyA.velocity.z - bodyB.velocity.z,
+    );
+}
+
+function distanceAuBetween(bodyA: UniverseBody | null, bodyB: UniverseBody | null): number | null {
+    if (!bodyA || !bodyB) {
+        return null;
+    }
+    const dist = Math.hypot(
+        bodyA.position.x - bodyB.position.x,
+        bodyA.position.y - bodyB.position.y,
+        bodyA.position.z - bodyB.position.z,
+    );
+    return dist / constants.auMeters;
+}
+
+function estimateEncounterEnergyJ(bodyA: UniverseBody | null, bodyB: UniverseBody | null, relSpeed: number): number {
+    const mA = Math.max(bodyA?.massKg ?? 0, 0);
+    const mB = Math.max(bodyB?.massKg ?? 0, 0);
+    const speed = Math.max(relSpeed, 0);
+
+    let reducedMass = 1e11;
+    if (mA > 0 && mB > 0) {
+        reducedMass = (mA * mB) / (mA + mB);
+    } else if (mA > 0 || mB > 0) {
+        reducedMass = Math.min(Math.max(mA, mB), 2e22);
+    }
+
+    return clamp(0.5 * reducedMass * speed * speed, 0, 1e41);
+}
+
+function estimateEffectRadiusKm(energyJ: number, kind: string, bodyA: UniverseBody | null, bodyB: UniverseBody | null): number {
+    const mtEquivalent = Math.max(energyJ / 4.184e15, 1e-9);
+    const blastRadiusKm = 4.7 * Math.cbrt(mtEquivalent);
+    const bodyScaleKm = Math.max(bodyA?.radiusMeters ?? 0, bodyB?.radiusMeters ?? 0) / 1000;
+
+    if (kind.includes("close-pass")) {
+        return clamp(Math.max(bodyScaleKm * 9, blastRadiusKm * 0.16), 100, 4e8);
+    }
+
+    return clamp(Math.max(bodyScaleKm * 2.5, blastRadiusKm), 20, 8e8);
+}
+
+function impactNarrative(kind: string, energyJ: number, confidence: number): string {
+    const confPct = (confidence * 100).toFixed(1);
+    if (kind.includes("supernova") || kind.includes("collapse") || kind.includes("white-dwarf")) {
+        return `Potensi radiasi sangat tinggi; confidence ${confPct}%.`;
+    }
+    if (kind.includes("collision") || kind.includes("impact")) {
+        if (energyJ >= 1e29) {
+            return `Skala global/catastrophic; confidence ${confPct}%.`;
+        }
+        if (energyJ >= 1e24) {
+            return `Skala regional-planetary; confidence ${confPct}%.`;
+        }
+        return `Skala lokal-regional; confidence ${confPct}%.`;
+    }
+    return `Gangguan gravitasi/gelombang kejut potensial; confidence ${confPct}%.`;
+}
+
+function focusForecastByKey(key: string): void {
+    const forecast = forecastByKey.get(key);
+    if (!forecast) {
+        return;
+    }
+
+    const bodyA = bodyByNameAny(forecast.bodyA);
+    const bodyB = bodyByNameAny(forecast.bodyB);
+    const anchor = bodyA ?? bodyB;
+
+    const worldLocation = bodyA && bodyB
+        ? {
+            x: (bodyA.position.x + bodyB.position.x) * 0.5,
+            y: (bodyA.position.y + bodyB.position.y) * 0.5,
+            z: (bodyA.position.z + bodyB.position.z) * 0.5,
+        }
+        : anchor?.position ?? { x: 0, y: 0, z: 0 };
+
+    if (anchor) {
+        uiState.focusName = anchor.name;
+        uiState.selectedKey = bodyKey(anchor);
+        uiState.infoPinned = true;
+    }
+
+    const relSpeed = relativeSpeedMps(bodyA, bodyB);
+    focusSuspendUntilMs = performance.now() + 1500;
+    beginCameraFlight(toRenderPosition(worldLocation));
+    spawnEventPulse({
+        id: -1,
+        kind: forecast.kind,
+        message: forecast.message,
+        timeYears: engine.getStateSnapshot().yearsElapsed,
+        location: worldLocation,
+        bodyA: forecast.bodyA,
+        bodyB: forecast.bodyB,
+        relSpeedMps: relSpeed,
+    });
+    updateInfoPanel();
+}
+
 function eventVisualProfile(kind: string): {
     color: number;
     lifetimeMs: number;
@@ -2250,6 +2434,12 @@ function eventVisualProfile(kind: string): {
     }
     if (kind === "supernova" || kind === "stellar-collapse") {
         return { color: 0xffd788, lifetimeMs: 2400, startScale: 0.6, endScale: 9.8, coreOpacity: 0.98, ringOpacity: 0.84 };
+    }
+    if (kind === "supernova-shock-front" || kind === "supernova-remnant") {
+        return { color: 0xffc86e, lifetimeMs: 2100, startScale: 0.44, endScale: 7.6, coreOpacity: 0.9, ringOpacity: 0.76 };
+    }
+    if (kind === "white-dwarf") {
+        return { color: 0xd5ecff, lifetimeMs: 1700, startScale: 0.28, endScale: 3.8, coreOpacity: 0.82, ringOpacity: 0.58 };
     }
     if (kind === "meteor-shower") {
         return { color: 0xffb06b, lifetimeMs: 1500, startScale: 0.26, endScale: 3.2, coreOpacity: 0.88, ringOpacity: 0.64 };
@@ -2432,8 +2622,11 @@ function focusEventById(eventId: number): void {
 
 function updateEventsPanel(): void {
     const events = engine.getEvents(18);
+    const forecasts = engine.getForecasts(8);
+    const simYears = engine.getStateSnapshot().yearsElapsed;
 
     eventById.clear();
+    forecastByKey.clear();
     events.forEach((event) => eventById.set(event.id, event));
 
     if (!engineEventsSynced) {
@@ -2458,23 +2651,76 @@ function updateEventsPanel(): void {
     });
 
     for (const event of events) {
+        const bodyA = bodyByNameAny(event.bodyA);
+        const bodyB = bodyByNameAny(event.bodyB);
+        const relSpeed = event.relSpeedMps > 0 ? event.relSpeedMps : relativeSpeedMps(bodyA, bodyB);
+        const energyJ = estimateEncounterEnergyJ(bodyA, bodyB, relSpeed);
+        const effectRadiusKm = estimateEffectRadiusKm(energyJ, event.kind, bodyA, bodyB);
+        const confidence = event.kind.includes("close-pass") ? 0.7 : 0.82;
+
         const item = document.createElement("li");
         item.className = "event-item";
 
         const button = document.createElement("button");
         button.type = "button";
         button.className = "event-button";
-        button.dataset.eventId = String(event.id);
+        button.dataset.targetKey = `event:${event.id}`;
         button.title = "Klik untuk fokus ke koordinat kejadian";
 
         const distanceAu = Math.hypot(event.location.x, event.location.y, event.location.z) / constants.auMeters;
         const anchor = [event.bodyA, event.bodyB].filter((token) => token.trim().length > 0).join(" -> ");
         const anchorText = anchor.length > 0 ? ` | ${anchor}` : "";
-        button.textContent = `[${event.kind}] t=${event.timeYears.toFixed(3)} th${anchorText}${Number.isFinite(distanceAu) ? ` | r=${distanceAu.toFixed(3)} AU` : ""}\n${event.message}`;
+        button.textContent = `[event:${event.kind}] t=${event.timeYears.toFixed(3)} th${anchorText}${Number.isFinite(distanceAu) ? ` | r=${distanceAu.toFixed(3)} AU` : ""}`
+            + `\nv_rel=${(relSpeed / 1000).toFixed(2)} km/s | zona efek~${formatDistanceKm(effectRadiusKm)}`
+            + `\nDampak: ${impactNarrative(event.kind, energyJ, confidence)}`
+            + `\n${event.message}`;
 
         item.appendChild(button);
         eventsList.appendChild(item);
     }
+
+    if (forecasts.length > 0) {
+        const predictionHeader = document.createElement("li");
+        predictionHeader.className = "event-item event-item-local";
+        predictionHeader.textContent = `Prediksi AI dinamis @ t=${simYears.toFixed(3)} tahun (berbasis orbit, kecepatan relatif, dan energi tumbukan).`;
+        eventsList.appendChild(predictionHeader);
+    }
+
+    forecasts.forEach((forecast, index) => {
+        const bodyA = bodyByNameAny(forecast.bodyA);
+        const bodyB = bodyByNameAny(forecast.bodyB);
+        const relSpeed = relativeSpeedMps(bodyA, bodyB);
+        const currentDistanceAu = distanceAuBetween(bodyA, bodyB);
+        const closingAu = currentDistanceAu === null
+            ? null
+            : Math.max(0, currentDistanceAu - (relSpeed * forecast.etaYears * YEAR_SECONDS) / constants.auMeters);
+        const energyJ = estimateEncounterEnergyJ(bodyA, bodyB, relSpeed);
+        const effectRadiusKm = estimateEffectRadiusKm(energyJ, forecast.kind, bodyA, bodyB);
+        const etaText = formatEtaYears(forecast.etaYears);
+        const currentDistanceText = currentDistanceAu === null ? "n/a" : `${currentDistanceAu.toFixed(3)} AU`;
+        const predictedDistanceText = closingAu === null ? "n/a" : `${closingAu.toFixed(3)} AU`;
+
+        const key = `forecast:${index}`;
+        forecastByKey.set(key, forecast);
+
+        const item = document.createElement("li");
+        item.className = "event-item";
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "event-button event-button-forecast";
+        button.dataset.targetKey = key;
+        button.title = "Klik untuk fokus ke area prediksi";
+        button.textContent = `[prediksi:${forecast.kind}] ${forecast.bodyA} -> ${forecast.bodyB}`
+            + `\nETA=${etaText} | confidence=${(forecast.confidence * 100).toFixed(1)}%`
+            + ` | v_rel=${(relSpeed / 1000).toFixed(2)} km/s`
+            + `\njarak kini=${currentDistanceText} | jarak prediksi=${predictedDistanceText}`
+            + `\nzona efek~${formatDistanceKm(effectRadiusKm)} | Dampak: ${impactNarrative(forecast.kind, energyJ, forecast.confidence)}`
+            + `\n${forecast.message}`;
+
+        item.appendChild(button);
+        eventsList.appendChild(item);
+    });
 
     if (eventsList.children.length === 0) {
         const empty = document.createElement("li");
@@ -2601,15 +2847,21 @@ function bindUiHandlers(): void {
         if (!(target instanceof HTMLElement)) {
             return;
         }
-        const button = target.closest<HTMLButtonElement>("button[data-event-id]");
+        const button = target.closest<HTMLButtonElement>("button[data-target-key]");
         if (!button) {
             return;
         }
-        const rawId = Number.parseInt(button.dataset.eventId ?? "", 10);
-        if (!Number.isFinite(rawId)) {
+        const targetKey = button.dataset.targetKey ?? "";
+        if (targetKey.startsWith("event:")) {
+            const rawId = Number.parseInt(targetKey.slice("event:".length), 10);
+            if (Number.isFinite(rawId)) {
+                focusEventById(rawId);
+            }
             return;
         }
-        focusEventById(rawId);
+        if (targetKey.startsWith("forecast:")) {
+            focusForecastByKey(targetKey);
+        }
     });
 
     searchInput.addEventListener("input", () => {
@@ -2737,30 +2989,54 @@ function bindUiHandlers(): void {
     window.addEventListener("resize", setCanvasSize);
 }
 
-async function runSplash(): Promise<void> {
-    const steps: Array<{ p: number; t: string }> = [
-        { p: 14, t: "Menginisialisasi body primer..." },
-        { p: 34, t: "Memetakan asteroid dan kuiper belt..." },
-        { p: 56, t: "Menyiapkan konteks galaksi dan nebula..." },
-        { p: 76, t: "Menghubungkan HUD, event, dan search panel..." },
-        { p: 100, t: "Simulasi siap." },
-    ];
+async function waitMs(ms: number): Promise<void> {
+    await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, ms);
+    });
+}
 
-    for (const step of steps) {
-        splashProgress.value = step.p;
-        splashStatus.textContent = step.t;
-        splashPercent.textContent = `${step.p}%`;
-        // Delay kecil agar transisi splash terasa natural.
-        // eslint-disable-next-line no-await-in-loop
-        await new Promise<void>((resolve) => {
-            window.setTimeout(() => resolve(), 180);
-        });
-    }
-
+async function closeSplash(message: string): Promise<void> {
+    setSplashProgress(100, message);
+    await waitMs(220);
     splash.classList.remove("is-visible");
     window.setTimeout(() => {
         splash.remove();
     }, 340);
+}
+
+async function refreshCatalogIfUpdated(): Promise<void> {
+    const payload = await fetchAgencyCatalogFile();
+    const generatedAt = typeof payload?.generatedAt === "string" ? payload.generatedAt : "";
+    if (!payload || !generatedAt || generatedAt === latestCatalogGeneratedAt) {
+        return;
+    }
+
+    const beforeCount = nasaCatalogEntries;
+    const statuses = ingestFromAgencyCatalogFile(payload);
+    const afterCount = nasaCatalogEntries;
+    const delta = afterCount - beforeCount;
+    const modeStats = ingestModeBreakdown(statuses);
+
+    latestCatalogGeneratedAt = generatedAt;
+    addLocalEvent(
+        `Auto-sync katalog ${new Date(generatedAt).toLocaleString()}: +${delta} objek | online=${modeStats.online} fallback=${modeStats.fallback} failed=${modeStats.failed}.`,
+    );
+
+    rebuildOrbitGuides(true);
+    updateSearchResults();
+    updateHudPanel();
+    updateInfoPanel();
+    updateEventsPanel();
+}
+
+function startCatalogAutoRefresh(): void {
+    if (catalogRefreshTimer !== null) {
+        window.clearInterval(catalogRefreshTimer);
+    }
+
+    catalogRefreshTimer = window.setInterval(() => {
+        void refreshCatalogIfUpdated();
+    }, AUTO_REFRESH_MS);
 }
 
 let lastFrame = performance.now();
@@ -2831,22 +3107,49 @@ function animate(now: number): void {
     window.requestAnimationFrame(animate);
 }
 
-bindUiHandlers();
-setCanvasSize();
-updateActionButtons();
-updatePanelVisibility();
-updateSearchResults();
-updateHudPanel();
-updateEventsPanel();
-updateInfoPanel();
+async function bootstrapApp(): Promise<void> {
+    const bootStart = performance.now();
 
-void ingestExternalCatalogs().then(() => {
+    setSplashProgress(10, "Menyalakan mesin fisika...");
+    bindUiHandlers();
+
+    setSplashProgress(18, "Menyusun scene dan kontrol kamera...");
+    setCanvasSize();
+    updateActionButtons();
+    updatePanelVisibility();
+    updateSearchResults();
+    updateHudPanel();
+    updateEventsPanel();
+    updateInfoPanel();
+
+    setSplashProgress(34, "Mengambil data eksternal NASA/ESA/JAXA/NED...");
+    const ingest = await ingestExternalCatalogs();
+    const modeStats = ingestModeBreakdown(ingest.statuses);
+
+    setSplashProgress(
+        68,
+        `Ingest selesai: online=${modeStats.online} fallback=${modeStats.fallback} failed=${modeStats.failed} | ${(ingest.durationMs / 1000).toFixed(2)}s`,
+    );
+
     rebuildOrbitGuides(true);
     updateSearchResults();
     updateHudPanel();
     updateInfoPanel();
     updateEventsPanel();
-});
 
-window.requestAnimationFrame(animate);
-void runSplash();
+    const objectCount = collectBodies().length;
+    const generatedStamp = ingest.generatedAt
+        ? new Date(ingest.generatedAt).toLocaleString()
+        : "n/a";
+
+    setSplashProgress(86, `Menyiapkan render ${objectCount} objek 3D...`);
+    await waitMs(120);
+
+    window.requestAnimationFrame(animate);
+    startCatalogAutoRefresh();
+
+    const loadSec = (performance.now() - bootStart) / 1000;
+    await closeSplash(`Simulasi siap | load=${loadSec.toFixed(2)}s | katalog=${generatedStamp}`);
+}
+
+void bootstrapApp();
