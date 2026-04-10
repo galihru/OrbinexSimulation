@@ -780,11 +780,12 @@ class UniverseEngine {
                 isHypothesis,
             };
             this.majorBodies.push(body);
+            const orbitDirectionSign = name === "Venus" ? -1 : 1;
             this.orbitStates.set(name, {
                 bodyName: name,
                 parentName,
                 radiusMeters: radiusAU * constants.auMeters,
-                omegaRadPerSec: (2 * Math.PI) / Math.max(1, periodDays * 86400),
+                omegaRadPerSec: orbitDirectionSign * (2 * Math.PI) / Math.max(1, periodDays * 86400),
                 inclinationRad,
                 phaseRad: phase,
                 eccentricity,

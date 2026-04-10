@@ -1168,7 +1168,7 @@
             const rawCatalog = [
                 { name: "Matahari", kind: "star", massKg: 1.98847e30, radiusMeters: 6.9634e8, color: "#ffd37c", rotationHours: 609 },
                 { name: "Merkurius", kind: "planet", massKg: 3.3011e23, radiusMeters: 2.4397e6, color: "#91867b", parentName: "Matahari", semiMajorMeters: 0.3871 * AU_METERS, periodDays: 87.97, rotationHours: 1407.6 },
-                { name: "Venus", kind: "planet", massKg: 4.8675e24, radiusMeters: 6.0518e6, color: "#dcb988", parentName: "Matahari", semiMajorMeters: 0.7233 * AU_METERS, periodDays: 224.7, rotationHours: -5832.5 },
+                { name: "Venus", kind: "planet", massKg: 4.8675e24, radiusMeters: 6.0518e6, color: "#dcb988", parentName: "Matahari", semiMajorMeters: 0.7233 * AU_METERS, periodDays: 224.7, rotationHours: 5832.5 },
                 { name: "Bumi", kind: "planet", massKg: 5.9722e24, radiusMeters: 6.371e6, color: "#2d6fa3", parentName: "Matahari", semiMajorMeters: 1.0 * AU_METERS, periodDays: 365.256, rotationHours: 23.934 },
                 { name: "Mars", kind: "planet", massKg: 6.4171e23, radiusMeters: 3.3895e6, color: "#b65e44", parentName: "Matahari", semiMajorMeters: 1.5237 * AU_METERS, periodDays: 686.98, rotationHours: 24.623 },
                 { name: "Jupiter", kind: "planet", massKg: 1.89813e27, radiusMeters: 6.9911e7, color: "#c8a17d", parentName: "Matahari", semiMajorMeters: 5.2044 * AU_METERS, periodDays: 4332.59, rotationHours: 9.925 },
@@ -1557,8 +1557,9 @@
             function appearanceForBody(body, displayRadius) {
                 const kind = body.kind;
                 const visualProfile = visualProfileByName.get(body.name);
+                const useBodyTexture = body.name === "Bumi" && !!(visualProfile && visualProfile.texture);
 
-                if (visualProfile && visualProfile.texture) {
+                if (useBodyTexture && visualProfile && visualProfile.texture) {
                     const materialParts = [
                         "shader: flat",
                         `color: ${body.color}`,
@@ -1632,7 +1633,7 @@
                 });
                 orbitAnchorEl.appendChild(bodyMeshEl);
 
-                if (visualProfile && visualProfile.texture) {
+                if (body.name === "Bumi" && visualProfile && visualProfile.texture) {
                     attachTextureErrorFallback(bodyMeshEl, `shader: flat; color: ${body.color}; side: double; depthTest: false; depthWrite: false`);
                 }
 
@@ -1678,7 +1679,7 @@
                 }
 
                 if (isRingedBody(body.name)) {
-                    const hasRingTexture = !!(visualProfile && visualProfile.ringTexture);
+                    const hasRingTexture = false;
                     const ringMaterial = hasRingTexture
                         ? `shader: flat; src: ${visualProfile.ringTexture}; color: #d7c08f; opacity: 0.82; transparent: true; side: double; depthTest: false; depthWrite: false`
                         : "shader: flat; color: #bcd4d8; opacity: 0.34; transparent: true; side: double; depthTest: false; depthWrite: false";
@@ -1737,8 +1738,9 @@
                     }
                 }
 
+                const orbitDirectionSign = body.name === "Venus" ? -1 : 1;
                 const orbitOmega = parentNode && body.periodDays
-                    ? TAU / Math.max(body.periodDays * DAY_SECONDS, 1)
+                    ? orbitDirectionSign * TAU / Math.max(body.periodDays * DAY_SECONDS, 1)
                     : 0;
                 const spinOmega = TAU / Math.max(Math.abs(body.rotationHours || 30) * 3600, 1);
 

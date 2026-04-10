@@ -222,7 +222,7 @@ function hashString(text: string): number {
 const bodyRotationHoursByName: Record<string, number> = {
     Matahari: 609,
     Merkurius: 1407.6,
-    Venus: -5832.5,
+    Venus: 5832.5,
     Bumi: 23.934,
     Bulan: 655.7,
     Mars: 24.623,
@@ -290,7 +290,6 @@ app.innerHTML = `
                 <button id="btn-label" type="button">LABEL</button>
                 <button id="btn-info" type="button">INFO</button>
                 <button id="btn-search" type="button">CARI</button>
-                        <button id="btn-science" type="button">SCI:OFF</button>
                 <button id="btn-ref" type="button">REF</button>
                 <button id="btn-help" type="button">BANTU</button>
                 <button id="btn-language" type="button">BAHASA: ID</button>
@@ -492,7 +491,6 @@ const guidesButton = byId<HTMLButtonElement>("btn-guides");
 const labelButton = byId<HTMLButtonElement>("btn-label");
 const infoButton = byId<HTMLButtonElement>("btn-info");
 const searchButton = byId<HTMLButtonElement>("btn-search");
-const scienceButton = byId<HTMLButtonElement>("btn-science");
 const refButton = byId<HTMLButtonElement>("btn-ref");
 const helpButton = byId<HTMLButtonElement>("btn-help");
 const languageButton = byId<HTMLButtonElement>("btn-language");
@@ -514,8 +512,6 @@ const i18n = {
         infoOff: "INFO:OFF",
         searchOn: "CARI",
         searchOff: "CARI:OFF",
-        scienceOn: "SCI:ON",
-        scienceOff: "SCI:OFF",
         helpOn: "BANTU",
         helpOff: "BANTU:OFF",
         lang: "BAHASA: ID",
@@ -536,8 +532,6 @@ const i18n = {
         infoOff: "INFO:OFF",
         searchOn: "SEARCH",
         searchOff: "SEARCH:OFF",
-        scienceOn: "SCI:ON",
-        scienceOff: "SCI:OFF",
         helpOn: "HELP",
         helpOff: "HELP:OFF",
         lang: "LANG: EN",
@@ -5863,7 +5857,6 @@ function updateActionButtons(): void {
     labelButton.textContent = viewState.showLabels ? t.labelOn : t.labelOff;
     infoButton.textContent = uiState.showInfo ? t.infoOn : t.infoOff;
     searchButton.textContent = uiState.showSearch ? t.searchOn : t.searchOff;
-    scienceButton.textContent = viewState.scientificDataOnly ? t.scienceOn : t.scienceOff;
     helpButton.textContent = uiState.showHelp ? t.helpOn : t.helpOff;
     languageButton.textContent = t.lang;
     bottomHint.textContent = t.bottomHint;
@@ -6014,10 +6007,6 @@ function bindUiHandlers(): void {
         if (uiState.showSearch) {
             searchInput.focus();
         }
-    });
-
-    scienceButton.addEventListener("click", () => {
-        applyScientificDataOnly(!viewState.scientificDataOnly);
     });
 
     helpButton.addEventListener("click", () => {
@@ -6214,12 +6203,6 @@ function bindUiHandlers(): void {
         if (key === "o") {
             event.preventDefault();
             guidesButton.click();
-            return;
-        }
-
-        if (key === "x") {
-            event.preventDefault();
-            scienceButton.click();
             return;
         }
 
