@@ -128,6 +128,18 @@ type SolarRenderAnchor = {
     renderPosition: THREE.Vector3;
 };
 
+type DynamicCatalogOrbitState = {
+    bodyName: string;
+    parentName: string;
+    semiMajorMeters: number;
+    omegaRadPerSec: number;
+    inclinationRad: number;
+    phaseRad: number;
+    eccentricity: number;
+    ascendingNodeRad: number;
+    argumentPeriapsisRad: number;
+};
+
 function byId<T extends HTMLElement>(id: string): T {
     const element = document.getElementById(id);
     if (!element) {
@@ -225,7 +237,7 @@ const EARTH_MASS = 5.9722e24;
 const EARTH_RADIUS = 6.371e6;
 const SOLAR_RADIUS = 6.9634e8;
 const YEAR_SECONDS = 365.25 * 86400;
-const AUTO_REFRESH_MS = 3 * 60 * 1000;
+const AUTO_REFRESH_MS = 45 * 1000;
 const PLANCK_REDUCED = 1.054571817e-34;
 const BOLTZMANN = 1.380649e-23;
 
@@ -472,7 +484,7 @@ const uiState: UiState = {
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color("#020814");
-scene.fog = new THREE.Fog("#020814", 350, 7600);
+scene.fog = new THREE.Fog("#020814", 600, 26000);
 
 const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -482,15 +494,16 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 10000);
+const camera = new THREE.PerspectiveCamera(58, 1, 0.05, 50000);
 camera.position.set(0, 95, 220);
 
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.dampingFactor = 0.06;
-controls.zoomSpeed = 0.68;
-controls.minDistance = 14;
-controls.maxDistance = 3000;
+controls.zoomSpeed = 0.12;
+controls.minDistance = 2.5;
+controls.maxDistance = 18000;
+controls.enablePan = false;
 
 scene.add(new THREE.AmbientLight(0x9cb7ff, 0.44));
 const keyLight = new THREE.PointLight(0xffd59b, 2.4, 0, 2);
@@ -557,6 +570,8 @@ const eventById = new Map<number, UniverseSimulationEvent>();
 const seenEventIds = new Set<number>();
 const forecastByKey = new Map<string, UniverseForecast>();
 const eventPulses: EventPulse[] = [];
+const dynamicCatalogOrbits = new Map<string, DynamicCatalogOrbitState>();
+const syntheticGalaxyBodyNames = new Set<string>();
 let engineEventsSynced = false;
 let cameraFlight: CameraFlight | null = null;
 let focusSuspendUntilMs = 0;
@@ -892,6 +907,12 @@ function normalizeCatalogRadius(kind: UniverseBody["kind"], customRadius?: numbe
 
 function catalogEntryToBody(entry: ExternalCatalogEntry): UniverseBody {
     const vector = raDecDistanceToVector(entry.raDeg, entry.decDeg, entry.distancePc);
+    const inferredParent = entry.parentName
+        ?? (entry.kind === "galaxy" || entry.kind === "cluster"
+            ? "Laniakea"
+            : entry.kind === "star" || entry.kind === "planet" || entry.kind === "moon" || entry.kind === "comet" || entry.kind === "meteor" || entry.kind === "black-hole" || entry.kind === "nebula"
+                ? "Bima Sakti"
+                : "Grup Lokal");
     return {
         name: entry.name,
         kind: entry.kind,
@@ -901,7 +922,7 @@ function catalogEntryToBody(entry: ExternalCatalogEntry): UniverseBody {
         position: { x: vector.x, y: vector.y, z: vector.z },
         velocity: { x: 0, y: 0, z: 0 },
         alive: true,
-        parentName: entry.parentName ?? "Matahari",
+        parentName: inferredParent,
         isHypothesis: false,
     };
 }
@@ -928,6 +949,292 @@ function pushCatalogBody(
     }
     nasaCatalogIndex.add(key);
     nasaCatalogBodies.push(body);
+}
+
+function seededUnit(label: string, salt: number): number {
+    const hash = hashString(`${label}:${salt}`);
+    return (hash % 1_000_003) / 1_000_003;
+}
+
+function seededRange(label: string, salt: number, min: number, max: number): number {
+    return min + (max - min) * seededUnit(label, salt);
+}
+
+function dynamicOrbitPoint(state: DynamicCatalogOrbitState, phaseRad = state.phaseRad): { x: number; y: number; z: number } {
+    const e = clamp(state.eccentricity, 0, 0.86);
+    const a = Math.max(state.semiMajorMeters, 1);
+    const p = a * (1 - e * e);
+    const r = p / Math.max(1e-9, 1 + e * Math.cos(phaseRad));
+
+    const argument = phaseRad + state.argumentPeriapsisRad;
+    const cosArg = Math.cos(argument);
+    const sinArg = Math.sin(argument);
+    const cosNode = Math.cos(state.ascendingNodeRad);
+    const sinNode = Math.sin(state.ascendingNodeRad);
+    const cosI = Math.cos(state.inclinationRad);
+    const sinI = Math.sin(state.inclinationRad);
+
+    return {
+        x: r * (cosNode * cosArg - sinNode * sinArg * cosI),
+        y: r * (sinArg * sinI),
+        z: r * (sinNode * cosArg + cosNode * sinArg * cosI),
+    };
+}
+
+function clearSyntheticGalaxyBodies(): void {
+    if (syntheticGalaxyBodyNames.size === 0) {
+        return;
+    }
+
+    for (const name of syntheticGalaxyBodyNames) {
+        dynamicCatalogOrbits.delete(name);
+        bodyDescriptionsDynamic.delete(name);
+        bodyImagesDynamic.delete(name);
+        bodySourcesByName.delete(name);
+    }
+
+    for (let i = nasaCatalogBodies.length - 1; i >= 0; i -= 1) {
+        const body = nasaCatalogBodies[i];
+        if (!syntheticGalaxyBodyNames.has(body.name)) {
+            continue;
+        }
+        nasaCatalogIndex.delete(bodyKey(body));
+        nasaCatalogBodies.splice(i, 1);
+    }
+
+    syntheticGalaxyBodyNames.clear();
+    nasaCatalogEntries = nasaCatalogBodies.length;
+}
+
+function registerDynamicOrbit(
+    bodyName: string,
+    parentName: string,
+    semiMajorMeters: number,
+    periodDays: number,
+    inclinationDeg: number,
+    eccentricity: number,
+    seedLabel: string,
+): void {
+    const omegaRadPerSec = (2 * Math.PI) / Math.max(periodDays * 86400, 3600);
+    dynamicCatalogOrbits.set(bodyName, {
+        bodyName,
+        parentName,
+        semiMajorMeters: Math.max(semiMajorMeters, 1),
+        omegaRadPerSec,
+        inclinationRad: degToRad(inclinationDeg),
+        phaseRad: seededRange(seedLabel, 11, 0, Math.PI * 2),
+        eccentricity: clamp(eccentricity, 0, 0.82),
+        ascendingNodeRad: degToRad(seededRange(seedLabel, 12, 0, 360)),
+        argumentPeriapsisRad: degToRad(seededRange(seedLabel, 13, 0, 360)),
+    });
+}
+
+function addSyntheticGalaxySystems(): void {
+    clearSyntheticGalaxyBodies();
+
+    const parentMap = new Map<string, UniverseBody>();
+    engine.getContextBodies()
+        .filter((body) => body.kind === "galaxy" || body.kind === "cluster")
+        .forEach((body) => parentMap.set(body.name, body));
+    nasaCatalogBodies
+        .filter((body) => body.kind === "galaxy" || body.kind === "cluster")
+        .forEach((body) => parentMap.set(body.name, body));
+
+    for (const parent of parentMap.values()) {
+        const parentSeed = parent.name;
+        const isGalaxy = parent.kind === "galaxy";
+        const starCount = isGalaxy ? 12 : 7;
+        const planetPerStar = isGalaxy ? 3 : 2;
+        const cometCount = isGalaxy ? 5 : 3;
+        const meteorCount = isGalaxy ? 4 : 2;
+
+        const existingCore = findExistingBodyByName(`${parent.name} Core BH`);
+        if (!existingCore) {
+            const coreName = `${parent.name} Core BH`;
+            const coreBody: UniverseBody = {
+                name: coreName,
+                kind: "black-hole",
+                massKg: Math.max(parent.massKg * 0.0000022, 2 * constants.solarMassKg),
+                radiusMeters: Math.max(parent.radiusMeters * 0.0000007, 1.8e9),
+                colorHex: "#8097ff",
+                position: { ...parent.position },
+                velocity: { ...parent.velocity },
+                alive: true,
+                parentName: parent.name,
+                isHypothesis: false,
+            };
+            pushCatalogBody(coreBody, {
+                sources: ["Synthetic Galaxy Model"],
+                description: `Objek inti gravitasional sintetis untuk ${parent.name}.`,
+            });
+            syntheticGalaxyBodyNames.add(coreName);
+        }
+
+        for (let i = 0; i < starCount; i += 1) {
+            const starName = `${parent.name} Star-${i + 1}`;
+            const starBody: UniverseBody = {
+                name: starName,
+                kind: "star",
+                massKg: seededRange(parentSeed, 100 + i, 0.35, 2.8) * constants.solarMassKg,
+                radiusMeters: seededRange(parentSeed, 200 + i, 0.45, 1.95) * SOLAR_RADIUS,
+                colorHex: seededUnit(parentSeed, 300 + i) > 0.5 ? "#cfe6ff" : "#ffdca7",
+                position: { ...parent.position },
+                velocity: { ...parent.velocity },
+                alive: true,
+                parentName: parent.name,
+                isHypothesis: false,
+            };
+            pushCatalogBody(starBody, {
+                sources: ["Synthetic Galaxy Model"],
+                description: `Bintang sintetis pada cabang ${parent.name}.`,
+            });
+            syntheticGalaxyBodyNames.add(starName);
+
+            registerDynamicOrbit(
+                starName,
+                parent.name,
+                parent.radiusMeters * seededRange(parentSeed, 400 + i, 0.03, 0.24),
+                seededRange(parentSeed, 500 + i, isGalaxy ? 180_000 : 260_000, isGalaxy ? 460_000 : 760_000) * 365.25,
+                seededRange(parentSeed, 600 + i, 0.4, 14.0),
+                seededRange(parentSeed, 700 + i, 0.01, 0.35),
+                `${starName}:orbit`,
+            );
+
+            for (let p = 0; p < planetPerStar; p += 1) {
+                const planetName = `${starName} p-${p + 1}`;
+                const planetBody: UniverseBody = {
+                    name: planetName,
+                    kind: "planet",
+                    massKg: seededRange(parentSeed, 800 + i * 7 + p, 0.2, 9.0) * EARTH_MASS,
+                    radiusMeters: seededRange(parentSeed, 900 + i * 7 + p, 0.4, 2.2) * EARTH_RADIUS,
+                    colorHex: seededUnit(parentSeed, 1000 + i * 7 + p) > 0.5 ? "#8db9ff" : "#d8c3a1",
+                    position: { ...starBody.position },
+                    velocity: { ...starBody.velocity },
+                    alive: true,
+                    parentName: starName,
+                    isHypothesis: false,
+                };
+                pushCatalogBody(planetBody, {
+                    sources: ["Synthetic Galaxy Model"],
+                    description: `Planet sintetis sistem ${starName}.`,
+                });
+                syntheticGalaxyBodyNames.add(planetName);
+
+                registerDynamicOrbit(
+                    planetName,
+                    starName,
+                    seededRange(parentSeed, 1100 + i * 11 + p, 0.24, 7.6) * constants.auMeters,
+                    seededRange(parentSeed, 1200 + i * 11 + p, 48, 920),
+                    seededRange(parentSeed, 1300 + i * 11 + p, 0, 9.5),
+                    seededRange(parentSeed, 1400 + i * 11 + p, 0.001, 0.2),
+                    `${planetName}:orbit`,
+                );
+            }
+        }
+
+        for (let c = 0; c < cometCount; c += 1) {
+            const cometName = `${parent.name} Comet-${c + 1}`;
+            const cometBody: UniverseBody = {
+                name: cometName,
+                kind: "comet",
+                massKg: seededRange(parentSeed, 2000 + c, 9e12, 8e14),
+                radiusMeters: seededRange(parentSeed, 2100 + c, 1100, 18000),
+                colorHex: "#9fd1ff",
+                position: { ...parent.position },
+                velocity: { ...parent.velocity },
+                alive: true,
+                parentName: parent.name,
+                isHypothesis: false,
+            };
+            pushCatalogBody(cometBody, {
+                sources: ["Synthetic Galaxy Model"],
+                description: `Komet sintetis pada halo ${parent.name}.`,
+            });
+            syntheticGalaxyBodyNames.add(cometName);
+            registerDynamicOrbit(
+                cometName,
+                parent.name,
+                parent.radiusMeters * seededRange(parentSeed, 2200 + c, 0.16, 0.42),
+                seededRange(parentSeed, 2300 + c, isGalaxy ? 120_000 : 220_000, isGalaxy ? 280_000 : 420_000) * 365.25,
+                seededRange(parentSeed, 2400 + c, 6, 46),
+                seededRange(parentSeed, 2500 + c, 0.2, 0.72),
+                `${cometName}:orbit`,
+            );
+        }
+
+        for (let m = 0; m < meteorCount; m += 1) {
+            const meteorName = `${parent.name} Meteor-${m + 1}`;
+            const meteorBody: UniverseBody = {
+                name: meteorName,
+                kind: "meteor",
+                massKg: seededRange(parentSeed, 2600 + m, 5e9, 6e11),
+                radiusMeters: seededRange(parentSeed, 2700 + m, 80, 1800),
+                colorHex: "#d4c4a2",
+                position: { ...parent.position },
+                velocity: { ...parent.velocity },
+                alive: true,
+                parentName: parent.name,
+                isHypothesis: false,
+            };
+            pushCatalogBody(meteorBody, {
+                sources: ["Synthetic Galaxy Model"],
+                description: `Meteoroid sintetis pada halo ${parent.name}.`,
+            });
+            syntheticGalaxyBodyNames.add(meteorName);
+            registerDynamicOrbit(
+                meteorName,
+                parent.name,
+                parent.radiusMeters * seededRange(parentSeed, 2800 + m, 0.1, 0.32),
+                seededRange(parentSeed, 2900 + m, isGalaxy ? 60_000 : 110_000, isGalaxy ? 180_000 : 260_000) * 365.25,
+                seededRange(parentSeed, 3000 + m, 3, 38),
+                seededRange(parentSeed, 3100 + m, 0.05, 0.42),
+                `${meteorName}:orbit`,
+            );
+        }
+    }
+
+    nasaCatalogEntries = nasaCatalogBodies.length;
+    addLocalEvent(`Model sintetis galaksi diperbarui: +${syntheticGalaxyBodyNames.size} objek dinamis.`);
+}
+
+function updateDynamicCatalogBodies(dtMs: number): void {
+    if (dynamicCatalogOrbits.size === 0 || !uiState.running) {
+        return;
+    }
+
+    const dtSec = (dtMs / 1000) * clamp(engine.currentTimeScale / 120, 2, 64);
+    const bodyIndex = new Map<string, UniverseBody>();
+    engine.getMajorBodies().forEach((body) => bodyIndex.set(body.name, body));
+    engine.getContextBodies().forEach((body) => bodyIndex.set(body.name, body));
+    nasaCatalogBodies.forEach((body) => bodyIndex.set(body.name, body));
+
+    for (const orbit of dynamicCatalogOrbits.values()) {
+        const body = bodyIndex.get(orbit.bodyName);
+        const parent = bodyIndex.get(orbit.parentName);
+        if (!body || !parent) {
+            continue;
+        }
+
+        orbit.phaseRad += orbit.omegaRadPerSec * dtSec;
+        const rel = dynamicOrbitPoint(orbit, orbit.phaseRad);
+        body.position = {
+            x: parent.position.x + rel.x,
+            y: parent.position.y + rel.y,
+            z: parent.position.z + rel.z,
+        };
+
+        const relNext = dynamicOrbitPoint(orbit, orbit.phaseRad + 0.0008);
+        const tx = relNext.x - rel.x;
+        const ty = relNext.y - rel.y;
+        const tz = relNext.z - rel.z;
+        const mag = Math.max(Math.hypot(tx, ty, tz), 1e-9);
+        const speed = Math.max(Math.abs(orbit.omegaRadPerSec) * orbit.semiMajorMeters, 0.1);
+        body.velocity = {
+            x: parent.velocity.x + (tx / mag) * speed,
+            y: parent.velocity.y + (ty / mag) * speed,
+            z: parent.velocity.z + (tz / mag) * speed,
+        };
+    }
 }
 
 function addLocalEvent(message: string): void {
@@ -1041,7 +1348,7 @@ function applyNasaRows(rows: NasaExoplanetRow[]): number {
                 position: { x: hostVector.x, y: hostVector.y, z: hostVector.z },
                 velocity: { x: 0, y: 0, z: 0 },
                 alive: true,
-                parentName: "Matahari",
+                parentName: "Bima Sakti",
                 isHypothesis: false,
             };
             hostMap.set(hostName, hostBody);
@@ -1085,6 +1392,15 @@ function applyNasaRows(rows: NasaExoplanetRow[]): number {
             sources: ["NASA"],
             description: `Eksoplanet ${row.pl_name} dari katalog NASA Exoplanet Archive.`,
         });
+        registerDynamicOrbit(
+            planetBody.name,
+            hostBody.name,
+            orbitAu * constants.auMeters,
+            Math.max(8, row.pl_orbper ?? 320),
+            seededRange(planetBody.name, 21, 0, 10),
+            seededRange(planetBody.name, 22, 0.001, 0.24),
+            `${planetBody.name}:nasa`,
+        );
         freshCount += 1;
     }
     nasaCatalogEntries = nasaCatalogBodies.length;
@@ -1204,6 +1520,8 @@ async function ingestExternalCatalogs(): Promise<IngestRunSummary> {
         latestCatalogGeneratedAt = generatedAt;
     }
 
+    addSyntheticGalaxySystems();
+
     return {
         statuses,
         generatedAt,
@@ -1283,10 +1601,24 @@ function solarRenderAnchorFromBodies(bodies: UniverseBody[]): SolarRenderAnchor 
     };
 }
 
-function renderPositionForBody(body: UniverseBody, solarAnchor: SolarRenderAnchor | null): THREE.Vector3 {
+function renderPositionForBody(
+    body: UniverseBody,
+    solarAnchor: SolarRenderAnchor | null,
+    structureAnchor: SolarRenderAnchor | null,
+    structureRoot: UniverseBody | null,
+    bodyIndex: Map<string, UniverseBody> | null,
+): THREE.Vector3 {
     if (solarAnchor && isSolarSystemBody(body)) {
         return toRenderPositionRelative(body.position, solarAnchor.physicalPosition, solarAnchor.renderPosition);
     }
+
+    if (structureAnchor && structureRoot && bodyIndex) {
+        const relation = bodyInFocusedBranch(body, structureRoot, bodyIndex);
+        if (relation.descendant || body.name === structureRoot.name) {
+            return toRenderPositionRelative(body.position, structureAnchor.physicalPosition, structureAnchor.renderPosition);
+        }
+    }
+
     return toRenderPosition(body.position);
 }
 
@@ -1294,10 +1626,16 @@ function renderPositionForWorld(
     worldPosition: { x: number; y: number; z: number },
     isSolarLocal: boolean,
     solarAnchor: SolarRenderAnchor | null,
+    structureAnchor: SolarRenderAnchor | null = null,
 ): THREE.Vector3 {
     if (isSolarLocal && solarAnchor) {
         return toRenderPositionRelative(worldPosition, solarAnchor.physicalPosition, solarAnchor.renderPosition);
     }
+
+    if (structureAnchor) {
+        return toRenderPositionRelative(worldPosition, structureAnchor.physicalPosition, structureAnchor.renderPosition);
+    }
+
     return toRenderPosition(worldPosition);
 }
 
@@ -1446,6 +1784,35 @@ function bodyInFocusedBranch(
     };
 }
 
+function focusedStructureRoot(
+    focusBody: UniverseBody | null,
+    bodyIndex: Map<string, UniverseBody>,
+): UniverseBody | null {
+    if (!focusBody) {
+        return null;
+    }
+
+    if (isLargeScaleStructure(focusBody)) {
+        return focusBody;
+    }
+
+    let parentName: string | null = focusBody.parentName ?? null;
+    let guard = 0;
+    while (parentName && guard < 32) {
+        const parent = bodyIndex.get(parentName) ?? findExistingBodyByName(parentName);
+        if (!parent) {
+            return null;
+        }
+        if (isLargeScaleStructure(parent)) {
+            return parent;
+        }
+        parentName = parent.parentName ?? null;
+        guard += 1;
+    }
+
+    return null;
+}
+
 function shouldDisplayBodyAtZoom(
     body: UniverseBody,
     key: string,
@@ -1454,6 +1821,7 @@ function shouldDisplayBodyAtZoom(
     zoomSpan: number,
     focusBody: UniverseBody | null,
     bodyIndex: Map<string, UniverseBody>,
+    structureRoot: UniverseBody | null,
 ): boolean {
     const selected = uiState.selectedKey === key;
     const focused = focusBody ? body.name === focusBody.name : body.name === uiState.focusName;
@@ -1464,42 +1832,41 @@ function shouldDisplayBodyAtZoom(
     const distanceFromFocus = position.distanceTo(focusPosition);
     const solarBody = isSolarSystemBody(body);
 
-    const structureFocus = isLargeScaleStructure(focusBody);
-    if (focusBody && structureFocus) {
-        const branch = bodyInFocusedBranch(body, focusBody, bodyIndex);
+    if (structureRoot) {
+        const branch = bodyInFocusedBranch(body, structureRoot, bodyIndex);
         if (!branch.inBranch) {
             return false;
         }
 
-        if (zoomSpan < 260) {
+        if (zoomSpan < 120) {
             if (branch.ancestor) {
                 return body.kind === "cluster" || body.kind === "galaxy";
             }
             if (body.kind === "planet" || body.kind === "moon") {
-                return branch.descendant && distanceFromFocus < 460;
-            }
-            if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
                 return branch.descendant && distanceFromFocus < 320;
             }
-            return true;
-        }
-
-        if (zoomSpan < 900) {
             if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
-                return branch.descendant && distanceFromFocus < 820;
+                return branch.descendant && distanceFromFocus < 220;
             }
             return true;
         }
 
-        if (zoomSpan < 2200) {
-            if (body.kind === "planet" || body.kind === "moon") {
-                return branch.descendant || selected;
+        if (zoomSpan < 520) {
+            if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
+                return branch.descendant && distanceFromFocus < 680;
             }
             return true;
         }
 
-        if (body.kind === "planet" || body.kind === "moon" || bodyLooksRocky(body) || bodyLooksComet(body)) {
-            return branch.descendant && (focused || selected || distanceFromFocus < 520);
+        if (zoomSpan < 2000) {
+            if (body.kind === "planet" || body.kind === "moon" || bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
+                return branch.descendant && distanceFromFocus < 5200;
+            }
+            return true;
+        }
+
+        if (body.kind === "planet" || body.kind === "moon" || bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
+            return branch.descendant;
         }
         return true;
     }
@@ -1538,7 +1905,7 @@ function shouldDisplayBodyAtZoom(
     }
 
     if (zoomSpan < 2200) {
-        if (body.kind === "planet" || body.kind === "moon" || bodyLooksRocky(body) || bodyLooksComet(body)) {
+        if ((body.kind === "planet" || body.kind === "moon" || bodyLooksRocky(body) || bodyLooksComet(body)) && solarBody) {
             return focused || selected;
         }
         if (body.kind === "cluster" && !focused && !selected && distanceFromFocus > 1600) {
@@ -1547,7 +1914,7 @@ function shouldDisplayBodyAtZoom(
         return true;
     }
 
-    if (body.kind === "planet" || body.kind === "moon" || bodyLooksRocky(body) || bodyLooksComet(body)) {
+    if ((body.kind === "planet" || body.kind === "moon" || bodyLooksRocky(body) || bodyLooksComet(body)) && solarBody) {
         return focused || selected;
     }
 
@@ -1758,10 +2125,37 @@ function rebuildOrbitGuides(force = false): void {
     const nearZoom = zoomSpan < 260;
     const midZoom = zoomSpan >= 260 && zoomSpan < 900;
     const solarAnchor = solarRenderAnchorFromBodies(engine.getMajorBodies());
+    const guideBodyIndex = new Map<string, UniverseBody>();
+    engine.getMajorBodies().forEach((body) => guideBodyIndex.set(body.name, body));
+    engine.getContextBodies().forEach((body) => guideBodyIndex.set(body.name, body));
+    nasaCatalogBodies.forEach((body) => guideBodyIndex.set(body.name, body));
+
+    const focusBody = guideBodyIndex.get(uiState.focusName) ?? bodyByNameAny(uiState.focusName);
+    const structureRoot = focusedStructureRoot(focusBody, guideBodyIndex);
+    const structureAnchor = structureRoot
+        ? {
+            physicalPosition: structureRoot.position,
+            renderPosition: toRenderPosition(structureRoot.position),
+        }
+        : null;
 
     const guides = engine.getOrbitGuides(viewState.showContext)
         .filter((guide) => guide.kind !== "other")
         .filter((guide) => {
+            if (structureRoot) {
+                const guideBody = guideBodyIndex.get(guide.bodyName) ?? bodyByNameAny(guide.bodyName);
+                if (!guideBody) {
+                    return false;
+                }
+                const relation = bodyInFocusedBranch(guideBody, structureRoot, guideBodyIndex);
+                if (!relation.inBranch) {
+                    return false;
+                }
+                if (zoomSpan < 180 && relation.ancestor && guide.bodyName !== structureRoot.name) {
+                    return false;
+                }
+            }
+
             if (guide.kind === "moon") {
                 return guide.bodyName === uiState.focusName || guide.parentName === uiState.focusName;
             }
@@ -1807,6 +2201,8 @@ function rebuildOrbitGuides(force = false): void {
         const points: THREE.Vector3[] = [];
         const segments = guide.kind === "moon" ? 140 : 200;
         const solarLocalGuide = solarSystemAnchors.has(guide.parentName) || guide.parentName === "Matahari";
+        const guideBody = guideBodyIndex.get(guide.bodyName) ?? bodyByNameAny(guide.bodyName);
+        const structureLocalGuide = !!(structureRoot && guideBody && bodyInFocusedBranch(guideBody, structureRoot, guideBodyIndex).descendant);
         for (let i = 0; i <= segments; i += 1) {
             const t = (i / segments) * Math.PI * 2;
             const localPoint = orbitGuidePoint(guide, t);
@@ -1815,7 +2211,7 @@ function rebuildOrbitGuides(force = false): void {
                 y: parent.position.y + localPoint.y,
                 z: parent.position.z + localPoint.z,
             };
-            points.push(renderPositionForWorld(worldPoint, solarLocalGuide, solarAnchor));
+            points.push(renderPositionForWorld(worldPoint, solarLocalGuide, solarAnchor, structureLocalGuide ? structureAnchor : null));
         }
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -2072,12 +2468,10 @@ function createNode(body: UniverseBody): BodyNode {
     const key = bodyKey(body);
     const color = hexToColor(body.colorHex);
     const diffuseStructure = body.kind === "galaxy" || body.kind === "cluster" || body.kind === "nebula";
-    const detail = diffuseStructure ? 2 : bodyLooksRocky(body) ? 10 : bodyLooksComet(body) ? 12 : 24;
+    const detail = diffuseStructure ? 18 : bodyLooksRocky(body) ? 10 : bodyLooksComet(body) ? 12 : 24;
     const spinRadPerSec = spinRadPerSecForBody(body);
 
-    const geometry = diffuseStructure
-        ? new THREE.PlaneGeometry(2, 2)
-        : new THREE.SphereGeometry(1, detail, detail);
+    const geometry = new THREE.SphereGeometry(1, detail, detail);
     const texture = textureForBody(body);
     const material = new THREE.MeshStandardMaterial({
         color,
@@ -2100,11 +2494,9 @@ function createNode(body: UniverseBody): BodyNode {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(toRenderPosition(body.position));
     mesh.scale.setScalar(toRenderRadius(body));
-    mesh.userData.billboard = diffuseStructure;
-    if (!diffuseStructure) {
-        mesh.rotation.x = ((hashString(body.name) % 28) - 14) * (Math.PI / 180);
-        mesh.rotation.z = ((hashString(body.name) % 22) - 11) * (Math.PI / 180);
-    }
+    mesh.userData.structureShell = diffuseStructure;
+    mesh.rotation.x = ((hashString(body.name) % 28) - 14) * (Math.PI / 180);
+    mesh.rotation.z = ((hashString(body.name) % 22) - 11) * (Math.PI / 180);
     mesh.userData.bodyKey = key;
     scene.add(mesh);
 
@@ -2206,7 +2598,16 @@ function updateNodes(dtMs: number): void {
     const zoomSpan = cameraZoomSpan();
     const solarAnchor = solarRenderAnchorFromBodies(bodies);
     const focusBody = bodies.find((entry) => entry.name === uiState.focusName) ?? null;
-    const focusPosition = focusBody ? renderPositionForBody(focusBody, solarAnchor) : controls.target.clone();
+    const structureRoot = focusedStructureRoot(focusBody, bodyIndex);
+    const structureAnchor = structureRoot
+        ? {
+            physicalPosition: structureRoot.position,
+            renderPosition: toRenderPosition(structureRoot.position),
+        }
+        : null;
+    const focusPosition = focusBody
+        ? renderPositionForBody(focusBody, solarAnchor, structureAnchor, structureRoot, bodyIndex)
+        : controls.target.clone();
 
     for (const body of bodies) {
         const key = bodyKey(body);
@@ -2221,16 +2622,19 @@ function updateNodes(dtMs: number): void {
         node.body = body;
         node.spinRadPerSec = spinRadPerSecForBody(body);
 
-        const position = renderPositionForBody(body, solarAnchor);
+        const position = renderPositionForBody(body, solarAnchor, structureAnchor, structureRoot, bodyIndex);
         const radius = toRenderRadius(body, zoomSpan);
         node.mesh.position.copy(position);
-        node.mesh.scale.setScalar(radius);
-        const isBillboard = node.mesh.userData.billboard === true;
-        if (isBillboard) {
-            node.mesh.quaternion.copy(camera.quaternion);
+        const isStructureShell = node.mesh.userData.structureShell === true;
+        if (isStructureShell) {
+            const flattenY = body.kind === "galaxy" ? 0.34 : body.kind === "cluster" ? 0.56 : 0.7;
+            const spread = body.kind === "galaxy" ? 1.92 : body.kind === "cluster" ? 1.58 : 1.35;
+            node.mesh.scale.set(radius * spread, radius * flattenY, radius * spread);
+        } else {
+            node.mesh.scale.setScalar(radius);
         }
 
-        const visibleByZoom = shouldDisplayBodyAtZoom(body, key, position, focusPosition, zoomSpan, focusBody, bodyIndex);
+        const visibleByZoom = shouldDisplayBodyAtZoom(body, key, position, focusPosition, zoomSpan, focusBody, bodyIndex, structureRoot);
         node.mesh.visible = visibleByZoom;
         if (node.ring) {
             node.ring.visible = visibleByZoom;
@@ -2238,9 +2642,7 @@ function updateNodes(dtMs: number): void {
 
         if (uiState.running) {
             const deltaSec = dtMs / 1000;
-            if (!isBillboard) {
-                node.mesh.rotation.y += node.spinRadPerSec * deltaSec * spinMultiplier;
-            }
+            node.mesh.rotation.y += (isStructureShell ? 0.12 : node.spinRadPerSec * spinMultiplier) * deltaSec;
         }
 
         if (!node.ring && isRingedBody(body)) {
@@ -2435,6 +2837,32 @@ function cycleFocus(): void {
     setFocusBody(next, { pinInfo: false, preferredDistance, durationMs: 640 });
 }
 
+function normalizeClickedFocusBody(body: UniverseBody): UniverseBody {
+    const zoomSpan = cameraZoomSpan();
+    if (zoomSpan < 90) {
+        return body;
+    }
+
+    const parent = body.parentName ? bodyByNameAny(body.parentName) : null;
+    if (!parent) {
+        return body;
+    }
+
+    if (!isLargeScaleStructure(parent)) {
+        return body;
+    }
+
+    if (isLargeScaleStructure(body)) {
+        return body;
+    }
+
+    if (isSolarSystemBody(body)) {
+        return body;
+    }
+
+    return parent;
+}
+
 function setFocusBody(
     body: UniverseBody,
     options?: {
@@ -2449,7 +2877,7 @@ function setFocusBody(
 
     const targetNode = bodyNodes.get(bodyKey(body));
     const fallbackAnchor = isSolarSystemBody(body) ? solarRenderAnchorFromBodies(engine.getMajorBodies()) : null;
-    const target = targetNode ? targetNode.mesh.position.clone() : renderPositionForBody(body, fallbackAnchor);
+    const target = targetNode ? targetNode.mesh.position.clone() : renderPositionForBody(body, fallbackAnchor, null, null, null);
     const preferredDistance = options?.preferredDistance
         ?? (body.kind === "galaxy" || body.kind === "cluster"
             ? 320
@@ -2515,7 +2943,7 @@ function resetCameraToEarthView(): void {
     const target = earthNode
         ? earthNode.mesh.position.clone()
         : earth
-            ? renderPositionForBody(earth, earthFallbackAnchor)
+            ? renderPositionForBody(earth, earthFallbackAnchor, null, null, null)
             : new THREE.Vector3(0, 0, 0);
     const offset = new THREE.Vector3(28, 16, 36);
 
@@ -3271,12 +3699,23 @@ function updatePanelVisibility(): void {
 
 function currentMeshTargets(): THREE.Object3D[] {
     const zoomSpan = cameraZoomSpan();
+    const nodeBodies = Array.from(bodyNodes.values()).map((node) => node.body);
+    const bodyIndex = new Map<string, UniverseBody>(nodeBodies.map((body) => [body.name, body]));
+    const focusBody = bodyIndex.get(uiState.focusName) ?? bodyByNameAny(uiState.focusName);
+    const structureRoot = focusedStructureRoot(focusBody, bodyIndex);
+
     return Array.from(bodyNodes.values())
         .filter((node) => node.mesh.visible)
         .filter((node) => {
             if (zoomSpan >= 240) {
                 return true;
             }
+
+            if (structureRoot) {
+                const relation = bodyInFocusedBranch(node.body, structureRoot, bodyIndex);
+                return relation.inBranch || node.body.name === structureRoot.name || uiState.selectedKey === node.key;
+            }
+
             return isSolarSystemBody(node.body)
                 || node.body.name === uiState.focusName
                 || uiState.selectedKey === node.key;
@@ -3441,8 +3880,9 @@ function bindUiHandlers(): void {
 
     canvas.addEventListener("click", () => {
         if (uiState.hoverKey) {
-            const selectedBody = bodyNodes.get(uiState.hoverKey)?.body;
-            if (selectedBody) {
+            const hoveredBody = bodyNodes.get(uiState.hoverKey)?.body;
+            if (hoveredBody) {
+                const selectedBody = normalizeClickedFocusBody(hoveredBody);
                 const preferredDistance = selectedBody.kind === "galaxy" || selectedBody.kind === "cluster"
                     ? 320
                     : selectedBody.kind === "star"
@@ -3562,6 +4002,7 @@ async function refreshCatalogIfUpdated(): Promise<void> {
     const modeStats = ingestModeBreakdown(statuses);
 
     latestCatalogGeneratedAt = generatedAt;
+    addSyntheticGalaxySystems();
     addLocalEvent(
         `Auto-sync katalog ${new Date(generatedAt).toLocaleString()}: +${delta} objek | online=${modeStats.online} fallback=${modeStats.fallback} failed=${modeStats.failed}.`,
     );
@@ -3623,6 +4064,7 @@ function animate(now: number): void {
         }
     }
 
+    updateDynamicCatalogBodies(dtMs);
     updateNodes(dtMs);
     rebuildOrbitGuides();
     updateHoverByRaycast();
