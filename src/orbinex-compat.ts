@@ -228,6 +228,19 @@ export interface UniverseStateSnapshot {
     latestForecasts: UniverseForecast[];
 }
 
+export interface UniverseOrbitGuide {
+    bodyName: string;
+    parentName: string;
+    kind: UniverseBodyKind;
+    isHypothesis: boolean;
+    semiMajorMeters: number;
+    orbitalPeriodSeconds: number;
+    eccentricity: number;
+    inclinationRad: number;
+    ascendingNodeRad: number;
+    argumentPeriapsisRad: number;
+}
+
 export interface UniverseStepSummary {
     performedSteps: number;
     simulatedSeconds: number;
@@ -396,6 +409,52 @@ class UniverseEngine {
 
     getForecasts(limit = 12): UniverseForecast[] {
         return this.forecasts.slice(0, Math.max(0, Math.floor(limit))).map((forecast) => ({ ...forecast }));
+    }
+
+    getOrbitGuides(includeContext = false): UniverseOrbitGuide[] {
+        const guides: UniverseOrbitGuide[] = [];
+
+        for (const orbit of this.orbitStates.values()) {
+            const body = this.findBody(orbit.bodyName);
+            if (!body || !body.alive) {
+                continue;
+            }
+            guides.push({
+                bodyName: orbit.bodyName,
+                parentName: orbit.parentName,
+                kind: body.kind,
+                isHypothesis: body.isHypothesis,
+                semiMajorMeters: orbit.radiusMeters,
+                orbitalPeriodSeconds: (2 * Math.PI) / Math.max(orbit.omegaRadPerSec, 1e-15),
+                eccentricity: orbit.eccentricity,
+                inclinationRad: orbit.inclinationRad,
+                ascendingNodeRad: orbit.ascendingNodeRad,
+                argumentPeriapsisRad: orbit.argumentPeriapsisRad,
+            });
+        }
+
+        if (includeContext) {
+            for (const orbit of this.contextOrbitStates) {
+                const body = this.findBody(orbit.bodyName);
+                if (!body || !body.alive) {
+                    continue;
+                }
+                guides.push({
+                    bodyName: orbit.bodyName,
+                    parentName: orbit.parentName,
+                    kind: body.kind,
+                    isHypothesis: body.isHypothesis,
+                    semiMajorMeters: orbit.radiusMeters,
+                    orbitalPeriodSeconds: (2 * Math.PI) / Math.max(orbit.omegaRadPerSec, 1e-15),
+                    eccentricity: orbit.eccentricity,
+                    inclinationRad: orbit.inclinationRad,
+                    ascendingNodeRad: orbit.ascendingNodeRad,
+                    argumentPeriapsisRad: orbit.argumentPeriapsisRad,
+                });
+            }
+        }
+
+        return guides;
     }
 
     spawnMeteorShower(count: number): void {
@@ -733,6 +792,7 @@ class UniverseEngine {
         }> = [
                 { bodyName: "Grup Lokal", parentName: "Laniakea", periodYears: 920_000_000, inclinationDeg: 4.5, eccentricity: 0.11, ascendingNodeDeg: 41, argumentPeriapsisDeg: 20 },
                 { bodyName: "Bima Sakti", parentName: "Grup Lokal", periodYears: 460_000_000, inclinationDeg: 3.2, eccentricity: 0.08, ascendingNodeDeg: 18, argumentPeriapsisDeg: 55 },
+                { bodyName: "Matahari", parentName: "Bima Sakti", periodYears: 230_000_000, inclinationDeg: 7.2, eccentricity: 0.06, ascendingNodeDeg: 48, argumentPeriapsisDeg: 95 },
                 { bodyName: "Andromeda (M31)", parentName: "Grup Lokal", periodYears: 640_000_000, inclinationDeg: 6.1, eccentricity: 0.14, ascendingNodeDeg: 72, argumentPeriapsisDeg: 132 },
                 { bodyName: "Triangulum (M33)", parentName: "Grup Lokal", periodYears: 710_000_000, inclinationDeg: 7.8, eccentricity: 0.18, ascendingNodeDeg: 96, argumentPeriapsisDeg: 81 },
                 { bodyName: "M87 Galaxy", parentName: "Laniakea", periodYears: 1_280_000_000, inclinationDeg: 5.4, eccentricity: 0.12, ascendingNodeDeg: 32, argumentPeriapsisDeg: 66 },
@@ -838,11 +898,11 @@ class UniverseEngine {
     }
 
     private updateOrbits(dtSec: number): void {
-        for (const orbit of this.orbitStates.values()) {
+        for (const orbit of this.contextOrbitStates) {
             this.updateOrbitBody(orbit, dtSec);
         }
 
-        for (const orbit of this.contextOrbitStates) {
+        for (const orbit of this.orbitStates.values()) {
             this.updateOrbitBody(orbit, dtSec);
         }
     }

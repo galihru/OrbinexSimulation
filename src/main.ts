@@ -5,6 +5,7 @@ import {
     constants,
     createUniverseEngine,
     type UniverseBody,
+    type UniverseOrbitGuide,
 } from "./orbinex-compat";
 
 import "./styles.css";
@@ -90,6 +91,7 @@ type BodyNode = {
     mesh: THREE.Mesh;
     label: THREE.Sprite | null;
     ring: THREE.Mesh | null;
+    spinRadPerSec: number;
     trail: THREE.Line | null;
     trailPoints: THREE.Vector3[];
 };
@@ -152,6 +154,39 @@ function formatRadius(value: number): string {
 function degToRad(value: number): number {
     return (value * Math.PI) / 180;
 }
+
+function hashString(text: string): number {
+    let hash = 0;
+    for (let i = 0; i < text.length; i += 1) {
+        hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash);
+}
+
+const bodyRotationHoursByName: Record<string, number> = {
+    Matahari: 609,
+    Merkurius: 1407.6,
+    Venus: -5832.5,
+    Bumi: 23.934,
+    Bulan: 655.7,
+    Mars: 24.623,
+    Jupiter: 9.925,
+    Saturnus: 10.7,
+    Uranus: -17.24,
+    Neptunus: 16.11,
+    Io: 42.46,
+    Europa: 85.2,
+    Ganymede: 171.7,
+    Callisto: 400.5,
+    Titan: 382.7,
+    Rhea: 108,
+    Iapetus: 1903,
+    Enceladus: 32.9,
+    Mimas: 22.6,
+    Tethys: 45.3,
+    Dione: 65.7,
+    Triton: -141.1,
+};
 
 const logoUrl = `${import.meta.env.BASE_URL}orbinex-logo.svg`;
 const EARTH_MASS = 5.9722e24;
@@ -224,6 +259,8 @@ app.innerHTML = `
                     <div><dt>Jarak tampilan</dt><dd id="info-distance-render">-</dd></div>
                     <div><dt>Kecepatan</dt><dd id="info-speed">-</dd></div>
                     <div><dt>Suhu perkiraan</dt><dd id="info-temperature">-</dd></div>
+                    <div><dt>Rotasi</dt><dd id="info-rotation">-</dd></div>
+                    <div><dt>Revolusi</dt><dd id="info-revolution">-</dd></div>
                     <div><dt>Posisi</dt><dd id="info-position">-</dd></div>
                     <div><dt>Velocity</dt><dd id="info-velocity">-</dd></div>
                 </dl>
@@ -282,6 +319,8 @@ const infoDistanceSun = byId<HTMLElement>("info-distance-sun");
 const infoDistanceRender = byId<HTMLElement>("info-distance-render");
 const infoSpeed = byId<HTMLElement>("info-speed");
 const infoTemperature = byId<HTMLElement>("info-temperature");
+const infoRotation = byId<HTMLElement>("info-rotation");
+const infoRevolution = byId<HTMLElement>("info-revolution");
 const infoPosition = byId<HTMLElement>("info-position");
 const infoVelocity = byId<HTMLElement>("info-velocity");
 const infoDescription = byId<HTMLElement>("info-description");
@@ -893,7 +932,6 @@ function applyCatalogEntries(entries: ExternalCatalogEntry[], sourceName: string
 function applyNasaRows(rows: NasaExoplanetRow[]): number {
     const reservedNames = new Set([
         ...engine.getMajorBodies().map((body) => body.name),
-        ...engine.getContextBodies().map((body) => body.name),
     ]);
     const hostMap = new Map<string, UniverseBody>();
     let freshCount = 0;
@@ -1112,29 +1150,46 @@ function toRenderPosition(position: { x: number; y: number; z: number }): THREE.
 }
 
 function toRenderRadius(body: UniverseBody): number {
-    const base = clamp(Math.log10(Math.max(body.radiusMeters, 1)) - 4.95, 0.2, 11.5);
+    const safeRadius = Math.max(body.radiusMeters, 1);
+    const logRadius = Math.log10(safeRadius);
 
     if (body.kind === "star") {
-        return clamp(base * 0.62, 1.1, 6.2);
+        return clamp(1.8 + (logRadius - 6.0) * 1.6, 1.8, 8.8);
     }
 
     if (body.kind === "black-hole") {
-        return clamp(base * 0.62, 1.4, 5.6);
+        return clamp(1.2 + (logRadius - 6.0) * 1.15, 1.2, 6.2);
     }
 
-    if (body.kind === "galaxy" || body.kind === "cluster" || body.kind === "nebula") {
-        return clamp(base * 0.52, 1.4, 7.4);
+    if (body.kind === "planet" || body.kind === "dwarf" || body.kind === "hypothesis") {
+        return clamp(0.22 + (logRadius - 5.7) * 0.72, 0.14, 2.2);
+    }
+
+    if (body.kind === "moon") {
+        return clamp(0.11 + (logRadius - 5.0) * 0.52, 0.08, 0.82);
+    }
+
+    if (body.kind === "galaxy") {
+        return clamp(2.6 + (logRadius - 14.0) * 1.05, 2.2, 12.5);
+    }
+
+    if (body.kind === "cluster") {
+        return clamp(1.8 + (logRadius - 14.0) * 0.88, 1.4, 9.4);
+    }
+
+    if (body.kind === "nebula") {
+        return clamp(1.4 + (logRadius - 13.5) * 0.84, 1.2, 8.6);
     }
 
     if (bodyLooksRocky(body)) {
-        return clamp(base * 0.28, 0.12, 0.62);
+        return clamp(0.08 + (logRadius - 3.5) * 0.24, 0.06, 0.34);
     }
 
     if (bodyLooksComet(body)) {
-        return clamp(base * 0.33, 0.18, 0.84);
+        return clamp(0.11 + (logRadius - 3.8) * 0.28, 0.08, 0.55);
     }
 
-    return base;
+    return clamp(0.2 + (logRadius - 5.3) * 0.5, 0.1, 2.2);
 }
 
 function isRingedBody(body: UniverseBody): boolean {
@@ -1300,6 +1355,27 @@ function disposeOrbitGuides(): void {
     orbitGuideGroup.clear();
 }
 
+function orbitGuidePoint(guide: UniverseOrbitGuide, phaseRad: number): { x: number; y: number; z: number } {
+    const e = clamp(guide.eccentricity, 0, 0.86);
+    const a = Math.max(guide.semiMajorMeters, 1);
+    const p = a * (1 - e * e);
+    const r = p / Math.max(1e-9, 1 + e * Math.cos(phaseRad));
+
+    const argument = phaseRad + guide.argumentPeriapsisRad;
+    const cosArg = Math.cos(argument);
+    const sinArg = Math.sin(argument);
+    const cosNode = Math.cos(guide.ascendingNodeRad);
+    const sinNode = Math.sin(guide.ascendingNodeRad);
+    const cosI = Math.cos(guide.inclinationRad);
+    const sinI = Math.sin(guide.inclinationRad);
+
+    return {
+        x: r * (cosNode * cosArg - sinNode * sinArg * cosI),
+        y: r * (sinArg * sinI),
+        z: r * (sinNode * cosArg + cosNode * sinArg * cosI),
+    };
+}
+
 function rebuildOrbitGuides(force = false): void {
     if (!viewState.showOrbitalGuides) {
         orbitGuideGroup.visible = false;
@@ -1316,47 +1392,45 @@ function rebuildOrbitGuides(force = false): void {
 
     disposeOrbitGuides();
 
-    const sun = bodyByName("Matahari");
-    if (!sun) {
-        return;
-    }
+    const guides = engine.getOrbitGuides(viewState.showContext)
+        .filter((guide) => guide.kind !== "other")
+        .filter((guide) => {
+            if (guide.kind === "moon") {
+                return guide.bodyName === uiState.focusName || guide.parentName === uiState.focusName;
+            }
+            return true;
+        });
 
-    const sunRenderPos = toRenderPosition(sun.position);
-    const guideBodies = engine.getMajorBodies().filter((body) => {
-        return body.parentName === "Matahari"
-            && (body.kind === "planet" || body.kind === "dwarf" || body.kind === "hypothesis");
-    });
-
-    for (const body of guideBodies) {
-        if (!body.alive) {
+    for (const guide of guides) {
+        const parent = bodyByName(guide.parentName);
+        if (!parent) {
             continue;
         }
 
-        const distMeters = Math.hypot(
-            body.position.x - sun.position.x,
-            body.position.y - sun.position.y,
-            body.position.z - sun.position.z,
-        );
-        const radius = compressedDistanceMeters(distMeters);
-        if (!Number.isFinite(radius) || radius < 0.55) {
+        const refDistance = compressedDistanceMeters(Math.max(guide.semiMajorMeters, 1));
+        if (!Number.isFinite(refDistance) || refDistance < 0.08) {
             continue;
         }
 
         const points: THREE.Vector3[] = [];
-        const segments = 170;
+        const segments = guide.kind === "moon" ? 140 : 200;
         for (let i = 0; i <= segments; i += 1) {
             const t = (i / segments) * Math.PI * 2;
-            points.push(new THREE.Vector3(Math.cos(t) * radius, 0, Math.sin(t) * radius));
+            const localPoint = orbitGuidePoint(guide, t);
+            points.push(toRenderPosition({
+                x: parent.position.x + localPoint.x,
+                y: parent.position.y + localPoint.y,
+                z: parent.position.z + localPoint.z,
+            }));
         }
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
         const material = new THREE.LineBasicMaterial({
-            color: 0x6f8fca,
+            color: guide.kind === "moon" ? 0x8ca7db : 0x6f8fca,
             transparent: true,
-            opacity: body.kind === "hypothesis" ? 0.3 : 0.46,
+            opacity: guide.isHypothesis ? 0.26 : guide.kind === "moon" ? 0.22 : 0.44,
         });
         const line = new THREE.LineLoop(geometry, material);
-        line.position.copy(sunRenderPos);
         orbitGuideGroup.add(line);
     }
 }
@@ -1423,6 +1497,8 @@ function shouldLabelBody(body: UniverseBody): boolean {
         "Sagittarius A*",
         "Bima Sakti",
         "Andromeda (M31)",
+        "Triangulum (M33)",
+        "M87 Galaxy",
         "Laniakea",
         "Grup Lokal",
         "Halo Materi Gelap",
@@ -1440,22 +1516,19 @@ function shouldLabelBody(body: UniverseBody): boolean {
 
 function createLabelSprite(text: string, colorHex: string): THREE.Sprite {
     const labelCanvas = document.createElement("canvas");
-    labelCanvas.width = 340;
-    labelCanvas.height = 88;
+    labelCanvas.width = 320;
+    labelCanvas.height = 56;
 
     const ctx = labelCanvas.getContext("2d");
     if (ctx) {
-        ctx.fillStyle = "rgba(6, 16, 39, 0.76)";
-        ctx.strokeStyle = "rgba(130, 178, 255, 0.72)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.roundRect(6, 6, 328, 76, 10);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.font = "700 23px 'Space Grotesk', sans-serif";
+        ctx.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
+        ctx.font = "600 19px 'Space Grotesk', sans-serif";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(8, 18, 36, 0.95)";
         ctx.fillStyle = /^#[0-9a-f]{6}$/i.test(colorHex) ? colorHex : "#d8e7ff";
-        ctx.fillText(text, 18, 50);
+        ctx.strokeText(text, 10, 28);
+        ctx.fillText(text, 10, 28);
     }
 
     const tex = new THREE.CanvasTexture(labelCanvas);
@@ -1469,22 +1542,154 @@ function createLabelSprite(text: string, colorHex: string): THREE.Sprite {
     });
 
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(9.6, 2.48, 1);
+    sprite.scale.set(5.6, 1.15, 1);
     return sprite;
+}
+
+const bodyTextureCache = new Map<string, THREE.CanvasTexture>();
+
+function textureForBody(body: UniverseBody): THREE.Texture | null {
+    if (body.kind === "cluster" || body.kind === "other") {
+        return null;
+    }
+
+    const key = `${body.name}|${body.kind}|${body.colorHex}`;
+    const cached = bodyTextureCache.get(key);
+    if (cached) {
+        return cached;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+        return null;
+    }
+
+    const base = /^#[0-9a-f]{6}$/i.test(body.colorHex) ? body.colorHex : "#8fb6ff";
+    const seed = hashString(body.name);
+
+    const drawBands = (light: string, dark: string): void => {
+        for (let i = 0; i < 18; i += 1) {
+            const y = (i / 18) * canvas.height;
+            const h = canvas.height / 18 + 2;
+            ctx.fillStyle = i % 2 === 0 ? light : dark;
+            ctx.globalAlpha = 0.7 + ((seed + i) % 3) * 0.08;
+            ctx.fillRect(0, y, canvas.width, h);
+        }
+        ctx.globalAlpha = 1;
+    };
+
+    const fillRadial = (inner: string, outer: string): void => {
+        const grad = ctx.createRadialGradient(95, 85, 18, 128, 128, 132);
+        grad.addColorStop(0, inner);
+        grad.addColorStop(1, outer);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    };
+
+    if (body.kind === "star") {
+        fillRadial("#fff0bb", base);
+    } else if (body.kind === "galaxy") {
+        fillRadial("#d8e2ff", "#364d8f");
+        ctx.strokeStyle = "rgba(191, 210, 255, 0.45)";
+        ctx.lineWidth = 5;
+        for (let arm = 0; arm < 3; arm += 1) {
+            ctx.beginPath();
+            for (let t = 0; t <= 320; t += 1) {
+                const angle = arm * ((Math.PI * 2) / 3) + t * 0.11;
+                const radius = 12 + t * 0.42;
+                const x = 128 + Math.cos(angle) * radius;
+                const y = 128 + Math.sin(angle) * radius * 0.74;
+                if (t === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+        }
+    } else if (body.kind === "black-hole") {
+        fillRadial("#1b2147", "#02040b");
+        ctx.strokeStyle = "rgba(120, 146, 255, 0.5)";
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.arc(128, 128, 74, 0, Math.PI * 2);
+        ctx.stroke();
+    } else if (body.name === "Jupiter") {
+        drawBands("#d7bf9a", "#a88864");
+    } else if (body.name === "Saturnus") {
+        drawBands("#d8c49b", "#9f8d6c");
+    } else if (body.name === "Bumi") {
+        fillRadial("#88d8ff", "#2d6db8");
+        ctx.fillStyle = "rgba(80, 150, 92, 0.85)";
+        for (let i = 0; i < 8; i += 1) {
+            ctx.beginPath();
+            ctx.ellipse(((seed + i * 29) % 180) + 30, ((seed + i * 41) % 180) + 35, 18 + (i % 4) * 6, 10 + (i % 3) * 6, (i * 33 * Math.PI) / 180, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.fillStyle = "rgba(255, 255, 255, 0.24)";
+        ctx.fillRect(0, 96, 256, 10);
+    } else if (body.name === "Mars") {
+        fillRadial("#f0a07b", "#9b4d3a");
+    } else if (body.kind === "moon" || body.kind === "dwarf") {
+        fillRadial("#d8d8d8", "#808080");
+        ctx.fillStyle = "rgba(70, 70, 70, 0.22)";
+        for (let i = 0; i < 14; i += 1) {
+            ctx.beginPath();
+            ctx.arc(((seed + i * 17) % 220) + 18, ((seed + i * 31) % 220) + 18, 4 + (i % 5), 0, Math.PI * 2);
+            ctx.fill();
+        }
+    } else {
+        fillRadial("#bfd3ff", base);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.needsUpdate = true;
+    bodyTextureCache.set(key, texture);
+    return texture;
+}
+
+function spinRadPerSecForBody(body: UniverseBody): number {
+    const hours = bodyRotationHoursByName[body.name];
+    if (hours && Number.isFinite(hours) && Math.abs(hours) > 0.05) {
+        return (2 * Math.PI) / (Math.abs(hours) * 3600) * Math.sign(hours);
+    }
+
+    if (body.kind === "black-hole") {
+        return (2 * Math.PI) / (10 * 3600);
+    }
+    if (body.kind === "star") {
+        return (2 * Math.PI) / (580 * 3600);
+    }
+    if (body.kind === "planet") {
+        return (2 * Math.PI) / (30 * 3600);
+    }
+    if (body.kind === "moon") {
+        return (2 * Math.PI) / (65 * 3600);
+    }
+    return (2 * Math.PI) / (90 * 3600);
 }
 
 function createNode(body: UniverseBody): BodyNode {
     const key = bodyKey(body);
     const color = hexToColor(body.colorHex);
     const detail = bodyLooksRocky(body) ? 10 : bodyLooksComet(body) ? 12 : 24;
+    const spinRadPerSec = spinRadPerSecForBody(body);
 
     const geometry = new THREE.SphereGeometry(1, detail, detail);
+    const texture = textureForBody(body);
     const material = new THREE.MeshStandardMaterial({
         color,
+        map: texture,
         roughness: body.kind === "star" ? 0.22 : 0.66,
         metalness: body.kind === "black-hole" ? 0.42 : 0.07,
         emissive: body.kind === "star"
             ? new THREE.Color(color).multiplyScalar(0.35)
+            : body.kind === "galaxy" || body.kind === "cluster"
+                ? new THREE.Color(color).multiplyScalar(0.22)
             : body.kind === "nebula"
                 ? new THREE.Color(color).multiplyScalar(0.1)
                 : new THREE.Color(0x000000),
@@ -1493,6 +1698,8 @@ function createNode(body: UniverseBody): BodyNode {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(toRenderPosition(body.position));
     mesh.scale.setScalar(toRenderRadius(body));
+    mesh.rotation.x = ((hashString(body.name) % 28) - 14) * (Math.PI / 180);
+    mesh.rotation.z = ((hashString(body.name) % 22) - 11) * (Math.PI / 180);
     mesh.userData.bodyKey = key;
     scene.add(mesh);
 
@@ -1530,6 +1737,7 @@ function createNode(body: UniverseBody): BodyNode {
         mesh,
         label,
         ring,
+        spinRadPerSec,
         trail,
         trailPoints: [mesh.position.clone()],
     };
@@ -1585,9 +1793,10 @@ function collectBodies(): UniverseBody[] {
     return [...major, ...small, ...context, ...nasaBodies].filter(shouldRenderBody);
 }
 
-function updateNodes(): void {
+function updateNodes(dtMs: number): void {
     const bodies = collectBodies();
     const aliveKeys = new Set<string>();
+    const spinMultiplier = clamp(engine.currentTimeScale / 900, 0.7, 18);
 
     for (const body of bodies) {
         const key = bodyKey(body);
@@ -1600,11 +1809,17 @@ function updateNodes(): void {
         }
 
         node.body = body;
+        node.spinRadPerSec = spinRadPerSecForBody(body);
 
         const position = toRenderPosition(body.position);
         const radius = toRenderRadius(body);
         node.mesh.position.copy(position);
         node.mesh.scale.setScalar(radius);
+
+        if (uiState.running) {
+            const deltaSec = dtMs / 1000;
+            node.mesh.rotation.y += node.spinRadPerSec * deltaSec * spinMultiplier;
+        }
 
         if (!node.ring && isRingedBody(body)) {
             node.ring = createRingMesh(body);
@@ -1651,16 +1866,19 @@ function updateNodes(): void {
 
         if (node.label) {
             node.label.position.copy(position);
-            node.label.position.y += radius * 1.8 + 0.35;
+            const sideSign = hashString(body.name) % 2 === 0 ? 1 : -1;
+            node.label.position.x += sideSign * (radius * 1.45 + 0.32);
+            node.label.position.y += ((hashString(body.name) % 5) - 2) * 0.05;
 
             const cameraDistance = camera.position.distanceTo(position);
             const labelScale = clamp(220 / Math.max(cameraDistance, 1), 0.42, 1.75);
-            node.label.scale.set(9.6 * labelScale, 2.48 * labelScale, 1);
+            node.label.scale.set(5.6 * labelScale, 1.15 * labelScale, 1);
 
             const isCriticalLabel = body.name === "Matahari"
                 || body.name === uiState.focusName
                 || body.kind === "black-hole";
-            const hiddenByZoom = cameraDistance > 520 && !isCriticalLabel;
+            const crowdedInner = position.length() < 9 && !isCriticalLabel && body.kind !== "star";
+            const hiddenByZoom = (cameraDistance > 300 && !isCriticalLabel) || crowdedInner;
             node.label.visible = shouldLabelBody(body) && !hiddenByZoom;
         }
 
@@ -1817,6 +2035,8 @@ function updateInfoPanel(): void {
     }
 
     const kelvin = estimateTemperature(body);
+    const rotationHours = bodyRotationHoursByName[body.name];
+    const orbitGuide = engine.getOrbitGuides(true).find((entry) => entry.bodyName === body.name);
 
     infoName.textContent = body.name;
     infoKind.textContent = `${body.kind}${body.isHypothesis ? " | hypothesis" : " | observed"}`;
@@ -1828,6 +2048,17 @@ function updateInfoPanel(): void {
     infoDistanceRender.textContent = `${renderDistance.toFixed(3)} unit`;
     infoSpeed.textContent = `${speed.toLocaleString(undefined, { maximumFractionDigits: 2 })} m/s`;
     infoTemperature.textContent = `${kelvin.toFixed(2)} K`;
+    infoRotation.textContent = Number.isFinite(rotationHours)
+        ? `${Math.abs(rotationHours).toFixed(3)} jam${rotationHours < 0 ? " (retrograde)" : ""}`
+        : "Model dinamis";
+    if (orbitGuide && Number.isFinite(orbitGuide.orbitalPeriodSeconds) && orbitGuide.orbitalPeriodSeconds > 0) {
+        const days = orbitGuide.orbitalPeriodSeconds / 86400;
+        infoRevolution.textContent = days >= 365
+            ? `${(days / 365.25).toFixed(3)} tahun`
+            : `${days.toFixed(3)} hari`;
+    } else {
+        infoRevolution.textContent = "Model dinamis";
+    }
     infoPosition.textContent = `(${formatExp(pos.x)}, ${formatExp(pos.y)}, ${formatExp(pos.z)})`;
     infoVelocity.textContent = `(${formatExp(body.velocity.x)}, ${formatExp(body.velocity.y)}, ${formatExp(body.velocity.z)})`;
     infoDescription.textContent = bodyDescriptionsDynamic.get(body.name)
@@ -2265,7 +2496,7 @@ function animate(now: number): void {
         }
     }
 
-    updateNodes();
+    updateNodes(dtMs);
     rebuildOrbitGuides();
     updateHoverByRaycast();
     updateFocusTarget();
