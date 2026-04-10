@@ -293,6 +293,10 @@ app.innerHTML = `
             </div>
         </header>
 
+        <aside class="hud-panel" aria-live="polite">
+            <pre id="hud-text">Memuat telemetry...</pre>
+        </aside>
+
         <aside id="right-stack" class="right-stack" aria-label="Stack panel kanan">
             <section id="search-panel" class="search-panel" aria-label="Panel pencarian objek">
                 <div class="search-row">
@@ -339,28 +343,6 @@ app.innerHTML = `
                 <p id="info-description" class="info-desc">Arahkan mouse ke objek untuk melihat detail ilmiah.</p>
                 <button id="info-pin" type="button" class="info-pin">Pin Panel</button>
             </section>
-        </aside>
-
-        <aside id="bottom-stack" class="bottom-stack" aria-label="Stack panel bawah">
-            <section class="hud-panel summary-panel" aria-live="polite" aria-label="Ringkasan simulasi">
-                <pre id="hud-text">Memuat telemetry...</pre>
-            </section>
-
-            <section id="hierarchy-panel" class="hierarchy-panel" aria-label="Panel filter hirarki kosmik">
-                <h2>Filter Hirarki 1-13</h2>
-                <div class="hierarchy-row">
-                    <label for="hierarchy-min">Min</label>
-                    <input id="hierarchy-min" type="range" min="1" max="13" step="1" value="1" />
-                    <span id="hierarchy-min-value">1</span>
-                </div>
-                <div class="hierarchy-row">
-                    <label for="hierarchy-max">Max</label>
-                    <input id="hierarchy-max" type="range" min="1" max="13" step="1" value="13" />
-                    <span id="hierarchy-max-value">13</span>
-                </div>
-                <p id="hierarchy-note">Menampilkan level 1 sampai 13.</p>
-                <button id="hierarchy-reset" type="button">RESET HIRARKI</button>
-            </section>
 
             <section class="events-panel" aria-label="Panel event simulasi">
                 <h2>Log event berbasis AI</h2>
@@ -370,6 +352,22 @@ app.innerHTML = `
                 </ol>
             </section>
         </aside>
+
+        <section id="hierarchy-panel" class="hierarchy-panel" aria-label="Panel filter hirarki kosmik">
+            <h2>Filter Hirarki 1-13</h2>
+            <div class="hierarchy-row">
+                <label for="hierarchy-min">Min</label>
+                <input id="hierarchy-min" type="range" min="1" max="13" step="1" value="1" />
+                <span id="hierarchy-min-value">1</span>
+            </div>
+            <div class="hierarchy-row">
+                <label for="hierarchy-max">Max</label>
+                <input id="hierarchy-max" type="range" min="1" max="13" step="1" value="13" />
+                <span id="hierarchy-max-value">13</span>
+            </div>
+            <p id="hierarchy-note">Menampilkan level 1 sampai 13.</p>
+            <button id="hierarchy-reset" type="button">RESET HIRARKI</button>
+        </section>
 
         <section id="help-panel" class="help-panel" aria-label="Bantuan kontrol">
         <h2>Hint kontrol</h2>
@@ -383,7 +381,7 @@ app.innerHTML = `
         </ul>
         </section>
 
-        <p id="bottom-hint" class="bottom-hint">Ringkas: drag/arrow orbit kamera | wheel zoom | TAB fokus | / cari | R reset bumi | klik objek pin panel</p>
+                <p id="bottom-hint" class="bottom-hint">Ringkasan: drag/arrow orbit kamera | wheel zoom | TAB fokus | / cari | R reset bumi | klik objek pin panel</p>
   </main>
 `;
 
@@ -478,7 +476,7 @@ const i18n = {
         helpOn: "BANTU",
         helpOff: "BANTU:OFF",
         lang: "BAHASA: ID",
-        bottomHint: "Ringkas: drag/arrow orbit kamera | wheel zoom | TAB fokus | / cari | R reset bumi | klik objek pin panel",
+        bottomHint: "Ringkasan: drag/arrow orbit kamera | wheel zoom | TAB fokus | / cari | R reset bumi | klik objek pin panel",
         searchPlaceholder: "Cari objek... (tekan /)",
     },
     en: {
@@ -500,7 +498,7 @@ const i18n = {
         helpOn: "HELP",
         helpOff: "HELP:OFF",
         lang: "LANG: EN",
-        bottomHint: "Hint: drag/arrow orbit | wheel zoom | TAB next focus | / search | R reset Earth | click object to pin panel",
+        bottomHint: "Summary: drag/arrow orbit | wheel zoom | TAB next focus | / search | R reset Earth | click object to pin panel",
         searchPlaceholder: "Search object... (press /)",
     },
 } as const;
