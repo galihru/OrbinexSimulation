@@ -221,6 +221,8 @@ const EARTH_RADIUS = 6.371e6;
 const SOLAR_RADIUS = 6.9634e8;
 const YEAR_SECONDS = 365.25 * 86400;
 const AUTO_REFRESH_MS = 3 * 60 * 1000;
+const PLANCK_REDUCED = 1.054571817e-34;
+const BOLTZMANN = 1.380649e-23;
 
 const app = byId<HTMLElement>("app");
 app.innerHTML = `
@@ -290,6 +292,13 @@ app.innerHTML = `
                     <div><dt>Suhu perkiraan</dt><dd id="info-temperature">-</dd></div>
                     <div><dt>Rotasi</dt><dd id="info-rotation">-</dd></div>
                     <div><dt>Revolusi</dt><dd id="info-revolution">-</dd></div>
+                    <div><dt>Tipe orbit</dt><dd id="info-orbit-type">-</dd></div>
+                    <div><dt>Gravitasi permukaan</dt><dd id="info-gravity">-</dd></div>
+                    <div><dt>Kecepatan lepas</dt><dd id="info-escape">-</dd></div>
+                    <div><dt>Fluks radiasi</dt><dd id="info-radiation">-</dd></div>
+                    <div><dt>UV relatif</dt><dd id="info-uv">-</dd></div>
+                    <div><dt>Radius Schwarzschild</dt><dd id="info-schwarzschild">-</dd></div>
+                    <div><dt>Suhu Hawking</dt><dd id="info-hawking">-</dd></div>
                     <div><dt>Posisi</dt><dd id="info-position">-</dd></div>
                     <div><dt>Velocity</dt><dd id="info-velocity">-</dd></div>
                 </dl>
@@ -313,11 +322,12 @@ app.innerHTML = `
         <li>TAB atau tombol FOKUS+ untuk ganti objek fokus.</li>
         <li>SPACE untuk pause/jalan.</li>
         <li>T untuk jejak, L untuk label, C untuk konteks, / untuk cari.</li>
+                <li>R untuk reset kamera kembali mengorbit Bumi.</li>
         <li>Klik objek untuk pin panel detail.</li>
       </ul>
     </section>
 
-    <p id="bottom-hint" class="bottom-hint">Ringkas: drag/arrow orbit kamera | wheel zoom | TAB fokus | / cari | klik objek pin panel</p>
+        <p id="bottom-hint" class="bottom-hint">Ringkas: drag/arrow orbit kamera | wheel zoom | TAB fokus | / cari | R reset bumi | klik objek pin panel</p>
   </main>
 `;
 
@@ -353,6 +363,13 @@ const infoSpeed = byId<HTMLElement>("info-speed");
 const infoTemperature = byId<HTMLElement>("info-temperature");
 const infoRotation = byId<HTMLElement>("info-rotation");
 const infoRevolution = byId<HTMLElement>("info-revolution");
+const infoOrbitType = byId<HTMLElement>("info-orbit-type");
+const infoGravity = byId<HTMLElement>("info-gravity");
+const infoEscape = byId<HTMLElement>("info-escape");
+const infoRadiation = byId<HTMLElement>("info-radiation");
+const infoUv = byId<HTMLElement>("info-uv");
+const infoSchwarzschild = byId<HTMLElement>("info-schwarzschild");
+const infoHawking = byId<HTMLElement>("info-hawking");
 const infoPosition = byId<HTMLElement>("info-position");
 const infoVelocity = byId<HTMLElement>("info-velocity");
 const infoDescription = byId<HTMLElement>("info-description");
@@ -389,7 +406,7 @@ const i18n = {
         helpOn: "BANTU",
         helpOff: "BANTU:OFF",
         lang: "BAHASA: ID",
-        bottomHint: "Ringkas: drag/arrow orbit kamera | wheel zoom | TAB fokus | / cari | klik objek pin panel",
+        bottomHint: "Ringkas: drag/arrow orbit kamera | wheel zoom | TAB fokus | / cari | R reset bumi | klik objek pin panel",
         searchPlaceholder: "Cari objek... (tekan /)",
     },
     en: {
@@ -409,7 +426,7 @@ const i18n = {
         helpOn: "HELP",
         helpOff: "HELP:OFF",
         lang: "LANG: EN",
-        bottomHint: "Hint: drag/arrow orbit | wheel zoom | TAB next focus | / search | click object to pin panel",
+        bottomHint: "Hint: drag/arrow orbit | wheel zoom | TAB next focus | / search | R reset Earth | click object to pin panel",
         searchPlaceholder: "Search object... (press /)",
     },
 } as const;
@@ -1266,6 +1283,87 @@ function toRenderRadius(body: UniverseBody): number {
     return clamp(0.2 + (logRadius - 5.3) * 0.5, 0.1, 2.2);
 }
 
+const solarSystemAnchors = new Set([
+    "Matahari",
+    "Merkurius",
+    "Venus",
+    "Bumi",
+    "Mars",
+    "Jupiter",
+    "Saturnus",
+    "Uranus",
+    "Neptunus",
+]);
+
+function cameraZoomSpan(): number {
+    return camera.position.distanceTo(controls.target);
+}
+
+function isSolarSystemBody(body: UniverseBody): boolean {
+    if (body.name === "Matahari") {
+        return true;
+    }
+
+    if (body.parentName && solarSystemAnchors.has(body.parentName)) {
+        return true;
+    }
+
+    return bodyLooksRocky(body) || bodyLooksComet(body);
+}
+
+function shouldDisplayBodyAtZoom(
+    body: UniverseBody,
+    key: string,
+    position: THREE.Vector3,
+    focusPosition: THREE.Vector3,
+    zoomSpan: number,
+): boolean {
+    const selected = uiState.selectedKey === key;
+    const focused = body.name === uiState.focusName;
+    if (selected || focused || body.name === "Matahari") {
+        return true;
+    }
+
+    const distanceFromFocus = position.distanceTo(focusPosition);
+    const solarBody = isSolarSystemBody(body);
+
+    if (zoomSpan < 260) {
+        if (!solarBody && ["galaxy", "cluster", "nebula", "black-hole"].includes(body.kind)) {
+            return false;
+        }
+        if (!solarBody && body.kind === "star") {
+            return false;
+        }
+        if ((bodyLooksRocky(body) || bodyLooksComet(body)) && distanceFromFocus > 92) {
+            return false;
+        }
+        return solarBody || distanceFromFocus < 180;
+    }
+
+    if (zoomSpan < 900) {
+        if ((bodyLooksRocky(body) || bodyLooksComet(body)) && distanceFromFocus > Math.max(180, zoomSpan * 0.9)) {
+            return false;
+        }
+        return true;
+    }
+
+    if (zoomSpan < 1700) {
+        if (body.kind === "moon" && !focused && !selected) {
+            return false;
+        }
+        if (bodyLooksRocky(body) || body.kind === "meteor") {
+            return focused || selected;
+        }
+        return true;
+    }
+
+    if (body.kind === "planet" || body.kind === "moon" || bodyLooksRocky(body) || bodyLooksComet(body)) {
+        return focused || selected;
+    }
+
+    return true;
+}
+
 function isRingedBody(body: UniverseBody): boolean {
     return body.name === "Saturnus" || body.name === "Uranus" || body.kind === "black-hole";
 }
@@ -1466,12 +1564,41 @@ function rebuildOrbitGuides(force = false): void {
 
     disposeOrbitGuides();
 
+    const zoomSpan = cameraZoomSpan();
+    const nearZoom = zoomSpan < 260;
+    const midZoom = zoomSpan >= 260 && zoomSpan < 900;
+
     const guides = engine.getOrbitGuides(viewState.showContext)
         .filter((guide) => guide.kind !== "other")
         .filter((guide) => {
             if (guide.kind === "moon") {
                 return guide.bodyName === uiState.focusName || guide.parentName === uiState.focusName;
             }
+
+            if (nearZoom) {
+                if (["galaxy", "cluster", "nebula"].includes(guide.kind)) {
+                    return false;
+                }
+                if (!solarSystemAnchors.has(guide.parentName) && guide.bodyName !== uiState.focusName) {
+                    return false;
+                }
+                if (guide.semiMajorMeters > 130 * constants.auMeters && guide.bodyName !== uiState.focusName) {
+                    return false;
+                }
+            }
+
+            if (midZoom) {
+                if (guide.semiMajorMeters > 50000 * constants.auMeters && !["galaxy", "cluster"].includes(guide.kind)) {
+                    return false;
+                }
+            }
+
+            if (!nearZoom && zoomSpan > 1300) {
+                if (guide.kind === "planet" && guide.bodyName !== uiState.focusName && guide.parentName !== uiState.focusName) {
+                    return false;
+                }
+            }
+
             return true;
         });
 
@@ -1499,10 +1626,11 @@ function rebuildOrbitGuides(force = false): void {
         }
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const zoomOpacityScale = nearZoom ? 0.62 : midZoom ? 0.5 : 0.34;
         const material = new THREE.LineBasicMaterial({
             color: guide.kind === "moon" ? 0x8ca7db : 0x6f8fca,
             transparent: true,
-            opacity: guide.isHypothesis ? 0.26 : guide.kind === "moon" ? 0.22 : 0.44,
+            opacity: (guide.isHypothesis ? 0.26 : guide.kind === "moon" ? 0.22 : 0.44) * zoomOpacityScale,
         });
         const line = new THREE.LineLoop(geometry, material);
         orbitGuideGroup.add(line);
@@ -1871,6 +1999,9 @@ function updateNodes(dtMs: number): void {
     const bodies = collectBodies();
     const aliveKeys = new Set<string>();
     const spinMultiplier = clamp(engine.currentTimeScale / 900, 0.7, 18);
+    const zoomSpan = cameraZoomSpan();
+    const focusBody = bodies.find((entry) => entry.name === uiState.focusName) ?? null;
+    const focusPosition = focusBody ? toRenderPosition(focusBody.position) : controls.target.clone();
 
     for (const body of bodies) {
         const key = bodyKey(body);
@@ -1889,6 +2020,12 @@ function updateNodes(dtMs: number): void {
         const radius = toRenderRadius(body);
         node.mesh.position.copy(position);
         node.mesh.scale.setScalar(radius);
+
+        const visibleByZoom = shouldDisplayBodyAtZoom(body, key, position, focusPosition, zoomSpan);
+        node.mesh.visible = visibleByZoom;
+        if (node.ring) {
+            node.ring.visible = visibleByZoom;
+        }
 
         if (uiState.running) {
             const deltaSec = dtMs / 1000;
@@ -1914,6 +2051,16 @@ function updateNodes(dtMs: number): void {
 
         if (node.ring) {
             updateRingMeshTransform(node.ring, body, position, radius);
+        }
+
+        if (!visibleByZoom) {
+            if (node.label) {
+                node.label.visible = false;
+            }
+            if (node.trail) {
+                node.trail.visible = false;
+            }
+            continue;
         }
 
         const meshMaterial = node.mesh.material as THREE.MeshStandardMaterial;
@@ -2080,6 +2227,22 @@ function updateFocusTarget(): void {
     }
 }
 
+function resetCameraToEarthView(): void {
+    uiState.focusName = "Bumi";
+    uiState.selectedKey = null;
+    uiState.infoPinned = false;
+    cameraFlight = null;
+    focusSuspendUntilMs = 0;
+
+    const earth = engine.getMajorBodies().find((body) => body.name === "Bumi");
+    const target = earth ? toRenderPosition(earth.position) : new THREE.Vector3(0, 0, 0);
+    const offset = new THREE.Vector3(42, 26, 68);
+
+    controls.target.copy(target);
+    camera.position.copy(target.clone().add(offset));
+    camera.lookAt(target);
+}
+
 function estimateTemperature(body: UniverseBody): number {
     const sun = bodyByName("Matahari");
     if (!sun) {
@@ -2094,6 +2257,49 @@ function estimateTemperature(body: UniverseBody): number {
     const flux = 1361 * Math.pow(constants.auMeters / distance, 2);
     const kelvin = Math.pow(flux / (4 * 5.670374419e-8), 0.25);
     return kelvin;
+}
+
+function orbitTypeLabel(orbitGuide: UniverseOrbitGuide | undefined, body: UniverseBody): string {
+    if (!orbitGuide) {
+        return body.parentName ? `Parent-coupled (${body.parentName})` : "Bebas / drift";
+    }
+
+    const e = orbitGuide.eccentricity;
+    if (e < 0.05) {
+        return "Hampir sirkular";
+    }
+    if (e < 1) {
+        return "Eliptik terikat";
+    }
+    if (Math.abs(e - 1) < 1e-3) {
+        return "Parabolik";
+    }
+    return "Hiperbolik / lepas";
+}
+
+function surfaceGravity(body: UniverseBody): number {
+    return (constants.gravitationalConstant * body.massKg) / Math.max(body.radiusMeters * body.radiusMeters, 1);
+}
+
+function escapeVelocity(body: UniverseBody): number {
+    return Math.sqrt((2 * constants.gravitationalConstant * body.massKg) / Math.max(body.radiusMeters, 1));
+}
+
+function schwarzschildRadius(body: UniverseBody): number {
+    return (2 * constants.gravitationalConstant * body.massKg) / (constants.speedOfLightMps * constants.speedOfLightMps);
+}
+
+function hawkingTemperature(body: UniverseBody): number {
+    return (PLANCK_REDUCED * Math.pow(constants.speedOfLightMps, 3))
+        / (8 * Math.PI * constants.gravitationalConstant * Math.max(body.massKg, 1) * BOLTZMANN);
+}
+
+function irradianceFromSunWm2(body: UniverseBody, distanceSun: number): number {
+    if (body.name === "Matahari") {
+        return 1361;
+    }
+    const distance = Math.max(distanceSun, constants.auMeters * 0.01);
+    return 1361 * Math.pow(constants.auMeters / distance, 2);
 }
 
 function activeInfoBody(): UniverseBody | null {
@@ -2135,6 +2341,13 @@ function updateInfoPanel(): void {
     const kelvin = estimateTemperature(body);
     const rotationHours = bodyRotationHoursByName[body.name];
     const orbitGuide = engine.getOrbitGuides(true).find((entry) => entry.bodyName === body.name);
+    const orbitType = orbitTypeLabel(orbitGuide, body);
+    const gravity = surfaceGravity(body);
+    const vEscape = escapeVelocity(body);
+    const irradiance = irradianceFromSunWm2(body, distanceSun);
+    const uvRelative = clamp(irradiance / 110, 0, 500);
+    const schwarzschildM = schwarzschildRadius(body);
+    const hawkingK = hawkingTemperature(body);
 
     infoName.textContent = body.name;
     infoKind.textContent = `${body.kind}${body.isHypothesis ? " | hypothesis" : " | observed"}`;
@@ -2157,6 +2370,15 @@ function updateInfoPanel(): void {
     } else {
         infoRevolution.textContent = "Model dinamis";
     }
+    infoOrbitType.textContent = orbitType;
+    infoGravity.textContent = `${gravity.toExponential(3)} m/s²`;
+    infoEscape.textContent = `${(vEscape / 1000).toFixed(3)} km/s`;
+    infoRadiation.textContent = `${irradiance.toExponential(3)} W/m²`;
+    infoUv.textContent = `${uvRelative.toFixed(2)} UV-index(eq)`;
+    infoSchwarzschild.textContent = `${schwarzschildM.toExponential(3)} m`;
+    infoHawking.textContent = body.kind === "black-hole"
+        ? `${hawkingK.toExponential(3)} K`
+        : "n/a";
     infoPosition.textContent = `(${formatExp(pos.x)}, ${formatExp(pos.y)}, ${formatExp(pos.z)})`;
     infoVelocity.textContent = `(${formatExp(body.velocity.x)}, ${formatExp(body.velocity.y)}, ${formatExp(body.velocity.z)})`;
     infoDescription.textContent = bodyDescriptionsDynamic.get(body.name)
@@ -2915,6 +3137,10 @@ function bindUiHandlers(): void {
     canvas.addEventListener("click", () => {
         if (uiState.hoverKey) {
             uiState.selectedKey = uiState.hoverKey;
+            const selectedBody = bodyNodes.get(uiState.hoverKey)?.body;
+            if (selectedBody) {
+                uiState.focusName = selectedBody.name;
+            }
             uiState.infoPinned = true;
             updateInfoPanel();
         } else {
@@ -2973,6 +3199,13 @@ function bindUiHandlers(): void {
                 updatePanelVisibility();
             }
             searchInput.focus();
+            return;
+        }
+
+        if (key === "r") {
+            event.preventDefault();
+            resetCameraToEarthView();
+            updateInfoPanel();
             return;
         }
 
@@ -3115,6 +3348,7 @@ async function bootstrapApp(): Promise<void> {
 
     setSplashProgress(18, "Menyusun scene dan kontrol kamera...");
     setCanvasSize();
+    resetCameraToEarthView();
     updateActionButtons();
     updatePanelVisibility();
     updateSearchResults();
