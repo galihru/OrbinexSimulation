@@ -733,9 +733,13 @@
                 new URL("./db/tw2cn_1.json", baseUrl).toString(),
                 new URL("./data/agency-catalog.json", baseUrl).toString(),
             ];
+            const AR_RUNTIME_PROFILE_STORAGE_KEY = "orbinex.ar.runtimeProfile";
             let deferredInstallPrompt = null;
             let pwaInstalled = window.matchMedia("(display-mode: standalone)").matches
                 || (window.navigator && window.navigator.standalone === true);
+            let arLowLagModeActive = false;
+            let arWakeLockHandle = null;
+            let arSystem = null;
 
             function updateInstallPwaButton() {
                 if (!installPwaButton) {
@@ -792,6 +796,22 @@
                 } catch {
                     return "denied";
                 }
+            }
+
+            function capabilityReportLines(capabilities) {
+                return [
+                    permissionSummary("Virtual reality", capabilities.virtualReality),
+                    permissionSummary("Augmented reality", capabilities.augmentedReality),
+                    permissionSummary("Your device use", capabilities.deviceUse),
+                    permissionSummary("Akses kamera AR", capabilities.camera),
+                    permissionSummary("Notifikasi", capabilities.notifications),
+                    permissionSummary("Penyimpanan offline", capabilities.persistentStorage),
+                    permissionSummary("Aktifkan layar saat AR", capabilities.wakeLock),
+                ];
+            }
+
+            function hasGrantedCapability(capabilities) {
+                return Object.values(capabilities).some((value) => value === "granted");
             }
 
             async function requestRelatedAppsPermission() {
@@ -852,16 +872,96 @@
                 }
             }
 
+            async function requestScreenWakeLockPermission() {
+                if (!window.isSecureContext || document.hidden) {
+                    return "unsupported";
+                }
+
+                if (arWakeLockHandle) {
+                    return "granted";
+                }
+
+                if (!navigator.wakeLock || typeof navigator.wakeLock.request !== "function") {
+                    return "unsupported";
+                }
+
+                try {
+                    arWakeLockHandle = await navigator.wakeLock.request("screen");
+                    return "granted";
+                } catch {
+                    return "denied";
+                }
+            }
+
+            function optimizeArNodesForLowLag() {
+                if (!arSystem || !Array.isArray(arSystem.nodes)) {
+                    return;
+                }
+
+                for (const node of arSystem.nodes) {
+                    const isPrimary = node.body && (node.body.name === arSystem.focusBody.name || node.body.name === arSystem.rootBody.name);
+                    if (node.labelEl && !isPrimary) {
+                        node.labelEl.setAttribute("visible", "false");
+                    }
+                    if (node.orbitTrackEl && !isPrimary) {
+                        node.orbitTrackEl.setAttribute("visible", "false");
+                    }
+                }
+            }
+
+            function activateArLowLagProfile(reason) {
+                if (arLowLagModeActive) {
+                    return;
+                }
+
+                arLowLagModeActive = true;
+                orbitDaysPerSecond = Math.min(orbitDaysPerSecond, 8);
+                speedRange.value = String(orbitDaysPerSecond);
+                speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} hari/detik`;
+                optimizeArNodesForLowLag();
+
+                try {
+                    window.localStorage.setItem(AR_RUNTIME_PROFILE_STORAGE_KEY, "low-lag");
+                } catch {
+                    // Ignore storage failures in private mode.
+                }
+
+                statusEl.textContent = `Mode anti-lag AR aktif (${reason}).`; 
+            }
+
+            function restoreArRuntimeProfile() {
+                try {
+                    if (window.localStorage.getItem(AR_RUNTIME_PROFILE_STORAGE_KEY) === "low-lag") {
+                        activateArLowLagProfile("profil tersimpan");
+                    }
+                } catch {
+                    // Ignore storage failures in private mode.
+                }
+            }
+
             async function requestArAccessPermissions() {
-                const results = [];
-                results.push(permissionSummary("Virtual reality", await requestXrSessionPermission("immersive-vr")));
-                results.push(permissionSummary("Augmented reality", await requestXrSessionPermission("immersive-ar")));
-                results.push(permissionSummary("Your device use", await requestRelatedAppsPermission()));
-                results.push(permissionSummary("Akses kamera AR", await requestCameraPermissionForAr()));
-                results.push(permissionSummary("Notifikasi", await requestNotificationPermissionForPwa()));
-                results.push(permissionSummary("Penyimpanan offline", await requestPersistentStoragePermission()));
-                systemMetaEl.textContent = results.join(" | ");
-                return results;
+                const capabilities = {
+                    virtualReality: await requestXrSessionPermission("immersive-vr"),
+                    augmentedReality: await requestXrSessionPermission("immersive-ar"),
+                    deviceUse: await requestRelatedAppsPermission(),
+                    camera: await requestCameraPermissionForAr(),
+                    notifications: await requestNotificationPermissionForPwa(),
+                    persistentStorage: await requestPersistentStoragePermission(),
+                    wakeLock: await requestScreenWakeLockPermission(),
+                };
+
+                systemMetaEl.textContent = capabilityReportLines(capabilities).join(" | ");
+                return capabilities;
+            }
+
+            async function applyArPermissionDrivenOptimizations(capabilities, trigger) {
+                if (capabilities.persistentStorage === "granted") {
+                    await cachePwaDatabaseAssets();
+                }
+
+                if (hasGrantedCapability(capabilities)) {
+                    activateArLowLagProfile(trigger);
+                }
             }
 
             async function cachePwaDatabaseAssets() {
@@ -928,7 +1028,8 @@
                             return;
                         }
 
-                        await requestArAccessPermissions();
+                        const capabilities = await requestArAccessPermissions();
+                        await applyArPermissionDrivenOptimizations(capabilities, "akses install");
                         statusEl.textContent = "Meminta konfirmasi install dari browser...";
 
                         const promptEvent = deferredInstallPrompt;
@@ -950,7 +1051,8 @@
                     deviceAccessButton.addEventListener("click", async () => {
                         deviceAccessButton.disabled = true;
                         try {
-                            await requestArAccessPermissions();
+                            const capabilities = await requestArAccessPermissions();
+                            await applyArPermissionDrivenOptimizations(capabilities, "akses manual");
                             statusEl.textContent = "Akses perangkat selesai diproses.";
                         } finally {
                             deviceAccessButton.disabled = false;
@@ -960,6 +1062,7 @@
             }
 
             setupArPwaInstallFlow();
+            restoreArRuntimeProfile();
 
             let sheetIsOpen = true;
             let sheetDragPointerId = null;
@@ -2066,7 +2169,7 @@
             speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} hari/detik`;
 
             let currentFocusBody = resolveBodyByName(requestedModel);
-            let arSystem = null;
+            arSystem = null;
 
             function updateSystemMeta(markerLabel) {
                 if (!arSystem) {
@@ -2090,6 +2193,9 @@
                 desktopUrl.searchParams.set("model", currentFocusBody.name);
                 openDesktopLink.href = desktopUrl.toString();
                 arSystem = buildArSystem(currentFocusBody);
+                if (arLowLagModeActive) {
+                    optimizeArNodesForLowLag();
+                }
                 applyViewTransform();
                 updateSystemMeta(markerLabel);
             }
@@ -2276,6 +2382,12 @@
             window.addEventListener("resize", () => {
                 applyMainVideoLayer();
                 applySceneCanvasLayout();
+            });
+
+            document.addEventListener("visibilitychange", () => {
+                if (!document.hidden && arLowLagModeActive) {
+                    void requestScreenWakeLockPermission();
+                }
             });
 
             let cameraPollTick = 0;

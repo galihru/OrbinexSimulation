@@ -148,6 +148,28 @@ type DeferredInstallPromptEvent = Event & {
 
 type PermissionProbeResult = "granted" | "denied" | "unsupported";
 
+type PermissionCapabilityState = {
+    virtualReality: PermissionProbeResult;
+    augmentedReality: PermissionProbeResult;
+    deviceUse: PermissionProbeResult;
+    camera: PermissionProbeResult;
+    notifications: PermissionProbeResult;
+    persistentStorage: PermissionProbeResult;
+    wakeLock: PermissionProbeResult;
+};
+
+type RuntimeProfile = "default" | "low-lag";
+
+type WakeLockSentinelLike = {
+    release: () => Promise<void> | void;
+};
+
+type NavigatorWithWakeLock = Navigator & {
+    wakeLock?: {
+        request?: (type: "screen") => Promise<WakeLockSentinelLike>;
+    };
+};
+
 type NavigatorWithInstalledRelatedApps = Navigator & {
     getInstalledRelatedApps?: () => Promise<Array<{ id?: string; platform?: string; url?: string }>>;
     xr?: {
@@ -284,6 +306,7 @@ const BOLTZMANN = 1.380649e-23;
 const LIGHT_YEAR_METERS = 9.4607304725808e15;
 const HIRO_MARKER_URL = "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png";
 const APP_BUILD_HASH = typeof __BUILD_HASH__ === "string" ? __BUILD_HASH__ : "dev-build";
+const RUNTIME_PROFILE_STORAGE_KEY = "orbinex.runtimeProfile";
 const PWA_DB_FILES = [
     "db/cn2tw_1.json",
     "db/tw2cn_1.json",
@@ -624,12 +647,24 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color("#020814");
 scene.fog = new THREE.Fog("#020814", 600, 26000);
 
+let rendererPixelRatioCap = 2;
+let infoPreviewPixelRatioCap = 2;
+let dynamicSimStepMs = 58;
+let dynamicHudIntervalMs = 160;
+let dynamicEventsIntervalMs = 420;
+let dynamicSpawnIntervalMs = 6000;
+let dynamicTrailPointLimit = 240;
+let dynamicLabelLimitCompact = 10;
+let dynamicLabelLimitWide = 18;
+let lowLagModeActive = false;
+let wakeLockHandle: WakeLockSentinelLike | null = null;
+
 const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: true,
     powerPreference: "high-performance",
 });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, rendererPixelRatioCap));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const camera = new THREE.PerspectiveCamera(58, 1, 0.05, 50000);
@@ -2742,6 +2777,22 @@ function permissionSummary(label: string, result: PermissionProbeResult): string
     return `${label}: tidak didukung`;
 }
 
+function permissionReportLines(capabilities: PermissionCapabilityState): string[] {
+    return [
+        permissionSummary("Virtual reality", capabilities.virtualReality),
+        permissionSummary("Augmented reality", capabilities.augmentedReality),
+        permissionSummary("Your device use", capabilities.deviceUse),
+        permissionSummary("Akses kamera AR", capabilities.camera),
+        permissionSummary("Notifikasi", capabilities.notifications),
+        permissionSummary("Penyimpanan offline", capabilities.persistentStorage),
+        permissionSummary("Aktifkan layar saat simulasi", capabilities.wakeLock),
+    ];
+}
+
+function hasGrantedCapability(capabilities: PermissionCapabilityState): boolean {
+    return Object.values(capabilities).some((value) => value === "granted");
+}
+
 async function requestRelatedAppsPermission(): Promise<PermissionProbeResult> {
     if (!window.isSecureContext) {
         return "unsupported";
@@ -2835,28 +2886,60 @@ async function requestPersistentStoragePermission(): Promise<PermissionProbeResu
     }
 }
 
-async function requestInstallAccessPermissions(): Promise<string[]> {
-    const results: string[] = [];
+async function requestScreenWakeLockPermission(): Promise<PermissionProbeResult> {
+    if (!window.isSecureContext || document.hidden) {
+        return "unsupported";
+    }
 
+    if (wakeLockHandle) {
+        return "granted";
+    }
+
+    const nav = window.navigator as NavigatorWithWakeLock;
+    if (!nav.wakeLock || typeof nav.wakeLock.request !== "function") {
+        return "unsupported";
+    }
+
+    try {
+        wakeLockHandle = await nav.wakeLock.request("screen");
+        return "granted";
+    } catch {
+        return "denied";
+    }
+}
+
+async function requestInstallAccessPermissions(): Promise<PermissionCapabilityState> {
     const virtualReality = await requestXrSessionPermission("immersive-vr");
-    results.push(permissionSummary("Virtual reality", virtualReality));
-
     const augmentedReality = await requestXrSessionPermission("immersive-ar");
-    results.push(permissionSummary("Augmented reality", augmentedReality));
-
-    const relatedApps = await requestRelatedAppsPermission();
-    results.push(permissionSummary("Your device use", relatedApps));
-
+    const deviceUse = await requestRelatedAppsPermission();
     const camera = await requestCameraPermissionForAr();
-    results.push(permissionSummary("Akses kamera AR", camera));
-
-    const notification = await requestNotificationPermissionForPwa();
-    results.push(permissionSummary("Notifikasi", notification));
-
+    const notifications = await requestNotificationPermissionForPwa();
     const persistentStorage = await requestPersistentStoragePermission();
-    results.push(permissionSummary("Penyimpanan offline", persistentStorage));
+    const wakeLock = await requestScreenWakeLockPermission();
 
-    return results;
+    return {
+        virtualReality,
+        augmentedReality,
+        deviceUse,
+        camera,
+        notifications,
+        persistentStorage,
+        wakeLock,
+    };
+}
+
+async function applyPermissionDrivenOptimizations(capabilities: PermissionCapabilityState, trigger: string): Promise<void> {
+    if (capabilities.virtualReality === "granted" || capabilities.augmentedReality === "granted") {
+        renderer.xr.enabled = true;
+    }
+
+    if (capabilities.persistentStorage === "granted") {
+        void predownloadOfflineDatabaseAssets();
+    }
+
+    if (hasGrantedCapability(capabilities)) {
+        activateLowLagProfile(trigger);
+    }
 }
 
 async function predownloadOfflineDatabaseAssets(): Promise<void> {
@@ -3277,6 +3360,7 @@ async function ingestExternalCatalogs(): Promise<IngestRunSummary> {
 function setCanvasSize(): void {
     const width = Math.max(window.innerWidth, 320);
     const height = Math.max(window.innerHeight, 320);
+    applyRendererPixelRatioCaps();
     renderer.setSize(width, height, false);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
@@ -3878,9 +3962,61 @@ const infoPreviewRenderer = new THREE.WebGLRenderer({
     alpha: true,
     powerPreference: "low-power",
 });
-infoPreviewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+infoPreviewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, infoPreviewPixelRatioCap));
 infoPreviewRenderer.outputColorSpace = THREE.SRGBColorSpace;
 infoPreviewRenderer.setClearColor(0x000000, 0);
+
+function applyRendererPixelRatioCaps(): void {
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, rendererPixelRatioCap));
+    infoPreviewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, infoPreviewPixelRatioCap));
+}
+
+function persistRuntimeProfile(profile: RuntimeProfile): void {
+    try {
+        window.localStorage.setItem(RUNTIME_PROFILE_STORAGE_KEY, profile);
+    } catch {
+        // Ignore storage errors in privacy mode.
+    }
+}
+
+function loadRuntimeProfile(): RuntimeProfile {
+    try {
+        return window.localStorage.getItem(RUNTIME_PROFILE_STORAGE_KEY) === "low-lag"
+            ? "low-lag"
+            : "default";
+    } catch {
+        return "default";
+    }
+}
+
+function activateLowLagProfile(reason: string): void {
+    if (lowLagModeActive) {
+        return;
+    }
+
+    lowLagModeActive = true;
+    rendererPixelRatioCap = 1.25;
+    infoPreviewPixelRatioCap = 1.1;
+    dynamicSimStepMs = 72;
+    dynamicHudIntervalMs = 240;
+    dynamicEventsIntervalMs = 620;
+    dynamicSpawnIntervalMs = 8500;
+    dynamicTrailPointLimit = 140;
+    dynamicLabelLimitCompact = 7;
+    dynamicLabelLimitWide = 12;
+
+    applyRendererPixelRatioCaps();
+    setCanvasSize();
+    persistRuntimeProfile("low-lag");
+    addLocalEvent(`Mode anti-lag aktif (${reason}).`);
+}
+
+function restoreRuntimeProfileFromStorage(): void {
+    const profile = loadRuntimeProfile();
+    if (profile === "low-lag") {
+        activateLowLagProfile("profil tersimpan");
+    }
+}
 
 infoPreviewScene.add(new THREE.AmbientLight(0xa6c7ff, 0.88));
 const infoPreviewKeyLight = new THREE.DirectionalLight(0xfff0cf, 1.2);
@@ -4324,7 +4460,7 @@ function applySmartLabelDeclutter(nodes: BodyNode[]): void {
 
     candidates.sort((a, b) => b.score - a.score);
     const kept: LabelDeclutterEntry[] = [];
-    const maxLabels = width < 900 ? 10 : 18;
+    const maxLabels = width < 900 ? dynamicLabelLimitCompact : dynamicLabelLimitWide;
 
     for (const entry of candidates) {
         const mustKeep = entry.node.body.name === uiState.focusName || entry.node.body.name === "Matahari";
@@ -5103,8 +5239,8 @@ function updateNodes(dtMs: number): void {
                     trailUpdated = true;
                 }
             }
-            if (node.trailPoints.length > 240) {
-                node.trailPoints.splice(0, node.trailPoints.length - 240);
+            if (node.trailPoints.length > dynamicTrailPointLimit) {
+                node.trailPoints.splice(0, node.trailPoints.length - dynamicTrailPointLimit);
                 trailUpdated = true;
             }
             if (trailUpdated) {
@@ -6445,8 +6581,9 @@ function bindUiHandlers(): void {
             return;
         }
 
-        const permissionResults = await requestInstallAccessPermissions();
-        addLocalEvent(permissionResults.join(" | "));
+        const permissionCapabilities = await requestInstallAccessPermissions();
+        addLocalEvent(permissionReportLines(permissionCapabilities).join(" | "));
+        await applyPermissionDrivenOptimizations(permissionCapabilities, "akses install");
 
         const promptEvent = deferredInstallPrompt;
         deferredInstallPrompt = null;
@@ -6468,8 +6605,9 @@ function bindUiHandlers(): void {
     deviceAccessButton.addEventListener("click", async () => {
         deviceAccessButton.disabled = true;
         try {
-            const permissionResults = await requestInstallAccessPermissions();
-            addLocalEvent(permissionResults.join(" | "));
+            const permissionCapabilities = await requestInstallAccessPermissions();
+            addLocalEvent(permissionReportLines(permissionCapabilities).join(" | "));
+            await applyPermissionDrivenOptimizations(permissionCapabilities, "akses manual");
         } finally {
             deviceAccessButton.disabled = false;
             updateActionButtons();
@@ -6702,6 +6840,11 @@ function bindUiHandlers(): void {
     });
 
     window.addEventListener("resize", setCanvasSize);
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && lowLagModeActive) {
+            void requestScreenWakeLockPermission();
+        }
+    });
 }
 
 async function waitMs(ms: number): Promise<void> {
@@ -6765,8 +6908,6 @@ let hudAccumulator = 0;
 let eventsAccumulator = 0;
 let spawnAccumulator = 0;
 
-const SIM_STEP_MS = 58;
-
 function animate(now: number): void {
     const dtMs = now - lastFrame;
     lastFrame = now;
@@ -6777,12 +6918,12 @@ function animate(now: number): void {
         simAccumulator += dtMs;
         spawnAccumulator += dtMs;
 
-        while (simAccumulator >= SIM_STEP_MS) {
+        while (simAccumulator >= dynamicSimStepMs) {
             engine.step(2);
-            simAccumulator -= SIM_STEP_MS;
+            simAccumulator -= dynamicSimStepMs;
         }
 
-        if (spawnAccumulator >= 6000) {
+        if (spawnAccumulator >= dynamicSpawnIntervalMs) {
             engine.spawnMeteorShower(4);
             if (Math.random() > 0.4) {
                 engine.spawnCometWave(2);
@@ -6814,14 +6955,14 @@ function animate(now: number): void {
     animateInfoPreview(dtMs);
 
     hudAccumulator += dtMs;
-    if (hudAccumulator >= 160) {
+    if (hudAccumulator >= dynamicHudIntervalMs) {
         updateHudPanel();
         updateInfoPanel();
         hudAccumulator = 0;
     }
 
     eventsAccumulator += dtMs;
-    if (eventsAccumulator >= 420) {
+    if (eventsAccumulator >= dynamicEventsIntervalMs) {
         updateEventsPanel();
         updateSearchResults();
         eventsAccumulator = 0;
@@ -6836,6 +6977,7 @@ async function bootstrapApp(): Promise<void> {
     setSplashProgress(8, "Menyalakan mesin fisika dan menyiapkan status loader...");
     bindUiHandlers();
     setupPwaSupport();
+    restoreRuntimeProfileFromStorage();
 
     setSplashProgress(14, "Menyusun scene 3D dasar (kamera, cahaya, kanvas)...");
     setCanvasSize();
