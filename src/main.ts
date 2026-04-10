@@ -2445,6 +2445,103 @@ function updateDynamicCatalogBodies(dtMs: number): void {
     }
 }
 
+function stabilizeMajorMoonOrbits(): void {
+    const majorBodies = engine.getMajorBodies();
+    if (majorBodies.length === 0) {
+        return;
+    }
+
+    const bodyIndex = new Map<string, UniverseBody>();
+    for (const body of majorBodies) {
+        bodyIndex.set(body.name, body);
+    }
+
+    const guideIndex = new Map<string, UniverseOrbitGuide>();
+    for (const guide of engine.getOrbitGuides(true)) {
+        guideIndex.set(guide.bodyName, guide);
+    }
+
+    for (const moon of majorBodies) {
+        if (moon.kind !== "moon" || !moon.parentName || !moon.alive) {
+            continue;
+        }
+
+        const parent = bodyIndex.get(moon.parentName);
+        if (!parent || !parent.alive) {
+            continue;
+        }
+
+        const guide = guideIndex.get(moon.name);
+        if (!guide || guide.parentName !== parent.name) {
+            continue;
+        }
+
+        const semiMajor = Math.max(guide.semiMajorMeters, 1);
+        const eccentricity = clamp(guide.eccentricity, 0, 0.86);
+        const periapsis = semiMajor * (1 - eccentricity);
+        const apoapsis = semiMajor * (1 + eccentricity);
+        const minDistance = periapsis * 0.985;
+        const maxDistance = apoapsis * 1.015;
+
+        const dx = moon.position.x - parent.position.x;
+        const dy = moon.position.y - parent.position.y;
+        const dz = moon.position.z - parent.position.z;
+        const distance = Math.hypot(dx, dy, dz);
+        if (!Number.isFinite(distance) || distance <= 1e-9) {
+            continue;
+        }
+
+        const clampedDistance = clamp(distance, minDistance, maxDistance);
+        if (Math.abs(clampedDistance - distance) <= semiMajor * 0.0025) {
+            continue;
+        }
+
+        const nx = dx / distance;
+        const ny = dy / distance;
+        const nz = dz / distance;
+
+        moon.position = {
+            x: parent.position.x + nx * clampedDistance,
+            y: parent.position.y + ny * clampedDistance,
+            z: parent.position.z + nz * clampedDistance,
+        };
+
+        const rvx = moon.velocity.x - parent.velocity.x;
+        const rvy = moon.velocity.y - parent.velocity.y;
+        const rvz = moon.velocity.z - parent.velocity.z;
+        const radialDot = rvx * nx + rvy * ny + rvz * nz;
+
+        let tx = rvx - nx * radialDot;
+        let ty = rvy - ny * radialDot;
+        let tz = rvz - nz * radialDot;
+        let tangentMag = Math.hypot(tx, ty, tz);
+
+        if (tangentMag <= 1e-9) {
+            const refX = Math.abs(ny) < 0.92 ? 0 : 1;
+            const refY = Math.abs(ny) < 0.92 ? 1 : 0;
+            const refZ = 0;
+            tx = refY * nz - refZ * ny;
+            ty = refZ * nx - refX * nz;
+            tz = refX * ny - refY * nx;
+            tangentMag = Math.max(Math.hypot(tx, ty, tz), 1e-9);
+        }
+
+        const tnx = tx / tangentMag;
+        const tny = ty / tangentMag;
+        const tnz = tz / tangentMag;
+
+        const mu = constants.gravitationalConstant * Math.max(parent.massKg + moon.massKg, 1);
+        const visVivaTerm = Math.max(0, 2 / clampedDistance - 1 / semiMajor);
+        const orbitalSpeed = Math.sqrt(Math.max(mu * visVivaTerm, 0));
+
+        moon.velocity = {
+            x: parent.velocity.x + tnx * orbitalSpeed,
+            y: parent.velocity.y + tny * orbitalSpeed,
+            z: parent.velocity.z + tnz * orbitalSpeed,
+        };
+    }
+}
+
 function addLocalEvent(message: string): void {
     const stamp = engine.getStateSnapshot().yearsElapsed.toFixed(3);
     localEvents.unshift(`[ingest] waktu=${stamp} tahun | ${message}`);
@@ -2966,20 +3063,38 @@ function toRenderRadius(body: UniverseBody, zoomSpan = cameraZoomSpan()): number
     if (body.kind === "planet" || body.kind === "dwarf" || body.kind === "hypothesis") {
         const base = clamp(0.12 + (logRadius - 5.7) * 0.24, 0.08, 0.72);
         if (isSolarSystemBody(body)) {
-            const nearBoost = clamp(1.36 - zoomFactor / 900, 1.0, 1.34);
-            return clamp(base * nearBoost, 0.12, 0.96);
+            const nearBoost = clamp(1.3 - zoomFactor / 1200, 0.96, 1.24);
+            const focusBoost = body.name === uiState.focusName ? 1.08 : 1;
+            const earthBoost = body.name === "Bumi" ? 1.08 : 1;
+            return clamp(base * nearBoost * focusBoost * earthBoost, 0.12, 0.98);
         }
         return base;
     }
 
     if (body.kind === "moon") {
-        const base = clamp(0.07 + (logRadius - 5.0) * 0.15, 0.05, 0.36);
+        const base = clamp(0.05 + (logRadius - 5.15) * 0.11, 0.028, 0.24);
         if (isSolarSystemBody(body)) {
-            const nearBoost = clamp(1.68 - zoomFactor / 980, 1.0, 1.62);
-            const orbitBoost = body.parentName && solarSystemAnchors.has(body.parentName)
-                ? (body.parentName === uiState.focusName || body.name === uiState.focusName ? 1.9 : 1.35)
-                : 1;
-            return clamp(base * nearBoost * orbitBoost, 0.08, 0.88);
+            const nearBoost = clamp(1.22 - zoomFactor / 1750, 0.9, 1.18);
+            const focusBoost = body.name === uiState.focusName
+                ? 1.12
+                : body.parentName === uiState.focusName
+                    ? 1.08
+                    : 1;
+            let radius = base * nearBoost * focusBoost;
+
+            if (body.parentName) {
+                const parent = findExistingBodyByName(body.parentName);
+                if (parent && parent.name !== body.name && parent.kind !== "moon") {
+                    const parentRadius = toRenderRadius(parent, zoomSpan);
+                    if (body.name === "Bulan" && body.parentName === "Bumi") {
+                        radius = clamp(radius, parentRadius * 0.2, parentRadius * 0.36);
+                    } else {
+                        radius = Math.min(radius, parentRadius * 0.52);
+                    }
+                }
+            }
+
+            return clamp(radius, 0.028, 0.46);
         }
         return base;
     }
@@ -4202,7 +4317,25 @@ function collectBodies(): UniverseBody[] {
     context.forEach((body) => mergeBodySources(body.name, ["Orbinex Engine"]));
     nasaBodies.forEach((body) => mergeBodySources(body.name, ["External Catalog"]));
 
-    return [...major, ...small, ...context, ...nasaBodies].filter(shouldRenderBody);
+    const ordered = [...major, ...small, ...context, ...nasaBodies];
+    const seenKeys = new Set<string>();
+    const uniqueBodies: UniverseBody[] = [];
+
+    for (const body of ordered) {
+        if (!shouldRenderBody(body)) {
+            continue;
+        }
+
+        const key = bodyKey(body);
+        if (seenKeys.has(key)) {
+            continue;
+        }
+
+        seenKeys.add(key);
+        uniqueBodies.push(body);
+    }
+
+    return uniqueBodies;
 }
 
 function updateCometExtras(node: BodyNode, body: UniverseBody, position: THREE.Vector3, radius: number): void {
@@ -4532,6 +4665,26 @@ function updateNodes(dtMs: number): void {
 }
 
 function bodyByName(name: string): UniverseBody | null {
+    const major = engine.getMajorBodies().find((body) => body.name === name && body.alive);
+    if (major) {
+        return major;
+    }
+
+    const small = engine.getSmallBodies().find((body) => body.name === name && body.alive);
+    if (small) {
+        return small;
+    }
+
+    const context = engine.getContextBodies().find((body) => body.name === name && body.alive);
+    if (context) {
+        return context;
+    }
+
+    const catalog = nasaCatalogBodies.find((body) => body.name === name && body.alive);
+    if (catalog) {
+        return catalog;
+    }
+
     const key = Array.from(bodyNodes.keys()).find((entry) => entry.endsWith(`:${name}`));
     if (!key) {
         return null;
@@ -6022,6 +6175,7 @@ function animate(now: number): void {
         }
     }
 
+    stabilizeMajorMoonOrbits();
     updateDynamicCatalogBodies(dtMs);
     updateNodes(dtMs);
     rebuildOrbitGuides();
