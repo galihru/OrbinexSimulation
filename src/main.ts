@@ -1338,15 +1338,21 @@ function toRenderRadius(body: UniverseBody, zoomSpan = cameraZoomSpan()): number
     }
 
     if (body.kind === "galaxy") {
-        return clamp(1.7 + (logRadius - 14.0) * 0.78, 1.5, 8.8);
+        const base = clamp(1.1 + (logRadius - 14.0) * 0.42, 1.0, 4.4);
+        const zoomBlend = clamp(0.62 + zoomFactor / 2600, 0.62, 1.22);
+        return clamp(base * zoomBlend, 0.9, 5.2);
     }
 
     if (body.kind === "cluster") {
-        return clamp(1.4 + (logRadius - 14.0) * 0.7, 1.2, 7.6);
+        const base = clamp(1.0 + (logRadius - 14.0) * 0.36, 0.95, 3.9);
+        const zoomBlend = clamp(0.66 + zoomFactor / 3000, 0.66, 1.16);
+        return clamp(base * zoomBlend, 0.85, 4.8);
     }
 
     if (body.kind === "nebula") {
-        return clamp(1.1 + (logRadius - 13.5) * 0.65, 0.95, 6.4);
+        const base = clamp(0.95 + (logRadius - 13.5) * 0.32, 0.78, 3.4);
+        const zoomBlend = clamp(0.7 + zoomFactor / 3400, 0.7, 1.12);
+        return clamp(base * zoomBlend, 0.72, 4.0);
     }
 
     if (bodyLooksRocky(body)) {
@@ -1388,21 +1394,115 @@ function isSolarSystemBody(body: UniverseBody): boolean {
     return bodyLooksRocky(body) || bodyLooksComet(body);
 }
 
+function isLargeScaleStructure(body: UniverseBody | null): boolean {
+    if (!body) {
+        return false;
+    }
+    if (body.kind === "galaxy" || body.kind === "cluster") {
+        return true;
+    }
+    if (body.kind === "nebula") {
+        return true;
+    }
+    if (body.kind === "other" || body.kind === "hypothesis") {
+        return !isSolarSystemBody(body);
+    }
+    return false;
+}
+
+function bodyHasAncestorName(
+    body: UniverseBody,
+    ancestorName: string,
+    bodyIndex: Map<string, UniverseBody>,
+): boolean {
+    let parentName: string | null = body.parentName ?? null;
+    let guard = 0;
+    while (parentName && guard < 32) {
+        if (parentName === ancestorName) {
+            return true;
+        }
+        const parentBody = bodyIndex.get(parentName) ?? findExistingBodyByName(parentName);
+        parentName = parentBody?.parentName ?? null;
+        guard += 1;
+    }
+    return false;
+}
+
+function bodyInFocusedBranch(
+    body: UniverseBody,
+    focusBody: UniverseBody,
+    bodyIndex: Map<string, UniverseBody>,
+): { inBranch: boolean; descendant: boolean; ancestor: boolean } {
+    if (body.name === focusBody.name) {
+        return { inBranch: true, descendant: true, ancestor: false };
+    }
+
+    const descendant = bodyHasAncestorName(body, focusBody.name, bodyIndex);
+    const ancestor = bodyHasAncestorName(focusBody, body.name, bodyIndex);
+    return {
+        inBranch: descendant || ancestor,
+        descendant,
+        ancestor,
+    };
+}
+
 function shouldDisplayBodyAtZoom(
     body: UniverseBody,
     key: string,
     position: THREE.Vector3,
     focusPosition: THREE.Vector3,
     zoomSpan: number,
+    focusBody: UniverseBody | null,
+    bodyIndex: Map<string, UniverseBody>,
 ): boolean {
     const selected = uiState.selectedKey === key;
-    const focused = body.name === uiState.focusName;
-    if (selected || focused || body.name === "Matahari") {
+    const focused = focusBody ? body.name === focusBody.name : body.name === uiState.focusName;
+    if (selected || focused) {
         return true;
     }
 
     const distanceFromFocus = position.distanceTo(focusPosition);
     const solarBody = isSolarSystemBody(body);
+
+    const structureFocus = isLargeScaleStructure(focusBody);
+    if (focusBody && structureFocus) {
+        const branch = bodyInFocusedBranch(body, focusBody, bodyIndex);
+        if (!branch.inBranch) {
+            return false;
+        }
+
+        if (zoomSpan < 260) {
+            if (branch.ancestor) {
+                return body.kind === "cluster" || body.kind === "galaxy";
+            }
+            if (body.kind === "planet" || body.kind === "moon") {
+                return branch.descendant && distanceFromFocus < 460;
+            }
+            if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
+                return branch.descendant && distanceFromFocus < 320;
+            }
+            return true;
+        }
+
+        if (zoomSpan < 900) {
+            if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
+                return branch.descendant && distanceFromFocus < 820;
+            }
+            return true;
+        }
+
+        if (zoomSpan < 2200) {
+            if (body.kind === "planet" || body.kind === "moon") {
+                return branch.descendant || selected;
+            }
+            return true;
+        }
+
+        if (body.kind === "planet" || body.kind === "moon" || bodyLooksRocky(body) || bodyLooksComet(body)) {
+            return branch.descendant && (focused || selected || distanceFromFocus < 520);
+        }
+        return true;
+    }
 
     if (zoomSpan < 180) {
         if (!solarBody && ["star", "black-hole", "galaxy", "cluster", "nebula"].includes(body.kind)) {
@@ -1971,16 +2071,23 @@ function spinRadPerSecForBody(body: UniverseBody): number {
 function createNode(body: UniverseBody): BodyNode {
     const key = bodyKey(body);
     const color = hexToColor(body.colorHex);
-    const detail = bodyLooksRocky(body) ? 10 : bodyLooksComet(body) ? 12 : 24;
+    const diffuseStructure = body.kind === "galaxy" || body.kind === "cluster" || body.kind === "nebula";
+    const detail = diffuseStructure ? 2 : bodyLooksRocky(body) ? 10 : bodyLooksComet(body) ? 12 : 24;
     const spinRadPerSec = spinRadPerSecForBody(body);
 
-    const geometry = new THREE.SphereGeometry(1, detail, detail);
+    const geometry = diffuseStructure
+        ? new THREE.PlaneGeometry(2, 2)
+        : new THREE.SphereGeometry(1, detail, detail);
     const texture = textureForBody(body);
     const material = new THREE.MeshStandardMaterial({
         color,
         map: texture,
-        roughness: body.kind === "star" ? 0.22 : 0.66,
-        metalness: body.kind === "black-hole" ? 0.42 : 0.07,
+        roughness: diffuseStructure ? 0.94 : body.kind === "star" ? 0.22 : 0.66,
+        metalness: diffuseStructure ? 0.01 : body.kind === "black-hole" ? 0.42 : 0.07,
+        transparent: diffuseStructure,
+        opacity: diffuseStructure ? (body.kind === "galaxy" ? 0.42 : body.kind === "cluster" ? 0.34 : 0.28) : 1,
+        depthWrite: !diffuseStructure,
+        side: diffuseStructure ? THREE.DoubleSide : THREE.FrontSide,
         emissive: body.kind === "star"
             ? new THREE.Color(color).multiplyScalar(0.35)
             : body.kind === "galaxy" || body.kind === "cluster"
@@ -1993,8 +2100,11 @@ function createNode(body: UniverseBody): BodyNode {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.copy(toRenderPosition(body.position));
     mesh.scale.setScalar(toRenderRadius(body));
-    mesh.rotation.x = ((hashString(body.name) % 28) - 14) * (Math.PI / 180);
-    mesh.rotation.z = ((hashString(body.name) % 22) - 11) * (Math.PI / 180);
+    mesh.userData.billboard = diffuseStructure;
+    if (!diffuseStructure) {
+        mesh.rotation.x = ((hashString(body.name) % 28) - 14) * (Math.PI / 180);
+        mesh.rotation.z = ((hashString(body.name) % 22) - 11) * (Math.PI / 180);
+    }
     mesh.userData.bodyKey = key;
     scene.add(mesh);
 
@@ -2091,6 +2201,7 @@ function collectBodies(): UniverseBody[] {
 function updateNodes(dtMs: number): void {
     const bodies = collectBodies();
     const aliveKeys = new Set<string>();
+    const bodyIndex = new Map<string, UniverseBody>(bodies.map((body) => [body.name, body]));
     const spinMultiplier = clamp(engine.currentTimeScale / 900, 0.7, 18);
     const zoomSpan = cameraZoomSpan();
     const solarAnchor = solarRenderAnchorFromBodies(bodies);
@@ -2114,8 +2225,12 @@ function updateNodes(dtMs: number): void {
         const radius = toRenderRadius(body, zoomSpan);
         node.mesh.position.copy(position);
         node.mesh.scale.setScalar(radius);
+        const isBillboard = node.mesh.userData.billboard === true;
+        if (isBillboard) {
+            node.mesh.quaternion.copy(camera.quaternion);
+        }
 
-        const visibleByZoom = shouldDisplayBodyAtZoom(body, key, position, focusPosition, zoomSpan);
+        const visibleByZoom = shouldDisplayBodyAtZoom(body, key, position, focusPosition, zoomSpan, focusBody, bodyIndex);
         node.mesh.visible = visibleByZoom;
         if (node.ring) {
             node.ring.visible = visibleByZoom;
@@ -2123,7 +2238,9 @@ function updateNodes(dtMs: number): void {
 
         if (uiState.running) {
             const deltaSec = dtMs / 1000;
-            node.mesh.rotation.y += node.spinRadPerSec * deltaSec * spinMultiplier;
+            if (!isBillboard) {
+                node.mesh.rotation.y += node.spinRadPerSec * deltaSec * spinMultiplier;
+            }
         }
 
         if (!node.ring && isRingedBody(body)) {
@@ -2160,6 +2277,15 @@ function updateNodes(dtMs: number): void {
         const meshMaterial = node.mesh.material as THREE.MeshStandardMaterial;
         const nextColor = hexToColor(body.colorHex);
         meshMaterial.color.setHex(nextColor);
+        if (body.kind === "galaxy" || body.kind === "cluster" || body.kind === "nebula") {
+            meshMaterial.transparent = true;
+            meshMaterial.depthWrite = false;
+            meshMaterial.opacity = body.kind === "galaxy" ? 0.42 : body.kind === "cluster" ? 0.34 : 0.28;
+        } else {
+            meshMaterial.transparent = false;
+            meshMaterial.depthWrite = true;
+            meshMaterial.opacity = 1;
+        }
         if (body.kind === "star") {
             meshMaterial.emissive = new THREE.Color(nextColor).multiplyScalar(0.35);
         } else if (body.kind === "galaxy" || body.kind === "cluster") {
@@ -2302,7 +2428,7 @@ function cycleFocus(): void {
     const current = targets.findIndex((body) => body.name === uiState.focusName);
     const next = targets[(current + 1 + targets.length) % targets.length];
     const preferredDistance = next.kind === "galaxy" || next.kind === "cluster"
-        ? 220
+        ? 320
         : next.kind === "star"
             ? 66
             : 32;
@@ -2324,7 +2450,16 @@ function setFocusBody(
     const targetNode = bodyNodes.get(bodyKey(body));
     const fallbackAnchor = isSolarSystemBody(body) ? solarRenderAnchorFromBodies(engine.getMajorBodies()) : null;
     const target = targetNode ? targetNode.mesh.position.clone() : renderPositionForBody(body, fallbackAnchor);
-    const preferredDistance = options?.preferredDistance ?? (body.name === "Matahari" ? 66 : isSolarSystemBody(body) ? 34 : 180);
+    const preferredDistance = options?.preferredDistance
+        ?? (body.kind === "galaxy" || body.kind === "cluster"
+            ? 320
+            : body.kind === "nebula"
+                ? 260
+                : body.name === "Matahari"
+                    ? 66
+                    : isSolarSystemBody(body)
+                        ? 34
+                        : 180);
     focusSuspendUntilMs = performance.now() + Math.max(900, (options?.durationMs ?? 920) + 200);
 
     const offset = camera.position.clone().sub(controls.target);
@@ -2551,7 +2686,7 @@ function focusBodyBySearchTerm(term: string): boolean {
     }
 
     const preferredDistance = target.kind === "galaxy" || target.kind === "cluster"
-        ? 220
+        ? 320
         : target.kind === "star"
             ? 66
             : 32;
@@ -2585,7 +2720,7 @@ function updateSearchResults(): void {
         button.textContent = `${body.name} [${body.kind}] <${sourceHint}>`;
         button.addEventListener("click", () => {
             const preferredDistance = body.kind === "galaxy" || body.kind === "cluster"
-                ? 220
+                ? 320
                 : body.kind === "star"
                     ? 66
                     : 32;
@@ -3309,7 +3444,7 @@ function bindUiHandlers(): void {
             const selectedBody = bodyNodes.get(uiState.hoverKey)?.body;
             if (selectedBody) {
                 const preferredDistance = selectedBody.kind === "galaxy" || selectedBody.kind === "cluster"
-                    ? 220
+                    ? 320
                     : selectedBody.kind === "star"
                         ? 66
                         : 32;
