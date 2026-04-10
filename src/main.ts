@@ -104,6 +104,7 @@ type BodyNode = {
     key: string;
     body: UniverseBody;
     mesh: THREE.Mesh;
+    extras: THREE.Object3D[];
     label: THREE.Sprite | null;
     ring: THREE.Mesh | null;
     spinRadPerSec: number;
@@ -1995,6 +1996,112 @@ const planetaryDebrisProfiles: PlanetaryDebrisProfile[] = [
     },
 ];
 
+type PlanetaryMinorMoonProfile = {
+    parentName: string;
+    count: number;
+    semiMajorMinMeters: number;
+    semiMajorMaxMeters: number;
+    periodMinDays: number;
+    periodMaxDays: number;
+    inclinationMaxDeg: number;
+    eccentricityMax: number;
+    radiusMinMeters: number;
+    radiusMaxMeters: number;
+    massMinKg: number;
+    massMaxKg: number;
+    colorHex: string;
+    sources: string[];
+    note: string;
+};
+
+const planetaryMinorMoonProfiles: PlanetaryMinorMoonProfile[] = [
+    {
+        parentName: "Mars",
+        count: 4,
+        semiMajorMinMeters: 2.8e7,
+        semiMajorMaxMeters: 1.1e8,
+        periodMinDays: 1.4,
+        periodMaxDays: 6.2,
+        inclinationMaxDeg: 16,
+        eccentricityMax: 0.24,
+        radiusMinMeters: 1500,
+        radiusMaxMeters: 9000,
+        massMinKg: 1e13,
+        massMaxKg: 6e15,
+        colorHex: "#b89f7f",
+        sources: ["MPC", "NASA", "Synthetic Planetary Model"],
+        note: "Satelit minor sintetis orbit Mars.",
+    },
+    {
+        parentName: "Jupiter",
+        count: 22,
+        semiMajorMinMeters: 2.1e9,
+        semiMajorMaxMeters: 2.3e10,
+        periodMinDays: 24,
+        periodMaxDays: 840,
+        inclinationMaxDeg: 42,
+        eccentricityMax: 0.48,
+        radiusMinMeters: 10_000,
+        radiusMaxMeters: 95_000,
+        massMinKg: 4e14,
+        massMaxKg: 8e18,
+        colorHex: "#b5b9c3",
+        sources: ["NASA", "JPL Horizons", "Synthetic Planetary Model"],
+        note: "Satelit minor sintetis orbit Jupiter.",
+    },
+    {
+        parentName: "Saturnus",
+        count: 26,
+        semiMajorMinMeters: 6.2e8,
+        semiMajorMaxMeters: 2.8e10,
+        periodMinDays: 3,
+        periodMaxDays: 1120,
+        inclinationMaxDeg: 48,
+        eccentricityMax: 0.56,
+        radiusMinMeters: 8000,
+        radiusMaxMeters: 110_000,
+        massMinKg: 2e14,
+        massMaxKg: 9e18,
+        colorHex: "#c4bba8",
+        sources: ["NASA", "JPL Horizons", "Synthetic Planetary Model"],
+        note: "Satelit minor sintetis orbit Saturnus.",
+    },
+    {
+        parentName: "Uranus",
+        count: 12,
+        semiMajorMinMeters: 7e8,
+        semiMajorMaxMeters: 8.6e9,
+        periodMinDays: 2,
+        periodMaxDays: 520,
+        inclinationMaxDeg: 32,
+        eccentricityMax: 0.34,
+        radiusMinMeters: 7000,
+        radiusMaxMeters: 84_000,
+        massMinKg: 2e14,
+        massMaxKg: 5e18,
+        colorHex: "#b8cad4",
+        sources: ["NASA", "JPL Horizons", "Synthetic Planetary Model"],
+        note: "Satelit minor sintetis orbit Uranus.",
+    },
+    {
+        parentName: "Neptunus",
+        count: 10,
+        semiMajorMinMeters: 5.2e8,
+        semiMajorMaxMeters: 1.3e10,
+        periodMinDays: 2,
+        periodMaxDays: 700,
+        inclinationMaxDeg: 38,
+        eccentricityMax: 0.42,
+        radiusMinMeters: 7000,
+        radiusMaxMeters: 88_000,
+        massMinKg: 2e14,
+        massMaxKg: 6e18,
+        colorHex: "#b6c4d3",
+        sources: ["NASA", "JPL Horizons", "Synthetic Planetary Model"],
+        note: "Satelit minor sintetis orbit Neptunus.",
+    },
+];
+
 function addSyntheticPlanetarySystems(): void {
     for (const seed of planetaryMoonSeeds) {
         const parent = findExistingBodyByName(seed.parentName);
@@ -2030,6 +2137,50 @@ function addSyntheticPlanetarySystems(): void {
             seed.eccentricity,
             `${seed.name}:moon`,
         );
+    }
+
+    for (const profile of planetaryMinorMoonProfiles) {
+        const parent = findExistingBodyByName(profile.parentName);
+        if (!parent) {
+            continue;
+        }
+
+        for (let i = 0; i < profile.count; i += 1) {
+            const moonName = `${profile.parentName} Minor Moon-${i + 1}`;
+            if (findExistingBodyByName(moonName)) {
+                continue;
+            }
+
+            const seedLabel = `${moonName}:${profile.parentName}`;
+            const moon: UniverseBody = {
+                name: moonName,
+                kind: "moon",
+                massKg: seededRange(seedLabel, 1, profile.massMinKg, profile.massMaxKg),
+                radiusMeters: seededRange(seedLabel, 2, profile.radiusMinMeters, profile.radiusMaxMeters),
+                colorHex: profile.colorHex,
+                position: { ...parent.position },
+                velocity: { ...parent.velocity },
+                alive: true,
+                parentName: parent.name,
+                isHypothesis: false,
+            };
+
+            pushCatalogBody(moon, {
+                sources: profile.sources,
+                description: `${profile.note} Parent ${profile.parentName}.`,
+            });
+            syntheticGalaxyBodyNames.add(moonName);
+
+            registerDynamicOrbit(
+                moonName,
+                parent.name,
+                seededRange(seedLabel, 3, profile.semiMajorMinMeters, profile.semiMajorMaxMeters),
+                seededRange(seedLabel, 4, profile.periodMinDays, profile.periodMaxDays),
+                seededRange(seedLabel, 5, 0, profile.inclinationMaxDeg),
+                seededRange(seedLabel, 6, 0.001, profile.eccentricityMax),
+                `${moonName}:orbit`,
+            );
+        }
     }
 
     for (const profile of planetaryDebrisProfiles) {
@@ -2822,10 +2973,13 @@ function toRenderRadius(body: UniverseBody, zoomSpan = cameraZoomSpan()): number
     }
 
     if (body.kind === "moon") {
-        const base = clamp(0.06 + (logRadius - 5.0) * 0.14, 0.04, 0.32);
+        const base = clamp(0.07 + (logRadius - 5.0) * 0.15, 0.05, 0.36);
         if (isSolarSystemBody(body)) {
-            const nearBoost = clamp(1.48 - zoomFactor / 920, 1.0, 1.44);
-            return clamp(base * nearBoost, 0.06, 0.48);
+            const nearBoost = clamp(1.68 - zoomFactor / 980, 1.0, 1.62);
+            const orbitBoost = body.parentName && solarSystemAnchors.has(body.parentName)
+                ? (body.parentName === uiState.focusName || body.name === uiState.focusName ? 1.9 : 1.35)
+                : 1;
+            return clamp(base * nearBoost * orbitBoost, 0.08, 0.88);
         }
         return base;
     }
@@ -2849,17 +3003,19 @@ function toRenderRadius(body: UniverseBody, zoomSpan = cameraZoomSpan()): number
     }
 
     if (body.kind === "meteor") {
-        const base = clamp(0.05 + (logRadius - 3.3) * 0.12, 0.04, 0.22);
-        if (body.parentName === "Jupiter" || body.parentName === "Saturnus" || body.parentName === "Mars") {
-            return clamp(base * 1.65, 0.07, 0.34);
+        const base = clamp(0.07 + (logRadius - 3.3) * 0.14, 0.05, 0.28);
+        if (body.parentName && solarSystemAnchors.has(body.parentName)) {
+            const parentFocusBoost = body.parentName === uiState.focusName ? 2.4 : 2.0;
+            return clamp(base * parentFocusBoost, 0.11, 0.58);
         }
         return base;
     }
 
     if (body.kind === "comet") {
-        const base = clamp(0.06 + (logRadius - 3.6) * 0.14, 0.05, 0.24);
-        if (body.parentName === "Jupiter" || body.parentName === "Saturnus" || body.parentName === "Mars") {
-            return clamp(base * 1.42, 0.08, 0.34);
+        const base = clamp(0.08 + (logRadius - 3.6) * 0.16, 0.06, 0.32);
+        if (body.parentName && solarSystemAnchors.has(body.parentName)) {
+            const parentFocusBoost = body.parentName === uiState.focusName ? 2.2 : 1.9;
+            return clamp(base * parentFocusBoost, 0.12, 0.64);
         }
         return base;
     }
@@ -3035,17 +3191,17 @@ function shouldDisplayBodyAtZoom(
         if (focusSolar) {
             if (solarBody) {
                 if (body.kind === "star") {
-                    return distanceFromFocus < (zoomSpan < 700 ? 1800 : 5600);
+                    return distanceFromFocus < (zoomSpan < 700 ? 2800 : 9000);
                 }
                 if (body.kind === "planet" || body.kind === "moon") {
-                    const cap = zoomSpan < 220 ? 360 : zoomSpan < 700 ? 1200 : zoomSpan < 1400 ? 3300 : 6200;
+                    const cap = zoomSpan < 220 ? 900 : zoomSpan < 700 ? 2800 : zoomSpan < 1400 ? 9000 : 18000;
                     return distanceFromFocus < cap;
                 }
                 if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
-                    const cap = zoomSpan < 220 ? 250 : zoomSpan < 700 ? 760 : zoomSpan < 1400 ? 2200 : 4600;
+                    const cap = zoomSpan < 220 ? 620 : zoomSpan < 700 ? 1800 : zoomSpan < 1400 ? 6200 : 14000;
                     return distanceFromFocus < cap;
                 }
-                return distanceFromFocus < (zoomSpan < 1400 ? 5000 : 12000);
+                return distanceFromFocus < (zoomSpan < 1400 ? 9000 : 22000);
             }
 
             if (structureBody || branch.ancestor) {
@@ -3543,6 +3699,10 @@ function shouldTrailBody(body: UniverseBody): boolean {
         return false;
     }
 
+    if (body.kind === "meteor") {
+        return true;
+    }
+
     if (bodyLooksRocky(body)) {
         return false;
     }
@@ -3761,6 +3921,52 @@ function textureForBody(body: UniverseBody): THREE.Texture | null {
         ctx.beginPath();
         ctx.arc(128, 128, 74, 0, Math.PI * 2);
         ctx.stroke();
+    } else if (body.kind === "comet") {
+        fillRadial("#d9e7f7", "#4e6d8a");
+        ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+        ctx.beginPath();
+        ctx.ellipse(108, 108, 56, 44, -0.55, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(126, 166, 218, 0.4)";
+        for (let i = 0; i < 9; i += 1) {
+            ctx.beginPath();
+            ctx.ellipse(
+                98 + i * 14,
+                122 + ((i % 3) - 1) * 8,
+                16 + i * 2,
+                6 + (i % 4),
+                -0.22,
+                0,
+                Math.PI * 2,
+            );
+            ctx.fill();
+        }
+        ctx.fillStyle = "rgba(92, 102, 114, 0.54)";
+        for (let i = 0; i < 11; i += 1) {
+            ctx.beginPath();
+            ctx.arc(((seed + i * 19) % 194) + 28, ((seed + i * 27) % 180) + 34, 3 + (i % 4), 0, Math.PI * 2);
+            ctx.fill();
+        }
+    } else if (body.kind === "meteor") {
+        fillRadial("#bea588", "#665041");
+        ctx.fillStyle = "rgba(72, 54, 44, 0.5)";
+        for (let i = 0; i < 18; i += 1) {
+            ctx.beginPath();
+            ctx.arc(((seed + i * 17) % 210) + 20, ((seed + i * 31) % 210) + 20, 4 + (i % 5), 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.strokeStyle = "rgba(160, 136, 106, 0.34)";
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 7; i += 1) {
+            const sx = seededRange(body.name, 990 + i, 18, 238);
+            const sy = seededRange(body.name, 1090 + i, 18, 238);
+            const ex = seededRange(body.name, 1190 + i, 18, 238);
+            const ey = seededRange(body.name, 1290 + i, 18, 238);
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(ex, ey);
+            ctx.stroke();
+        }
     } else if (body.name === "Jupiter") {
         drawBands("#d7bf9a", "#a88864");
     } else if (body.name === "Saturnus") {
@@ -3824,13 +4030,20 @@ function createNode(body: UniverseBody): BodyNode {
     const detail = diffuseStructure ? 18 : bodyLooksRocky(body) ? 10 : bodyLooksComet(body) ? 12 : 24;
     const spinRadPerSec = spinRadPerSecForBody(body);
 
-    const geometry = new THREE.SphereGeometry(1, detail, detail);
+    let geometry: THREE.BufferGeometry;
+    if (body.kind === "meteor") {
+        geometry = new THREE.DodecahedronGeometry(1, 0);
+    } else if (body.kind === "comet") {
+        geometry = new THREE.IcosahedronGeometry(1, 0);
+    } else {
+        geometry = new THREE.SphereGeometry(1, detail, detail);
+    }
     const texture = textureForBody(body);
     const material = new THREE.MeshStandardMaterial({
         color,
         map: texture,
-        roughness: diffuseStructure ? 0.94 : body.kind === "star" ? 0.22 : 0.66,
-        metalness: diffuseStructure ? 0.01 : body.kind === "black-hole" ? 0.42 : 0.07,
+        roughness: diffuseStructure ? 0.94 : body.kind === "star" ? 0.22 : body.kind === "meteor" ? 0.92 : body.kind === "comet" ? 0.84 : 0.66,
+        metalness: diffuseStructure ? 0.01 : body.kind === "black-hole" ? 0.42 : body.kind === "meteor" ? 0.03 : 0.07,
         transparent: diffuseStructure,
         opacity: diffuseStructure ? (body.kind === "galaxy" ? 0.42 : body.kind === "cluster" ? 0.34 : 0.28) : 1,
         depthWrite: !diffuseStructure,
@@ -3850,8 +4063,43 @@ function createNode(body: UniverseBody): BodyNode {
     mesh.userData.structureShell = diffuseStructure;
     mesh.rotation.x = ((hashString(body.name) % 28) - 14) * (Math.PI / 180);
     mesh.rotation.z = ((hashString(body.name) % 22) - 11) * (Math.PI / 180);
+    if (body.kind === "meteor" || body.kind === "comet") {
+        mesh.rotation.y = ((hashString(body.name) % 360) * Math.PI) / 180;
+    }
     mesh.userData.bodyKey = key;
     scene.add(mesh);
+
+    const extras: THREE.Object3D[] = [];
+    if (body.kind === "comet") {
+        const coma = new THREE.Mesh(
+            new THREE.SphereGeometry(1, 16, 16),
+            new THREE.MeshBasicMaterial({
+                color: 0xbadfff,
+                transparent: true,
+                opacity: 0.22,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+            }),
+        );
+        coma.userData.cometRole = "coma";
+        scene.add(coma);
+        extras.push(coma);
+
+        const tail = new THREE.Mesh(
+            new THREE.ConeGeometry(0.72, 4.6, 16, 1, true),
+            new THREE.MeshBasicMaterial({
+                color: 0x9fd9ff,
+                transparent: true,
+                opacity: 0.34,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+            }),
+        );
+        tail.userData.cometRole = "tail";
+        scene.add(tail);
+        extras.push(tail);
+    }
 
     let ring: THREE.Mesh | null = null;
     if (isRingedBody(body)) {
@@ -3885,6 +4133,7 @@ function createNode(body: UniverseBody): BodyNode {
         key,
         body,
         mesh,
+        extras,
         label,
         ring,
         spinRadPerSec,
@@ -3898,6 +4147,19 @@ function disposeNode(node: BodyNode): void {
     node.mesh.geometry.dispose();
     const meshMaterial = node.mesh.material as THREE.MeshStandardMaterial;
     meshMaterial.dispose();
+
+    node.extras.forEach((extra) => {
+        scene.remove(extra);
+        if (extra instanceof THREE.Mesh) {
+            extra.geometry.dispose();
+            const mat = extra.material;
+            if (Array.isArray(mat)) {
+                mat.forEach((m: THREE.Material) => m.dispose());
+            } else {
+                mat.dispose();
+            }
+        }
+    });
 
     if (node.ring) {
         scene.remove(node.ring);
@@ -3941,6 +4203,63 @@ function collectBodies(): UniverseBody[] {
     nasaBodies.forEach((body) => mergeBodySources(body.name, ["External Catalog"]));
 
     return [...major, ...small, ...context, ...nasaBodies].filter(shouldRenderBody);
+}
+
+function updateCometExtras(node: BodyNode, body: UniverseBody, position: THREE.Vector3, radius: number): void {
+    if (body.kind !== "comet" || node.extras.length === 0) {
+        return;
+    }
+
+    const coma = node.extras.find((extra) => extra.userData.cometRole === "coma") as THREE.Mesh | undefined;
+    const tail = node.extras.find((extra) => extra.userData.cometRole === "tail") as THREE.Mesh | undefined;
+    if (!coma || !tail) {
+        return;
+    }
+
+    const sun = bodyByNameAny("Matahari");
+    let awayVector = new THREE.Vector3(0, 1, 0);
+    if (sun) {
+        awayVector.set(
+            body.position.x - sun.position.x,
+            body.position.y - sun.position.y,
+            body.position.z - sun.position.z,
+        );
+    }
+    if (awayVector.lengthSq() < 1e-12) {
+        awayVector.set(body.velocity.x, body.velocity.y, body.velocity.z);
+    }
+    if (awayVector.lengthSq() < 1e-12) {
+        awayVector.set(0, 1, 0);
+    }
+    awayVector.normalize();
+
+    const speed = Math.max(Math.hypot(body.velocity.x, body.velocity.y, body.velocity.z), 1);
+    const sunDistanceAu = sun
+        ? Math.max(
+            Math.hypot(
+                body.position.x - sun.position.x,
+                body.position.y - sun.position.y,
+                body.position.z - sun.position.z,
+            ) / constants.auMeters,
+            0.08,
+        )
+        : 1;
+
+    const tailBoost = clamp(2.1 + speed / 12000 + 1 / Math.sqrt(sunDistanceAu), 2.2, 8.8);
+    const comaScale = radius * clamp(2.6 + tailBoost * 0.18, 2.8, 5.2);
+    const tailLength = radius * clamp(3.4 + tailBoost * 0.95, 4.2, 18.5);
+    const tailRadius = radius * clamp(0.9 + tailBoost * 0.16, 1.0, 2.9);
+
+    coma.position.copy(position);
+    coma.scale.setScalar(comaScale);
+    const comaMaterial = coma.material as THREE.MeshBasicMaterial;
+    comaMaterial.opacity = clamp(0.44 - sunDistanceAu * 0.03, 0.14, 0.42);
+
+    tail.position.copy(position).addScaledVector(awayVector, radius * 1.1 + tailLength * 0.48);
+    tail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), awayVector);
+    tail.scale.set(tailRadius, tailLength, tailRadius);
+    const tailMaterial = tail.material as THREE.MeshBasicMaterial;
+    tailMaterial.opacity = clamp(0.56 - sunDistanceAu * 0.034, 0.18, 0.5);
 }
 
 function updateNodes(dtMs: number): void {
@@ -3999,11 +4318,20 @@ function updateNodes(dtMs: number): void {
             }
             node.mesh.scale.set(radius * spread, radius * flattenY, radius * spread);
         } else {
-            node.mesh.scale.setScalar(radius);
+            if (body.kind === "meteor") {
+                node.mesh.scale.set(radius * 1.55, radius * 1.16, radius * 1.34);
+            } else if (body.kind === "comet") {
+                node.mesh.scale.set(radius * 1.34, radius * 1.05, radius * 1.18);
+            } else {
+                node.mesh.scale.setScalar(radius);
+            }
         }
 
         const visibleByZoom = shouldDisplayBodyAtZoom(body, key, position, focusPosition, zoomSpan, focusBody, bodyIndex, structureRoot);
         node.mesh.visible = visibleByZoom;
+        node.extras.forEach((extra) => {
+            extra.visible = visibleByZoom;
+        });
         if (node.ring) {
             node.ring.visible = visibleByZoom;
         }
@@ -4085,9 +4413,15 @@ function updateNodes(dtMs: number): void {
             meshMaterial.emissive = new THREE.Color(nextColor).multiplyScalar(0.22);
         } else if (body.kind === "nebula") {
             meshMaterial.emissive = new THREE.Color(nextColor).multiplyScalar(0.1);
+        } else if (body.kind === "comet") {
+            meshMaterial.emissive = new THREE.Color(nextColor).multiplyScalar(0.16);
+        } else if (body.kind === "meteor") {
+            meshMaterial.emissive = new THREE.Color(nextColor).multiplyScalar(0.08);
         } else {
             meshMaterial.emissive = new THREE.Color(0x000000);
         }
+
+        updateCometExtras(node, body, position, radius);
 
         if (node.label && !shouldLabelBody(body)) {
             scene.remove(node.label);
