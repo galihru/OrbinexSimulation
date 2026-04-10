@@ -23,16 +23,18 @@
         body {
             margin: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
+            position: fixed;
+            inset: 0;
+            width: 100dvw;
+            height: 100dvh;
             background: transparent;
             color: var(--text);
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden;
-            overflow-x: hidden;
-            overscroll-behavior-x: none;
-            overscroll-behavior-y: none;
-            touch-action: manipulation;
+            max-width: 100dvw;
+            max-height: 100dvh;
+            overflow: hidden !important;
+            overscroll-behavior: none;
+            touch-action: none;
         }
 
         html.modal-open,
@@ -44,17 +46,18 @@
         #ar-app {
             position: fixed;
             inset: 0;
+            width: 100dvw;
+            height: 100dvh;
             background: #000;
-            overflow: hidden;
-            overscroll-behavior-x: none;
-            overscroll-behavior-y: none;
+            overflow: hidden !important;
+            overscroll-behavior: none;
         }
 
         a-scene {
             position: fixed !important;
             inset: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
+            width: 100dvw !important;
+            height: 100dvh !important;
             z-index: 1 !important;
             transition: inset 280ms ease, width 280ms ease, height 280ms ease, border-radius 280ms ease, box-shadow 280ms ease;
         }
@@ -64,12 +67,12 @@
         .ar-main-video {
             position: fixed !important;
             inset: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
+            width: 100dvw !important;
+            height: 100dvh !important;
             object-fit: cover !important;
             z-index: 0 !important;
             background: #000 !important;
-            opacity: 0 !important;
+            opacity: 1 !important;
             transition: opacity 260ms ease;
         }
 
@@ -90,8 +93,9 @@
         body.mode-ar-main #arjs-video,
         body.mode-ar-main .arjs-video,
         body.mode-ar-main .ar-main-video {
-            opacity: 0 !important;
+            opacity: 1 !important;
             pointer-events: none !important;
+            z-index: 0 !important;
         }
 
         body.mode-camera-main #arjs-video,
@@ -369,8 +373,10 @@
             inset: 0 !important;
             top: 0 !important;
             left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
+            right: auto !important;
+            bottom: auto !important;
+            width: 100dvw !important;
+            height: 100dvh !important;
             z-index: 1 !important;
             border: 0 !important;
             border-radius: 0 !important;
@@ -646,8 +652,8 @@
                 mainVideo.style.setProperty("inset", "0", "important");
                 mainVideo.style.setProperty("top", "0", "important");
                 mainVideo.style.setProperty("left", "0", "important");
-                mainVideo.style.setProperty("width", "100vw", "important");
-                mainVideo.style.setProperty("height", "100vh", "important");
+                mainVideo.style.setProperty("width", "100dvw", "important");
+                mainVideo.style.setProperty("height", "100dvh", "important");
                 mainVideo.style.setProperty("object-fit", "cover", "important");
                 mainVideo.style.setProperty("background", "#000", "important");
 
@@ -655,7 +661,7 @@
                     mainVideo.style.setProperty("opacity", "1", "important");
                     mainVideo.style.setProperty("z-index", "2", "important");
                 } else {
-                    mainVideo.style.setProperty("opacity", "0", "important");
+                    mainVideo.style.setProperty("opacity", "1", "important");
                     mainVideo.style.setProperty("z-index", "0", "important");
                 }
                 mainVideo.style.setProperty("pointer-events", "none", "important");
@@ -704,8 +710,8 @@
                     sceneEl.style.setProperty("right", "auto", "important");
                     sceneEl.style.setProperty("left", "0", "important");
                     sceneEl.style.setProperty("bottom", "auto", "important");
-                    sceneEl.style.setProperty("width", "100vw", "important");
-                    sceneEl.style.setProperty("height", "100vh", "important");
+                    sceneEl.style.setProperty("width", "100dvw", "important");
+                    sceneEl.style.setProperty("height", "100dvh", "important");
                     sceneEl.style.setProperty("z-index", "1", "important");
                     sceneEl.style.setProperty("border-radius", "0", "important");
                     sceneEl.style.setProperty("border", "0", "important");
@@ -1237,12 +1243,10 @@
             }
 
             function buildDisplayBodies(focusBody) {
-                const fixedRootKinds = new Set(["star", "galaxy", "cluster", "nebula", "black-hole"]);
-                const useParentAsRoot = !!(focusBody.parentName && !fixedRootKinds.has(focusBody.kind));
-                const rootBody = useParentAsRoot ? resolveBodyByName(focusBody.parentName) : focusBody;
+                const rootBody = focusBody;
 
-                ensureBodyDefaults(rootBody);
                 ensureBodyDefaults(focusBody);
+                ensureBodyDefaults(rootBody);
 
                 const included = new Map();
                 const addBody = (body) => {
@@ -1256,35 +1260,8 @@
                 addBody(rootBody);
                 addBody(focusBody);
 
-                let rootChildren = getChildren(rootBody.name).sort(sortByOrbit);
-                if (focusBody.name !== rootBody.name) {
-                    rootChildren = neighborhoodByFocus(rootChildren, focusBody.name, rootBody.kind === "planet" ? 12 : 9);
-                } else {
-                    const rootLimit = rootBody.kind === "star"
-                        ? 16
-                        : rootBody.kind === "planet"
-                            ? 26
-                            : rootBody.kind === "galaxy"
-                                ? 12
-                                : 10;
-                    rootChildren = rootChildren.slice(0, rootLimit);
-                }
-                rootChildren.forEach(addBody);
-
-                const focusChildren = getChildren(focusBody.name).sort(sortByOrbit).slice(0, 30);
+                const focusChildren = getChildren(focusBody.name).sort(sortByOrbit);
                 focusChildren.forEach(addBody);
-
-                if (focusBody.kind === "star" && focusBody.name === rootBody.name) {
-                    rootChildren
-                        .filter((body) => body.kind === "planet" || body.kind === "dwarf")
-                        .forEach((planet) => {
-                            getChildren(planet.name).sort(sortByOrbit).slice(0, 4).forEach(addBody);
-                        });
-                }
-
-                if (focusBody.kind === "galaxy" && focusBody.name === rootBody.name) {
-                    getChildren(focusBody.name).sort(sortByOrbit).slice(0, 18).forEach(addBody);
-                }
 
                 const bodies = Array.from(included.values());
                 return { rootBody, focusBody, bodies };
