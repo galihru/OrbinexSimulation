@@ -138,14 +138,6 @@ type SolarRenderAnchor = {
     distanceScale?: number;
 };
 
-type DeferredInstallPromptEvent = Event & {
-    prompt: () => Promise<void>;
-    userChoice: Promise<{
-        outcome: "accepted" | "dismissed";
-        platform: string;
-    }>;
-};
-
 type PermissionProbeResult = "granted" | "denied" | "unsupported";
 
 type PermissionCapabilityState = {
@@ -350,7 +342,6 @@ app.innerHTML = `
                 <button id="btn-label" type="button">LABEL</button>
                 <button id="btn-info" type="button">INFO</button>
                 <button id="btn-search" type="button">CARI</button>
-                <button id="btn-install" type="button">INSTALL</button>
                 <button id="btn-ref" type="button">REF</button>
                 <button id="btn-help" type="button">BANTU</button>
                 <button id="btn-language" type="button">BAHASA: ID</button>
@@ -544,7 +535,6 @@ const guidesButton = byId<HTMLButtonElement>("btn-guides");
 const labelButton = byId<HTMLButtonElement>("btn-label");
 const infoButton = byId<HTMLButtonElement>("btn-info");
 const searchButton = byId<HTMLButtonElement>("btn-search");
-const installButton = byId<HTMLButtonElement>("btn-install");
 const refButton = byId<HTMLButtonElement>("btn-ref");
 const helpButton = byId<HTMLButtonElement>("btn-help");
 const languageButton = byId<HTMLButtonElement>("btn-language");
@@ -566,11 +556,6 @@ const i18n = {
         infoOff: "INFO:OFF",
         searchOn: "CARI",
         searchOff: "CARI:OFF",
-        install: "INSTALL APP",
-        installDone: "APP:TERPASANG",
-        installUnavailable: "Install via menu browser (Add to Home Screen)",
-        deviceAccess: "AKSES DEVICE",
-        deviceAccessHint: "Minta akses aplikasi/layanan perangkat",
         helpOn: "BANTU",
         helpOff: "BANTU:OFF",
         lang: "BAHASA: ID",
@@ -591,11 +576,6 @@ const i18n = {
         infoOff: "INFO:OFF",
         searchOn: "SEARCH",
         searchOff: "SEARCH:OFF",
-        install: "INSTALL APP",
-        installDone: "APP:INSTALLED",
-        installUnavailable: "Install via browser menu (Add to Home Screen)",
-        deviceAccess: "DEVICE ACCESS",
-        deviceAccessHint: "Request access to device apps/services",
         helpOn: "HELP",
         helpOff: "HELP:OFF",
         lang: "LANG: EN",
@@ -753,12 +733,9 @@ let cameraFlight: CameraFlight | null = null;
 let focusSuspendUntilMs = 0;
 let latestCatalogGeneratedAt = "";
 let catalogRefreshTimer: number | null = null;
-let deferredInstallPrompt: DeferredInstallPromptEvent | null = null;
 let pwaInstalled = window.matchMedia("(display-mode: standalone)").matches
     || ((window.navigator as NavigatorWithInstalledRelatedApps).standalone === true);
 let pwaListenersBound = false;
-let naturalInstallAccessRequested = false;
-let naturalInstallAccessInFlight = false;
 
 const bodyDescriptions: Record<string, string> = {
     Matahari: "Bintang pusat sistem; sumber utama energi dan referensi gravitasi.",
@@ -2743,88 +2720,6 @@ function addLocalEvent(message: string): void {
     }
 }
 
-function installHintText(): string {
-    const t = i18n[uiState.language];
-    return t.installUnavailable;
-}
-
-function updateInstallButtonState(): void {
-    const t = i18n[uiState.language];
-    if (pwaInstalled) {
-        installButton.disabled = true;
-        installButton.hidden = false;
-        installButton.textContent = t.installDone;
-        installButton.title = t.installDone;
-        return;
-    }
-
-    installButton.textContent = t.install;
-    if (deferredInstallPrompt) {
-        installButton.disabled = false;
-        installButton.hidden = false;
-        installButton.title = t.install;
-        return;
-    }
-
-    installButton.disabled = true;
-    installButton.hidden = false;
-    installButton.title = installHintText();
-}
-
-function permissionSummary(label: string, result: PermissionProbeResult): string {
-    if (result === "granted") {
-        return `${label}: diizinkan`;
-    }
-    if (result === "denied") {
-        return `${label}: ditolak`;
-    }
-    return `${label}: tidak didukung`;
-}
-
-function permissionReportLines(capabilities: PermissionCapabilityState): string[] {
-    const entries: Array<[string, PermissionProbeResult]> = [
-        ["Virtual reality", capabilities.virtualReality],
-        ["Augmented reality", capabilities.augmentedReality],
-        ["Your device use", capabilities.deviceUse],
-        ["Lokasi perangkat", capabilities.geolocation],
-        ["Sensor gerak", capabilities.motionSensors],
-        ["Mikrofon", capabilities.microphone],
-        ["Device services", capabilities.relatedAppsProbe],
-        ["Akses kamera AR", capabilities.camera],
-        ["Notifikasi", capabilities.notifications],
-        ["Penyimpanan offline", capabilities.persistentStorage],
-        ["Aktifkan layar saat simulasi", capabilities.wakeLock],
-    ];
-
-    const supportedLines = entries
-        .filter(([, result]) => result !== "unsupported")
-        .map(([label, result]) => permissionSummary(label, result));
-
-    if (supportedLines.length > 0) {
-        return supportedLines;
-    }
-
-    return ["Akses perangkat tambahan tidak didukung di browser ini."];
-}
-
-async function requestNaturalInstallAccess(trigger: string): Promise<void> {
-    if (naturalInstallAccessRequested || naturalInstallAccessInFlight) {
-        return;
-    }
-
-    naturalInstallAccessInFlight = true;
-    try {
-        const permissionCapabilities = await requestInstallAccessPermissions();
-        addLocalEvent(permissionReportLines(permissionCapabilities).join(" | "));
-        await applyPermissionDrivenOptimizations(permissionCapabilities, trigger);
-        naturalInstallAccessRequested = true;
-    } catch {
-        naturalInstallAccessRequested = false;
-    } finally {
-        naturalInstallAccessInFlight = false;
-    }
-}
-
 function hasGrantedCapability(capabilities: PermissionCapabilityState): boolean {
     return Object.values(capabilities).some((value) => value === "granted");
 }
@@ -3130,17 +3025,8 @@ function setupPwaSupport(): void {
 
     void registerPwaServiceWorker();
 
-    window.addEventListener("beforeinstallprompt", (event) => {
-        event.preventDefault();
-        deferredInstallPrompt = event as DeferredInstallPromptEvent;
-        updateInstallButtonState();
-        addLocalEvent("Install PWA siap. Gunakan tombol INSTALL APP.");
-    });
-
     window.addEventListener("appinstalled", () => {
         pwaInstalled = true;
-        deferredInstallPrompt = null;
-        updateInstallButtonState();
         addLocalEvent("PWA terpasang. Mulai sinkronisasi database offline.");
         void predownloadOfflineDatabaseAssets();
     });
@@ -3149,7 +3035,6 @@ function setupPwaSupport(): void {
         void predownloadOfflineDatabaseAssets();
     }
 
-    updateInstallButtonState();
 }
 
 function setSplashProgress(progress: number, message: string): void {
@@ -6561,7 +6446,6 @@ function updateActionButtons(): void {
     languageButton.textContent = t.lang;
     bottomHint.textContent = t.bottomHint;
     searchInput.placeholder = t.searchPlaceholder;
-    updateInstallButtonState();
 }
 
 function updatePanelVisibility(): void {
@@ -6669,13 +6553,6 @@ function updateHoverByRaycast(): void {
 }
 
 function bindUiHandlers(): void {
-    const handleNaturalAccessBootstrap = () => {
-        void requestNaturalInstallAccess("interaksi awal");
-    };
-
-    window.addEventListener("pointerdown", handleNaturalAccessBootstrap, { once: true, passive: true });
-    window.addEventListener("keydown", handleNaturalAccessBootstrap, { once: true });
-
     runButton.addEventListener("click", () => {
         uiState.running = !uiState.running;
         engine.setPaused(!uiState.running);
@@ -6715,36 +6592,6 @@ function bindUiHandlers(): void {
         if (uiState.showSearch) {
             searchInput.focus();
         }
-    });
-
-    installButton.addEventListener("click", async () => {
-        if (pwaInstalled) {
-            void predownloadOfflineDatabaseAssets();
-            return;
-        }
-
-        if (!deferredInstallPrompt) {
-            addLocalEvent(installHintText());
-            return;
-        }
-
-        await requestNaturalInstallAccess("akses install");
-
-        const promptEvent = deferredInstallPrompt;
-        deferredInstallPrompt = null;
-        updateInstallButtonState();
-
-        await promptEvent.prompt();
-        const choice = await promptEvent.userChoice;
-
-        if (choice.outcome === "accepted") {
-            addLocalEvent("Install PWA disetujui. Menyiapkan cache offline.");
-            void predownloadOfflineDatabaseAssets();
-        } else {
-            addLocalEvent("Install PWA dibatalkan oleh pengguna.");
-        }
-
-        updateInstallButtonState();
     });
 
     helpButton.addEventListener("click", () => {

@@ -16,12 +16,14 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="OrbinexSimulation" />
     <meta property="og:title" content="Orbinex AR Viewer" />
-    <meta property="og:description" content="Viewer AR Orbinex untuk simulasi objek semesta langsung dari browser mobile." />
+    <meta property="og:description"
+        content="Viewer AR Orbinex untuk simulasi objek semesta langsung dari browser mobile." />
     <meta property="og:url" content="https://galihru.github.io/OrbinexSimulation/ar-view.html" />
     <meta property="og:image" content="https://galihru.github.io/OrbinexSimulation/orbinex-logo.svg" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Orbinex AR Viewer" />
-    <meta name="twitter:description" content="Mode AR Orbinex untuk visualisasi objek semesta dengan marker Hiro/Kanji." />
+    <meta name="twitter:description"
+        content="Mode AR Orbinex untuk visualisasi objek semesta dengan marker Hiro/Kanji." />
     <meta name="twitter:image" content="https://galihru.github.io/OrbinexSimulation/orbinex-logo.svg" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <style>
@@ -578,7 +580,7 @@
     </style>
 
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.8/aframe/build/aframe-ar.min.js"></script>
+    <script src="./vendor/aframe-ar.min.js"></script>
 </head>
 
 <body>
@@ -593,12 +595,12 @@
                 <span class="sheet-swipe-text">Swipe down untuk tutup panel</span>
             </div>
             <h1>Orbinex AR Viewer: <span id="ar-model-name">Bumi</span></h1>
-            <p id="ar-status" role="status" aria-live="polite">Aktifkan kamera, scan marker Hiro/Kanji, lalu model sesuai marker akan muncul.</p>
+            <p id="ar-status" role="status" aria-live="polite">Aktifkan kamera, scan marker Hiro/Kanji, lalu model
+                sesuai marker akan muncul.</p>
             <div class="ar-toolbar">
                 <a id="open-desktop" href="#" rel="noopener noreferrer">Buka Simulasi Desktop</a>
                 <a id="open-marker" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
                     target="_blank" rel="noopener noreferrer">Buka Marker Aktif</a>
-                <button id="install-pwa" type="button">Install App</button>
                 <button id="zoom-in" type="button">Zoom +</button>
                 <button id="zoom-out" type="button">Zoom -</button>
                 <button id="rot-left" type="button">Rotasi -</button>
@@ -632,7 +634,7 @@
 
         <a-scene id="ar-scene" embedded loading-screen="enabled: false" vr-mode-ui="enabled: false"
             renderer="antialias: true; alpha: true; precision: mediump; colorManagement: true"
-            arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false; detectionMode: mono; matrixCodeType: 3x3; maxDetectionRate: 60; canvasWidth: 1280; canvasHeight: 960;">
+            arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; detectionMode: mono; matrixCodeType: 3x3; maxDetectionRate: 60; canvasWidth: 1280; canvasHeight: 960;">
             <a-marker id="orbinex-marker-hiro" data-model="" data-marker-label="Hiro"
                 data-marker-image="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
                 data-marker-link="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
@@ -687,7 +689,6 @@
             const markerEls = Array.from(document.querySelectorAll("a-marker[data-model]"));
             const openDesktopLink = document.getElementById("open-desktop");
             const openMarkerLink = document.getElementById("open-marker");
-            const installPwaButton = document.getElementById("install-pwa");
             const zoomInButton = document.getElementById("zoom-in");
             const zoomOutButton = document.getElementById("zoom-out");
             const rotLeftButton = document.getElementById("rot-left");
@@ -764,41 +765,9 @@
                 new URL("./data/agency-catalog.json", baseUrl).toString(),
             ];
             const AR_RUNTIME_PROFILE_STORAGE_KEY = "orbinex.ar.runtimeProfile";
-            let deferredInstallPrompt = null;
-            let pwaInstalled = window.matchMedia("(display-mode: standalone)").matches
-                || (window.navigator && window.navigator.standalone === true);
             let arLowLagModeActive = false;
             let arWakeLockHandle = null;
             let arSystem = null;
-            let naturalArAccessRequested = false;
-            let naturalArAccessInFlight = false;
-
-            function updateInstallPwaButton() {
-                if (!installPwaButton) {
-                    return;
-                }
-                if (pwaInstalled) {
-                    installPwaButton.disabled = true;
-                    installPwaButton.textContent = "App Terpasang";
-                    installPwaButton.title = "Database offline akan diprioritaskan";
-                    return;
-                }
-                installPwaButton.textContent = "Install App";
-                installPwaButton.disabled = !deferredInstallPrompt;
-                installPwaButton.title = deferredInstallPrompt
-                    ? "Install app ke home screen"
-                    : "Gunakan menu browser > Add to Home Screen";
-            }
-
-            function permissionSummary(label, result) {
-                if (result === "granted") {
-                    return `${label}: diizinkan`;
-                }
-                if (result === "denied") {
-                    return `${label}: ditolak`;
-                }
-                return `${label}: tidak didukung`;
-            }
 
             async function requestXrSessionPermission(mode) {
                 if (!window.isSecureContext || !navigator.xr || typeof navigator.xr.requestSession !== "function") {
@@ -823,49 +792,6 @@
                     return "granted";
                 } catch {
                     return "denied";
-                }
-            }
-
-            function capabilityReportLines(capabilities) {
-                const entries = [
-                    ["Virtual reality", capabilities.virtualReality],
-                    ["Augmented reality", capabilities.augmentedReality],
-                    ["Your device use", capabilities.deviceUse],
-                    ["Lokasi perangkat", capabilities.geolocation],
-                    ["Sensor gerak", capabilities.motionSensors],
-                    ["Mikrofon", capabilities.microphone],
-                    ["Device services", capabilities.relatedAppsProbe],
-                    ["Akses kamera AR", capabilities.camera],
-                    ["Notifikasi", capabilities.notifications],
-                    ["Penyimpanan offline", capabilities.persistentStorage],
-                    ["Aktifkan layar saat AR", capabilities.wakeLock],
-                ];
-
-                const supportedLines = entries
-                    .filter(([, result]) => result !== "unsupported")
-                    .map(([label, result]) => permissionSummary(label, result));
-
-                if (supportedLines.length > 0) {
-                    return supportedLines;
-                }
-
-                return ["Akses tambahan tidak didukung di browser ini."];
-            }
-
-            async function requestNaturalArAccess(trigger) {
-                if (naturalArAccessRequested || naturalArAccessInFlight) {
-                    return;
-                }
-
-                naturalArAccessInFlight = true;
-                try {
-                    const capabilities = await requestArAccessPermissions();
-                    await applyArPermissionDrivenOptimizations(capabilities, trigger);
-                    naturalArAccessRequested = true;
-                } catch {
-                    naturalArAccessRequested = false;
-                } finally {
-                    naturalArAccessInFlight = false;
                 }
             }
 
@@ -1115,7 +1041,7 @@
                     wakeLock,
                 };
 
-                systemMetaEl.textContent = capabilityReportLines(capabilities).join(" | ");
+                systemMetaEl.textContent = "Akses perangkat diproses oleh browser.";
                 return capabilities;
             }
 
@@ -1166,60 +1092,16 @@
             }
 
             function setupArPwaInstallFlow() {
-                updateInstallPwaButton();
                 void registerArPwaServiceWorker();
-
-                const handleNaturalAccessBootstrap = () => {
-                    void requestNaturalArAccess("interaksi awal");
-                };
-
-                window.addEventListener("pointerdown", handleNaturalAccessBootstrap, { once: true, passive: true });
-                window.addEventListener("keydown", handleNaturalAccessBootstrap, { once: true });
-
-                window.addEventListener("beforeinstallprompt", (event) => {
-                    event.preventDefault();
-                    deferredInstallPrompt = event;
-                    updateInstallPwaButton();
-                    statusEl.textContent = "Install PWA siap. Tekan tombol Install App.";
-                });
-
                 window.addEventListener("appinstalled", () => {
-                    pwaInstalled = true;
-                    deferredInstallPrompt = null;
-                    updateInstallPwaButton();
                     statusEl.textContent = "PWA terpasang. Menyiapkan database offline...";
                     void cachePwaDatabaseAssets();
                 });
 
-                if (installPwaButton) {
-                    installPwaButton.addEventListener("click", async () => {
-                        if (pwaInstalled) {
-                            await cachePwaDatabaseAssets();
-                            statusEl.textContent = "Cache database offline diperbarui.";
-                            return;
-                        }
-
-                        if (!deferredInstallPrompt) {
-                            statusEl.textContent = "Gunakan menu browser lalu pilih Add to Home Screen.";
-                            return;
-                        }
-
-                        await requestNaturalArAccess("akses install");
-                        statusEl.textContent = "Meminta konfirmasi install dari browser...";
-
-                        const promptEvent = deferredInstallPrompt;
-                        deferredInstallPrompt = null;
-                        updateInstallPwaButton();
-                        await promptEvent.prompt();
-                        const result = await promptEvent.userChoice;
-                        if (result && result.outcome === "accepted") {
-                            statusEl.textContent = "Install disetujui. Menyiapkan database offline...";
-                            await cachePwaDatabaseAssets();
-                        } else {
-                            statusEl.textContent = "Install dibatalkan.";
-                        }
-                        updateInstallPwaButton();
-                    });
+                const installed = window.matchMedia("(display-mode: standalone)").matches
+                    || (window.navigator && window.navigator.standalone === true);
+                if (installed) {
+                    void cachePwaDatabaseAssets();
                 }
 
             }
