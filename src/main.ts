@@ -1218,15 +1218,19 @@ function setCanvasSize(): void {
 function compressedDistanceMeters(distanceMeters: number): number {
     const au = Math.max(distanceMeters / constants.auMeters, 0);
 
+    if (au <= 3) {
+        return au * 12;
+    }
+
     if (au <= 80) {
-        return au * 4.6;
+        return 3 * 12 + (au - 3) * 4.4;
     }
 
     if (au <= 200000) {
-        return 80 * 4.6 + Math.log10(au - 79) * 34;
+        return 3 * 12 + (80 - 3) * 4.4 + Math.log10(au - 79) * 34;
     }
 
-    return 80 * 4.6 + Math.log10(200000 - 79) * 34 + Math.log10(au / 200000 + 1) * 240;
+    return 3 * 12 + (80 - 3) * 4.4 + Math.log10(200000 - 79) * 34 + Math.log10(au / 200000 + 1) * 240;
 }
 
 function toRenderPosition(position: { x: number; y: number; z: number }): THREE.Vector3 {
@@ -1245,42 +1249,42 @@ function toRenderRadius(body: UniverseBody): number {
     const logRadius = Math.log10(safeRadius);
 
     if (body.kind === "star") {
-        return clamp(1.8 + (logRadius - 6.0) * 1.6, 1.8, 8.8);
+        return clamp(0.65 + (logRadius - 6.0) * 0.42, 0.65, 2.4);
     }
 
     if (body.kind === "black-hole") {
-        return clamp(1.2 + (logRadius - 6.0) * 1.15, 1.2, 6.2);
+        return clamp(0.55 + (logRadius - 6.0) * 0.38, 0.55, 2.2);
     }
 
     if (body.kind === "planet" || body.kind === "dwarf" || body.kind === "hypothesis") {
-        return clamp(0.22 + (logRadius - 5.7) * 0.72, 0.14, 2.2);
+        return clamp(0.12 + (logRadius - 5.7) * 0.24, 0.08, 0.72);
     }
 
     if (body.kind === "moon") {
-        return clamp(0.11 + (logRadius - 5.0) * 0.52, 0.08, 0.82);
+        return clamp(0.06 + (logRadius - 5.0) * 0.14, 0.04, 0.32);
     }
 
     if (body.kind === "galaxy") {
-        return clamp(2.6 + (logRadius - 14.0) * 1.05, 2.2, 12.5);
+        return clamp(1.7 + (logRadius - 14.0) * 0.78, 1.5, 8.8);
     }
 
     if (body.kind === "cluster") {
-        return clamp(1.8 + (logRadius - 14.0) * 0.88, 1.4, 9.4);
+        return clamp(1.4 + (logRadius - 14.0) * 0.7, 1.2, 7.6);
     }
 
     if (body.kind === "nebula") {
-        return clamp(1.4 + (logRadius - 13.5) * 0.84, 1.2, 8.6);
+        return clamp(1.1 + (logRadius - 13.5) * 0.65, 0.95, 6.4);
     }
 
     if (bodyLooksRocky(body)) {
-        return clamp(0.08 + (logRadius - 3.5) * 0.24, 0.06, 0.34);
+        return clamp(0.03 + (logRadius - 3.5) * 0.1, 0.02, 0.12);
     }
 
     if (bodyLooksComet(body)) {
-        return clamp(0.11 + (logRadius - 3.8) * 0.28, 0.08, 0.55);
+        return clamp(0.05 + (logRadius - 3.8) * 0.13, 0.03, 0.18);
     }
 
-    return clamp(0.2 + (logRadius - 5.3) * 0.5, 0.1, 2.2);
+    return clamp(0.1 + (logRadius - 5.3) * 0.18, 0.06, 0.8);
 }
 
 const solarSystemAnchors = new Set([
@@ -1327,32 +1331,45 @@ function shouldDisplayBodyAtZoom(
     const distanceFromFocus = position.distanceTo(focusPosition);
     const solarBody = isSolarSystemBody(body);
 
-    if (zoomSpan < 260) {
-        if (!solarBody && ["galaxy", "cluster", "nebula", "black-hole"].includes(body.kind)) {
+    if (zoomSpan < 180) {
+        if (!solarBody && ["star", "black-hole", "galaxy", "cluster", "nebula"].includes(body.kind)) {
             return false;
         }
-        if (!solarBody && body.kind === "star") {
+        if ((bodyLooksRocky(body) || bodyLooksComet(body)) && distanceFromFocus > 80) {
             return false;
         }
-        if ((bodyLooksRocky(body) || bodyLooksComet(body)) && distanceFromFocus > 92) {
-            return false;
-        }
-        return solarBody || distanceFromFocus < 180;
+        return solarBody || distanceFromFocus < 120;
     }
 
-    if (zoomSpan < 900) {
-        if ((bodyLooksRocky(body) || bodyLooksComet(body)) && distanceFromFocus > Math.max(180, zoomSpan * 0.9)) {
+    if (zoomSpan < 520) {
+        if (["galaxy", "cluster", "nebula"].includes(body.kind) && !focused && !selected) {
+            return false;
+        }
+        if ((bodyLooksRocky(body) || body.kind === "meteor") && distanceFromFocus > 220) {
             return false;
         }
         return true;
     }
 
-    if (zoomSpan < 1700) {
-        if (body.kind === "moon" && !focused && !selected) {
+    if (zoomSpan < 1200) {
+        if ((body.kind === "cluster" || body.kind === "nebula") && !focused && !selected) {
             return false;
         }
-        if (bodyLooksRocky(body) || body.kind === "meteor") {
+        if (body.kind === "moon" && !focused && !selected && distanceFromFocus > 260) {
+            return false;
+        }
+        if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
+            return focused || selected || distanceFromFocus < 340;
+        }
+        return true;
+    }
+
+    if (zoomSpan < 2200) {
+        if (body.kind === "planet" || body.kind === "moon" || bodyLooksRocky(body) || bodyLooksComet(body)) {
             return focused || selected;
+        }
+        if (body.kind === "cluster" && !focused && !selected && distanceFromFocus > 1600) {
+            return false;
         }
         return true;
     }
@@ -2210,8 +2227,8 @@ function cycleFocus(): void {
     const preferredDistance = next.kind === "galaxy" || next.kind === "cluster"
         ? 220
         : next.kind === "star"
-            ? 80
-            : 56;
+            ? 52
+            : 32;
     setFocusBody(next, { pinInfo: false, preferredDistance, durationMs: 640 });
 }
 
@@ -2228,7 +2245,7 @@ function setFocusBody(
     uiState.infoPinned = options?.pinInfo ?? true;
 
     const target = toRenderPosition(body.position);
-    const preferredDistance = options?.preferredDistance ?? (isSolarSystemBody(body) ? 56 : 180);
+    const preferredDistance = options?.preferredDistance ?? (isSolarSystemBody(body) ? 30 : 180);
     focusSuspendUntilMs = performance.now() + Math.max(900, (options?.durationMs ?? 920) + 200);
 
     const offset = camera.position.clone().sub(controls.target);
@@ -2275,7 +2292,7 @@ function resetCameraToEarthView(): void {
 
     const earth = engine.getMajorBodies().find((body) => body.name === "Bumi");
     const target = earth ? toRenderPosition(earth.position) : new THREE.Vector3(0, 0, 0);
-    const offset = new THREE.Vector3(42, 26, 68);
+    const offset = new THREE.Vector3(22, 12, 28);
 
     controls.target.copy(target);
     camera.position.copy(target.clone().add(offset));
@@ -2446,8 +2463,8 @@ function focusBodyBySearchTerm(term: string): boolean {
     const preferredDistance = target.kind === "galaxy" || target.kind === "cluster"
         ? 220
         : target.kind === "star"
-            ? 80
-            : 56;
+            ? 52
+            : 32;
     setFocusBody(target, { pinInfo: true, preferredDistance, durationMs: 820 });
     return true;
 }
@@ -2480,8 +2497,8 @@ function updateSearchResults(): void {
             const preferredDistance = body.kind === "galaxy" || body.kind === "cluster"
                 ? 220
                 : body.kind === "star"
-                    ? 80
-                    : 56;
+                    ? 52
+                    : 32;
             setFocusBody(body, { pinInfo: true, preferredDistance, durationMs: 820 });
         });
         item.appendChild(button);
@@ -3023,7 +3040,7 @@ function currentMeshTargets(): THREE.Object3D[] {
     return Array.from(bodyNodes.values())
         .filter((node) => node.mesh.visible)
         .filter((node) => {
-            if (zoomSpan >= 320) {
+            if (zoomSpan >= 240) {
                 return true;
             }
             return isSolarSystemBody(node.body)
@@ -3195,8 +3212,8 @@ function bindUiHandlers(): void {
                 const preferredDistance = selectedBody.kind === "galaxy" || selectedBody.kind === "cluster"
                     ? 220
                     : selectedBody.kind === "star"
-                        ? 80
-                        : 56;
+                        ? 52
+                        : 32;
                 setFocusBody(selectedBody, { pinInfo: true, preferredDistance, durationMs: 760 });
             } else {
                 uiState.selectedKey = uiState.hoverKey;
