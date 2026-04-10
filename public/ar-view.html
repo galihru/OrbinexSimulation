@@ -2,321 +2,1084 @@
 <html lang="id">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Orbinex AR Viewer</title>
-  <meta name="description" content="Viewer AR Orbinex untuk menampilkan objek semesta dari parameter model lewat QR code." />
-  <meta name="theme-color" content="#07142d" />
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #07142d;
-      --panel: rgba(8, 20, 44, 0.86);
-      --panel-border: rgba(117, 164, 239, 0.42);
-      --text: #e5efff;
-      --muted: #a7bee4;
-      --accent: #86beff;
-    }
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Orbinex AR Viewer</title>
+    <meta name="description"
+        content="Viewer AR Orbinex untuk menampilkan objek semesta dari parameter model lewat QR code." />
+    <meta name="theme-color" content="#07142d" />
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #07142d;
+            --panel: rgba(8, 20, 44, 0.86);
+            --panel-border: rgba(117, 164, 239, 0.42);
+            --text: #e5efff;
+            --muted: #a7bee4;
+            --accent: #86beff;
+        }
 
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      overflow: hidden;
-    }
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
 
-    #ar-app {
-      position: fixed;
-      inset: 0;
-    }
+        #ar-app {
+            position: fixed;
+            inset: 0;
+        }
 
-    .ar-overlay {
-      position: fixed;
-      left: 10px;
-      right: 10px;
-      top: 10px;
-      z-index: 12;
-      padding: 0.65rem 0.72rem;
-      border-radius: 12px;
-      border: 1px solid var(--panel-border);
-      background: var(--panel);
-      backdrop-filter: blur(10px) saturate(125%);
-      pointer-events: auto;
-    }
+        .ar-overlay {
+            position: fixed;
+            left: 10px;
+            right: 10px;
+            top: 10px;
+            z-index: 12;
+            padding: 0.65rem 0.72rem;
+            border-radius: 12px;
+            border: 1px solid var(--panel-border);
+            background: var(--panel);
+            backdrop-filter: blur(10px) saturate(125%);
+            pointer-events: auto;
+        }
 
-    .ar-overlay h1 {
-      margin: 0;
-      font-size: 1rem;
-      letter-spacing: 0.02em;
-    }
+        .ar-overlay h1 {
+            margin: 0;
+            font-size: 1rem;
+            letter-spacing: 0.02em;
+        }
 
-    .ar-overlay p {
-      margin: 0.25rem 0 0;
-      color: var(--muted);
-      font-size: 0.8rem;
-      line-height: 1.35;
-    }
+        .ar-overlay p {
+            margin: 0.25rem 0 0;
+            color: var(--muted);
+            font-size: 0.8rem;
+            line-height: 1.35;
+        }
 
-    .ar-toolbar {
-      margin-top: 0.44rem;
-      display: flex;
-      gap: 0.45rem;
-      flex-wrap: wrap;
-    }
+        .ar-toolbar {
+            margin-top: 0.44rem;
+            display: flex;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+        }
 
-    .ar-toolbar a {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 32px;
-      padding: 0.35rem 0.56rem;
-      border-radius: 9px;
-      border: 1px solid rgba(133, 177, 247, 0.55);
-      background: rgba(16, 36, 70, 0.9);
-      color: #dbe9ff;
-      font-size: 0.75rem;
-      text-decoration: none;
-      font-weight: 600;
-    }
+        .ar-toolbar a,
+        .ar-toolbar button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 32px;
+            padding: 0.35rem 0.56rem;
+            border-radius: 9px;
+            border: 1px solid rgba(133, 177, 247, 0.55);
+            background: rgba(16, 36, 70, 0.9);
+            color: #dbe9ff;
+            font-size: 0.75rem;
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
 
-    .ar-toolbar a:hover {
-      background: rgba(25, 52, 98, 0.95);
-    }
+        .ar-toolbar a:hover,
+        .ar-toolbar button:hover {
+            background: rgba(25, 52, 98, 0.95);
+        }
 
-    .ar-marker-hint {
-      position: fixed;
-      right: 10px;
-      bottom: 10px;
-      width: 84px;
-      height: 84px;
-      z-index: 11;
-      border-radius: 10px;
-      border: 1px solid rgba(137, 178, 239, 0.5);
-      background: rgba(255, 255, 255, 0.94);
-      padding: 4px;
-      box-sizing: border-box;
-      pointer-events: auto;
-    }
+        .ar-speed-row {
+            margin-top: 0.4rem;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 0.42rem;
+        }
 
-    .ar-marker-hint img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border-radius: 6px;
-      display: block;
-    }
+        .ar-speed-row label {
+            font-size: 0.7rem;
+            color: #aac4ea;
+        }
 
-    .a-enter-vr-button,
-    .a-orientation-modal,
-    .a-canvas-loader {
-      display: none !important;
-    }
-  </style>
+        .ar-speed-row input[type="range"] {
+            width: 100%;
+        }
 
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.min.js"></script>
+        .ar-speed-value {
+            min-width: 88px;
+            text-align: right;
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 0.7rem;
+            color: #d6e6ff;
+        }
+
+        .ar-system-meta {
+            margin-top: 0.34rem !important;
+            color: #c5d9f7 !important;
+            font-size: 0.72rem !important;
+        }
+
+        .gesture-pad {
+            position: fixed;
+            inset: 0;
+            z-index: 8;
+            touch-action: none;
+            background: transparent;
+        }
+
+        .ar-marker-hint {
+            position: fixed;
+            right: 10px;
+            bottom: 10px;
+            width: 84px;
+            height: 84px;
+            z-index: 11;
+            border-radius: 10px;
+            border: 1px solid rgba(137, 178, 239, 0.5);
+            background: rgba(255, 255, 255, 0.94);
+            padding: 4px;
+            box-sizing: border-box;
+            pointer-events: auto;
+        }
+
+        .ar-marker-hint img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 6px;
+            display: block;
+        }
+
+        .a-enter-vr-button,
+        .a-orientation-modal,
+        .a-canvas-loader {
+            display: none !important;
+        }
+    </style>
+
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.min.js"></script>
 </head>
 
 <body>
-  <div id="ar-app">
-    <section class="ar-overlay" aria-live="polite">
-      <h1>Orbinex AR Viewer: <span id="ar-model-name">Bumi</span></h1>
-      <p id="ar-status">Aktifkan kamera, scan marker Hiro, lalu objek akan muncul di atas marker.</p>
-      <div class="ar-toolbar">
-        <a id="open-desktop" href="#" rel="noopener noreferrer">Buka Simulasi Desktop</a>
-        <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank"
-          rel="noopener noreferrer">Buka Marker Hiro</a>
-      </div>
-    </section>
+    <div id="ar-app">
+        <section class="ar-overlay" aria-live="polite">
+            <h1>Orbinex AR Viewer: <span id="ar-model-name">Bumi</span></h1>
+            <p id="ar-status">Aktifkan kamera, scan marker Hiro, lalu objek akan muncul di atas marker.</p>
+            <div class="ar-toolbar">
+                <a id="open-desktop" href="#" rel="noopener noreferrer">Buka Simulasi Desktop</a>
+                <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank"
+                    rel="noopener noreferrer">Buka Marker Hiro</a>
+                <button id="zoom-in" type="button">Zoom +</button>
+                <button id="zoom-out" type="button">Zoom -</button>
+                <button id="rot-left" type="button">Rotasi -</button>
+                <button id="rot-right" type="button">Rotasi +</button>
+                <button id="view-reset" type="button">Reset View</button>
+            </div>
+            <div class="ar-speed-row">
+                <label for="speed-range">Kecepatan simulasi</label>
+                <input id="speed-range" type="range" min="0.05" max="24" step="0.05" value="2.5" />
+                <span id="speed-value" class="ar-speed-value">2.50 hari/detik</span>
+            </div>
+            <p id="ar-system-meta" class="ar-system-meta">Menyiapkan sistem orbit AR...</p>
+        </section>
 
-    <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" class="ar-marker-hint"
-      target="_blank" rel="noopener noreferrer" aria-label="Marker Hiro">
-      <img src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
-        alt="Marker Hiro untuk tracking AR" />
-    </a>
+        <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" class="ar-marker-hint"
+            target="_blank" rel="noopener noreferrer" aria-label="Marker Hiro">
+            <img src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
+                alt="Marker Hiro untuk tracking AR" />
+        </a>
 
-    <a-scene embedded vr-mode-ui="enabled: false" renderer="antialias: true; alpha: true"
-      arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false;">
-      <a-marker id="orbinex-marker" preset="hiro">
-        <a-entity id="model-root" position="0 0 0"></a-entity>
-      </a-marker>
-      <a-entity camera></a-entity>
-    </a-scene>
-  </div>
+        <div id="gesture-pad" class="gesture-pad" aria-hidden="true"></div>
 
-  <script>
-    (function () {
-      const params = new URLSearchParams(window.location.search);
-      const requestedModel = (params.get("model") || "Bumi").trim() || "Bumi";
-      const modelNameEl = document.getElementById("ar-model-name");
-      const statusEl = document.getElementById("ar-status");
-      const markerEl = document.getElementById("orbinex-marker");
-      const modelRoot = document.getElementById("model-root");
-      const openDesktopLink = document.getElementById("open-desktop");
+        <a-scene embedded vr-mode-ui="enabled: false" renderer="antialias: true; alpha: true"
+            arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false;">
+            <a-marker id="orbinex-marker" preset="hiro">
+                <a-entity id="model-root" position="0 0 0"></a-entity>
+            </a-marker>
+            <a-entity camera></a-entity>
+        </a-scene>
+    </div>
 
-      modelNameEl.textContent = requestedModel;
+    <script>
+        (function () {
+            const AU_METERS = 1.495978707e11;
+            const DAY_SECONDS = 86400;
+            const G = 6.6743e-11;
+            const SOLAR_MASS_KG = 1.98847e30;
+            const TAU = Math.PI * 2;
 
-      const baseUrl = new URL(".", window.location.href);
-      const desktopUrl = new URL("./", baseUrl);
-      desktopUrl.searchParams.set("desktop", "1");
-      desktopUrl.searchParams.set("model", requestedModel);
-      openDesktopLink.href = desktopUrl.toString();
+            const params = new URLSearchParams(window.location.search);
+            const requestedModel = (params.get("model") || "Bumi").trim() || "Bumi";
 
-      function profileForModel(name) {
-        const text = (name || "").toLowerCase();
-        if (/matahari|sun/.test(text)) {
-          return {
-            geometry: "primitive: sphere; radius: 0.42",
-            material: "color: #ffd67f; emissive: #f8c862; emissiveIntensity: 0.9; roughness: 0.35; metalness: 0.05",
-            ring: false,
-            tail: false,
-            pulse: true,
-          };
-        }
-        if (/saturn|saturnus/.test(text)) {
-          return {
-            geometry: "primitive: sphere; radius: 0.34",
-            material: "color: #dcbf8b; roughness: 0.7; metalness: 0.08",
-            ring: true,
-            tail: false,
-            pulse: false,
-          };
-        }
-        if (/jupiter/.test(text)) {
-          return {
-            geometry: "primitive: sphere; radius: 0.36",
-            material: "color: #d3aa73; roughness: 0.74; metalness: 0.06",
-            ring: false,
-            tail: false,
-            pulse: false,
-          };
-        }
-        if (/mars/.test(text)) {
-          return {
-            geometry: "primitive: sphere; radius: 0.29",
-            material: "color: #c45f4c; roughness: 0.78; metalness: 0.06",
-            ring: false,
-            tail: false,
-            pulse: false,
-          };
-        }
-        if (/bulan|moon/.test(text)) {
-          return {
-            geometry: "primitive: sphere; radius: 0.22",
-            material: "color: #d8d8d8; roughness: 0.9; metalness: 0.02",
-            ring: false,
-            tail: false,
-            pulse: false,
-          };
-        }
-        if (/komet|comet/.test(text)) {
-          return {
-            geometry: "primitive: sphere; radius: 0.18",
-            material: "color: #cfddef; roughness: 0.65; metalness: 0.03",
-            ring: false,
-            tail: true,
-            pulse: false,
-          };
-        }
-        if (/meteor|asteroid|kuiper/.test(text)) {
-          return {
-            geometry: "primitive: dodecahedron; radius: 0.17",
-            material: "color: #af8c67; roughness: 0.88; metalness: 0.06",
-            ring: false,
-            tail: false,
-            pulse: false,
-          };
-        }
+            const modelNameEl = document.getElementById("ar-model-name");
+            const statusEl = document.getElementById("ar-status");
+            const systemMetaEl = document.getElementById("ar-system-meta");
+            const markerEl = document.getElementById("orbinex-marker");
+            const modelRoot = document.getElementById("model-root");
+            const openDesktopLink = document.getElementById("open-desktop");
+            const zoomInButton = document.getElementById("zoom-in");
+            const zoomOutButton = document.getElementById("zoom-out");
+            const rotLeftButton = document.getElementById("rot-left");
+            const rotRightButton = document.getElementById("rot-right");
+            const viewResetButton = document.getElementById("view-reset");
+            const speedRange = document.getElementById("speed-range");
+            const speedValue = document.getElementById("speed-value");
+            const gesturePad = document.getElementById("gesture-pad");
 
-        return {
-          geometry: "primitive: sphere; radius: 0.31",
-          material: "color: #4ea7ff; roughness: 0.62; metalness: 0.08",
-          ring: false,
-          tail: false,
-          pulse: false,
-        };
-      }
+            modelNameEl.textContent = requestedModel;
 
-      function createEntity(tagName, attrs) {
-        const node = document.createElement(tagName);
-        Object.keys(attrs).forEach((key) => {
-          node.setAttribute(key, attrs[key]);
-        });
-        return node;
-      }
+            const baseUrl = new URL(".", window.location.href);
+            const desktopUrl = new URL("./", baseUrl);
+            desktopUrl.searchParams.set("desktop", "1");
+            desktopUrl.searchParams.set("model", requestedModel);
+            openDesktopLink.href = desktopUrl.toString();
 
-      function mountModel(name) {
-        const profile = profileForModel(name);
-        modelRoot.innerHTML = "";
+            function clamp(value, min, max) {
+                return Math.min(max, Math.max(min, value));
+            }
 
-        const body = createEntity("a-entity", {
-          geometry: profile.geometry,
-          material: profile.material,
-          position: "0 0.34 0",
-          "animation__spin": "property: rotation; to: 0 360 0; loop: true; dur: 12000; easing: linear",
-        });
+            function hashString(text) {
+                let hash = 0;
+                for (let i = 0; i < text.length; i += 1) {
+                    hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+                }
+                return Math.abs(hash);
+            }
 
-        if (profile.pulse) {
-          body.setAttribute(
-            "animation__pulse",
-            "property: scale; dir: alternate; loop: true; dur: 1200; from: 1 1 1; to: 1.08 1.08 1.08",
-          );
-        }
+            function seededRange(label, min, max, salt) {
+                const h = hashString(`${label}:${salt}`) % 1_000_003;
+                const t = h / 1_000_003;
+                return min + (max - min) * t;
+            }
 
-        modelRoot.appendChild(body);
+            function normalizeKey(text) {
+                return (text || "")
+                    .toLowerCase()
+                    .replace(/\s+/g, " ")
+                    .trim();
+            }
 
-        if (profile.ring) {
-          const ring = createEntity("a-entity", {
-            geometry: "primitive: torus; radius: 0.54; radiusTubular: 0.04; segmentsTubular: 56; segmentsRadial: 12",
-            material: "color: #c7ae84; roughness: 0.82; metalness: 0.04; opacity: 0.76; transparent: true",
-            rotation: "90 12 0",
-            position: "0 0.34 0",
-          });
-          modelRoot.appendChild(ring);
-        }
+            function normalizeLooseKey(text) {
+                return normalizeKey(text).replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+            }
 
-        if (profile.tail) {
-          const tail = createEntity("a-entity", {
-            geometry: "primitive: cone; radiusBottom: 0.18; radiusTop: 0.01; height: 0.9",
-            material: "color: #dcecff; opacity: 0.45; transparent: true",
-            position: "0 0.34 -0.52",
-            rotation: "-90 0 0",
-          });
-          modelRoot.appendChild(tail);
-        }
+            function defaultColorForKind(kind) {
+                if (kind === "star") return "#ffdc8c";
+                if (kind === "planet") return "#63abff";
+                if (kind === "moon") return "#d5d5d5";
+                if (kind === "dwarf") return "#c7c7c7";
+                if (kind === "comet") return "#c7deef";
+                if (kind === "meteor") return "#a98666";
+                if (kind === "black-hole") return "#262634";
+                if (kind === "galaxy") return "#86a9db";
+                if (kind === "cluster") return "#84b4c9";
+                if (kind === "nebula") return "#84b6d0";
+                return "#84aee4";
+            }
 
-        const label = createEntity("a-text", {
-          value: name,
-          align: "center",
-          color: "#d8e8ff",
-          position: "0 0.95 0",
-          scale: "0.75 0.75 0.75",
-          side: "double",
-          width: "2.4",
-        });
-        modelRoot.appendChild(label);
-      }
+            function defaultRadiusForKind(kind) {
+                if (kind === "star") return 6.9634e8;
+                if (kind === "planet") return 6.371e6;
+                if (kind === "moon") return 1.7374e6;
+                if (kind === "dwarf") return 9e5;
+                if (kind === "comet") return 4e4;
+                if (kind === "meteor") return 9e3;
+                if (kind === "black-hole") return 1.2e10;
+                if (kind === "galaxy") return 4.8e20;
+                if (kind === "cluster") return 2.1e22;
+                if (kind === "nebula") return 9e17;
+                return 8e6;
+            }
 
-      mountModel(requestedModel);
+            function defaultMassForKind(kind) {
+                if (kind === "star") return SOLAR_MASS_KG;
+                if (kind === "planet") return 5.9722e24;
+                if (kind === "moon") return 7.3476e22;
+                if (kind === "dwarf") return 9.393e20;
+                if (kind === "comet") return 2e14;
+                if (kind === "meteor") return 2e12;
+                if (kind === "black-hole") return 8 * SOLAR_MASS_KG;
+                if (kind === "galaxy") return 1.1e12 * SOLAR_MASS_KG;
+                if (kind === "cluster") return 3.1e13 * SOLAR_MASS_KG;
+                if (kind === "nebula") return 2e4 * SOLAR_MASS_KG;
+                return 8e22;
+            }
 
-      markerEl.addEventListener("markerFound", function () {
-        statusEl.textContent = "Marker terdeteksi. Objek AR aktif di atas marker.";
-      });
+            function defaultRotationHours(kind) {
+                if (kind === "star") return 580;
+                if (kind === "planet") return 30;
+                if (kind === "moon") return 65;
+                if (kind === "black-hole") return 10;
+                if (kind === "galaxy") return 24_000;
+                if (kind === "cluster") return 120_000;
+                if (kind === "nebula") return 24_000;
+                return 90;
+            }
 
-      markerEl.addEventListener("markerLost", function () {
-        statusEl.textContent = "Marker hilang. Arahkan kamera ke marker Hiro agar objek muncul lagi.";
-      });
+            function inferKindFromName(name) {
+                const n = normalizeKey(name);
+                if (/sun|matahari|sirius|betelgeuse|centauri|star/.test(n)) return "star";
+                if (/galaxy|bima sakti|andromeda|triangulum/.test(n)) return "galaxy";
+                if (/cluster|laniakea|grup lokal/.test(n)) return "cluster";
+                if (/nebula|awan/.test(n)) return "nebula";
+                if (/black hole|black-hole|sagittarius a|m87\*/.test(n)) return "black-hole";
+                if (/moon|bulan|phobos|deimos|europa|io|ganymede|callisto|titan|triton|enceladus/.test(n)) return "moon";
+                if (/dwarf|pluto|ceres|eris|haumea|makemake/.test(n)) return "dwarf";
+                if (/comet|komet/.test(n)) return "comet";
+                if (/meteor|asteroid|kuiper|meteoroid/.test(n)) return "meteor";
+                return "planet";
+            }
 
-      if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
-        statusEl.textContent = "Perlu HTTPS agar izin kamera AR bisa aktif di browser modern.";
-      }
-    })();
-  </script>
+            const aliasMap = new Map([
+                ["earth", "Bumi"],
+                ["moon", "Bulan"],
+                ["sun", "Matahari"],
+                ["mercury", "Merkurius"],
+                ["saturn", "Saturnus"],
+                ["neptune", "Neptunus"],
+                ["milky way", "Bima Sakti"],
+                ["phobos (mars)", "Phobos"],
+                ["deimos (mars)", "Deimos"],
+                ["io (jupiter)", "Io"],
+                ["europa (jupiter)", "Europa"],
+                ["ganymede (jupiter)", "Ganymede"],
+                ["callisto (jupiter)", "Callisto"],
+                ["titan (saturnus)", "Titan"],
+                ["enceladus (saturnus)", "Enceladus"],
+                ["triton (neptunus)", "Triton"],
+            ]);
+
+            const rawCatalog = [
+                { name: "Matahari", kind: "star", massKg: 1.98847e30, radiusMeters: 6.9634e8, color: "#ffdb83", rotationHours: 609 },
+                { name: "Merkurius", kind: "planet", massKg: 3.3011e23, radiusMeters: 2.4397e6, color: "#a9a8a2", parentName: "Matahari", semiMajorMeters: 0.3871 * AU_METERS, periodDays: 87.97, rotationHours: 1407.6 },
+                { name: "Venus", kind: "planet", massKg: 4.8675e24, radiusMeters: 6.0518e6, color: "#eac384", parentName: "Matahari", semiMajorMeters: 0.7233 * AU_METERS, periodDays: 224.7, rotationHours: -5832.5 },
+                { name: "Bumi", kind: "planet", massKg: 5.9722e24, radiusMeters: 6.371e6, color: "#46aaff", parentName: "Matahari", semiMajorMeters: 1.0 * AU_METERS, periodDays: 365.256, rotationHours: 23.934 },
+                { name: "Mars", kind: "planet", massKg: 6.4171e23, radiusMeters: 3.3895e6, color: "#ff7554", parentName: "Matahari", semiMajorMeters: 1.5237 * AU_METERS, periodDays: 686.98, rotationHours: 24.623 },
+                { name: "Jupiter", kind: "planet", massKg: 1.89813e27, radiusMeters: 6.9911e7, color: "#d7b07f", parentName: "Matahari", semiMajorMeters: 5.2044 * AU_METERS, periodDays: 4332.59, rotationHours: 9.925 },
+                { name: "Saturnus", kind: "planet", massKg: 5.6834e26, radiusMeters: 5.8232e7, color: "#e0c787", parentName: "Matahari", semiMajorMeters: 9.5826 * AU_METERS, periodDays: 10759.2, rotationHours: 10.7 },
+                { name: "Uranus", kind: "planet", massKg: 8.6810e25, radiusMeters: 2.5362e7, color: "#96dcdc", parentName: "Matahari", semiMajorMeters: 19.201 * AU_METERS, periodDays: 30688.5, rotationHours: -17.24 },
+                { name: "Neptunus", kind: "planet", massKg: 1.02413e26, radiusMeters: 2.4622e7, color: "#5a87ff", parentName: "Matahari", semiMajorMeters: 30.047 * AU_METERS, periodDays: 60182.0, rotationHours: 16.11 },
+                { name: "Bulan", kind: "moon", massKg: 7.3476e22, radiusMeters: 1.7374e6, color: "#e4e4e4", parentName: "Bumi", semiMajorMeters: 384_400_000, periodDays: 27.3217, rotationHours: 655.7 },
+                { name: "Phobos", kind: "moon", massKg: 1.0659e16, radiusMeters: 1.1267e4, color: "#a08f82", parentName: "Mars", semiMajorMeters: 9.376e6, periodDays: 0.319, rotationHours: 7.65 },
+                { name: "Deimos", kind: "moon", massKg: 1.476e15, radiusMeters: 6.2e3, color: "#988c83", parentName: "Mars", semiMajorMeters: 2.346e7, periodDays: 1.263, rotationHours: 30.3 },
+                { name: "Io", kind: "moon", massKg: 8.9319e22, radiusMeters: 1.8216e6, color: "#f0d782", parentName: "Jupiter", semiMajorMeters: 4.217e8, periodDays: 1.769, rotationHours: 42.46 },
+                { name: "Europa", kind: "moon", massKg: 4.7998e22, radiusMeters: 1.5608e6, color: "#dcd6c0", parentName: "Jupiter", semiMajorMeters: 6.711e8, periodDays: 3.55, rotationHours: 85.2 },
+                { name: "Ganymede", kind: "moon", massKg: 1.4819e23, radiusMeters: 2.6341e6, color: "#cabfaa", parentName: "Jupiter", semiMajorMeters: 1.0704e9, periodDays: 7.15, rotationHours: 171.7 },
+                { name: "Callisto", kind: "moon", massKg: 1.0759e23, radiusMeters: 2.4103e6, color: "#b5aa9e", parentName: "Jupiter", semiMajorMeters: 1.8827e9, periodDays: 16.69, rotationHours: 400.5 },
+                { name: "Titan", kind: "moon", massKg: 1.3452e23, radiusMeters: 2.5747e6, color: "#e5c182", parentName: "Saturnus", semiMajorMeters: 1.2219e9, periodDays: 15.95, rotationHours: 382.7 },
+                { name: "Rhea", kind: "moon", massKg: 2.3065e21, radiusMeters: 7.638e5, color: "#d7d2cd", parentName: "Saturnus", semiMajorMeters: 5.271e8, periodDays: 4.52, rotationHours: 108 },
+                { name: "Iapetus", kind: "moon", massKg: 1.8056e21, radiusMeters: 7.345e5, color: "#b6a591", parentName: "Saturnus", semiMajorMeters: 3.5608e9, periodDays: 79.32, rotationHours: 1903 },
+                { name: "Enceladus", kind: "moon", massKg: 1.0802e20, radiusMeters: 2.521e5, color: "#ebebf0", parentName: "Saturnus", semiMajorMeters: 2.3802e8, periodDays: 1.37, rotationHours: 32.9 },
+                { name: "Mimas", kind: "moon", massKg: 3.7493e19, radiusMeters: 1.981e5, color: "#d9d5cd", parentName: "Saturnus", semiMajorMeters: 1.8554e8, periodDays: 0.942, rotationHours: 22.6 },
+                { name: "Dione", kind: "moon", massKg: 1.095e21, radiusMeters: 5.612e5, color: "#d6d2ca", parentName: "Saturnus", semiMajorMeters: 3.774e8, periodDays: 2.737, rotationHours: 65.7 },
+                { name: "Titania", kind: "moon", massKg: 3.527e21, radiusMeters: 7.889e5, color: "#c7cfde", parentName: "Uranus", semiMajorMeters: 4.363e8, periodDays: 8.706, rotationHours: 208.9 },
+                { name: "Oberon", kind: "moon", massKg: 3.014e21, radiusMeters: 7.614e5, color: "#b4bbc8", parentName: "Uranus", semiMajorMeters: 5.835e8, periodDays: 13.463, rotationHours: 323.1 },
+                { name: "Triton", kind: "moon", massKg: 2.14e22, radiusMeters: 1.353e6, color: "#b8d3df", parentName: "Neptunus", semiMajorMeters: 3.5476e8, periodDays: 5.877, rotationHours: -141.1 },
+                { name: "Ceres", kind: "dwarf", massKg: 9.393e20, radiusMeters: 4.73e5, color: "#bec0c3", parentName: "Matahari", semiMajorMeters: 2.77 * AU_METERS, periodDays: 1680, rotationHours: 9.07 },
+                { name: "Pluto", kind: "dwarf", massKg: 1.303e22, radiusMeters: 1.1883e6, color: "#cebabb", parentName: "Matahari", semiMajorMeters: 39.48 * AU_METERS, periodDays: 90560, rotationHours: 153.3 },
+                { name: "Eris", kind: "dwarf", massKg: 1.6466e22, radiusMeters: 1.163e6, color: "#d2d2d2", parentName: "Matahari", semiMajorMeters: 67.67 * AU_METERS, periodDays: 203830, rotationHours: 25.9 },
+                { name: "Haumea", kind: "dwarf", massKg: 4.006e21, radiusMeters: 8.2e5, color: "#c4d7e8", parentName: "Matahari", semiMajorMeters: 43.13 * AU_METERS, periodDays: 103410, rotationHours: 3.91 },
+                { name: "Makemake", kind: "dwarf", massKg: 3.1e21, radiusMeters: 7.15e5, color: "#dfc49a", parentName: "Matahari", semiMajorMeters: 45.79 * AU_METERS, periodDays: 112900, rotationHours: 22.5 },
+                { name: "Bima Sakti", kind: "galaxy", massKg: 1.1e12 * SOLAR_MASS_KG, radiusMeters: 5.0e20, color: "#8bc1ff", rotationHours: 2_400_000 },
+                { name: "Sagittarius A*", kind: "black-hole", massKg: 4.154e6 * SOLAR_MASS_KG, radiusMeters: 1.227e10, color: "#8f8fff", parentName: "Bima Sakti", semiMajorMeters: 8.2e19, periodDays: 226_000_000 * 365.25, rotationHours: 10 },
+                { name: "Lengan Orion", kind: "other", massKg: 3e10 * SOLAR_MASS_KG, radiusMeters: 2.8e20, color: "#8ac4ff", parentName: "Bima Sakti", semiMajorMeters: 3.4e20, periodDays: 260_000_000 * 365.25, rotationHours: 320_000 },
+                { name: "Andromeda (M31)", kind: "galaxy", massKg: 1.5e12 * SOLAR_MASS_KG, radiusMeters: 1.0e21, color: "#9ab4ff", parentName: "Grup Lokal", semiMajorMeters: 2.401e22, periodDays: 3_000_000_000 * 365.25, rotationHours: 2_800_000 },
+                { name: "Triangulum (M33)", kind: "galaxy", massKg: 5.0e10 * SOLAR_MASS_KG, radiusMeters: 3.0e20, color: "#88b2ff", parentName: "Grup Lokal", semiMajorMeters: 2.583e22, periodDays: 3_200_000_000 * 365.25, rotationHours: 2_900_000 },
+                { name: "Grup Lokal", kind: "cluster", massKg: 3.0e12 * SOLAR_MASS_KG, radiusMeters: 1.5e22, color: "#8eb4bf", parentName: "Laniakea", semiMajorMeters: 1.419e22, periodDays: 7_000_000_000 * 365.25, rotationHours: 8_000_000 },
+                { name: "Laniakea", kind: "cluster", massKg: 3.0e13 * SOLAR_MASS_KG, radiusMeters: 1.6e24, color: "#9de0d0", parentName: "Filamen Kosmik", semiMajorMeters: 4.73e24, periodDays: 12_000_000_000 * 365.25, rotationHours: 15_000_000 },
+                { name: "Filamen Kosmik", kind: "other", massKg: 1.0e14 * SOLAR_MASS_KG, radiusMeters: 3.0e24, color: "#7ca7bf", rotationHours: 20_000_000 },
+                { name: "Orion Nebula (M42)", kind: "nebula", massKg: 2.0e4 * SOLAR_MASS_KG, radiusMeters: 1.2e17, color: "#76b5ff", parentName: "Bima Sakti", semiMajorMeters: 1.27e19, periodDays: 240_000_000 * 365.25, rotationHours: 1_200_000 },
+                { name: "M87 Galaxy", kind: "galaxy", massKg: 2.4e12 * SOLAR_MASS_KG, radiusMeters: 1.2e21, color: "#a2b8d8", parentName: "Laniakea", semiMajorMeters: 5.0e23, periodDays: 8_500_000_000 * 365.25, rotationHours: 9_000_000 },
+            ];
+
+            const catalogByName = new Map();
+            const normalizedNameIndex = new Map();
+
+            function registerBody(entry) {
+                const body = {
+                    name: entry.name,
+                    kind: entry.kind,
+                    massKg: entry.massKg,
+                    radiusMeters: entry.radiusMeters,
+                    color: entry.color,
+                    parentName: entry.parentName || null,
+                    semiMajorMeters: entry.semiMajorMeters || null,
+                    periodDays: entry.periodDays || null,
+                    rotationHours: entry.rotationHours || null,
+                    inclinationDeg: entry.inclinationDeg || seededRange(entry.name, 0, 17, 27),
+                };
+                catalogByName.set(body.name, body);
+                normalizedNameIndex.set(normalizeKey(body.name), body.name);
+                normalizedNameIndex.set(normalizeLooseKey(body.name), body.name);
+                return body;
+            }
+
+            rawCatalog.forEach(registerBody);
+
+            function getBody(name) {
+                return catalogByName.get(name) || null;
+            }
+
+            function inferParentForFallback(kind) {
+                if (kind === "moon") return "Bumi";
+                if (kind === "planet" || kind === "dwarf" || kind === "comet" || kind === "meteor") return "Matahari";
+                if (kind === "star" || kind === "black-hole" || kind === "nebula") return "Bima Sakti";
+                if (kind === "galaxy") return "Grup Lokal";
+                if (kind === "cluster") return "Laniakea";
+                return "Matahari";
+            }
+
+            function computeOrbitalPeriodDays(semiMajorMeters, parentMassKg) {
+                const a = Math.max(semiMajorMeters, 1);
+                const mu = G * Math.max(parentMassKg, 1);
+                const sec = TAU * Math.sqrt((a * a * a) / mu);
+                return clamp(sec / DAY_SECONDS, 0.05, 2.0e12);
+            }
+
+            function ensureBodyDefaults(body) {
+                if (!body.color) body.color = defaultColorForKind(body.kind);
+                if (!Number.isFinite(body.radiusMeters) || body.radiusMeters <= 0) {
+                    body.radiusMeters = defaultRadiusForKind(body.kind);
+                }
+                if (!Number.isFinite(body.massKg) || body.massKg <= 0) {
+                    body.massKg = defaultMassForKind(body.kind);
+                }
+                if (!Number.isFinite(body.rotationHours) || Math.abs(body.rotationHours) < 0.01) {
+                    body.rotationHours = defaultRotationHours(body.kind);
+                }
+
+                if (body.parentName) {
+                    const parent = getBody(body.parentName);
+                    if (parent) {
+                        if (!Number.isFinite(body.semiMajorMeters) || body.semiMajorMeters <= 0) {
+                            const baseline = parent.radiusMeters * seededRange(body.name, 3.2, 44, 91);
+                            body.semiMajorMeters = Math.max(baseline, parent.radiusMeters * 2.2);
+                        }
+
+                        if (!Number.isFinite(body.periodDays) || body.periodDays <= 0) {
+                            body.periodDays = computeOrbitalPeriodDays(body.semiMajorMeters, parent.massKg + body.massKg);
+                        }
+                    }
+                }
+            }
+
+            function createFallbackBody(rawName) {
+                const cleanedName = (rawName || "Unknown Object").trim() || "Unknown Object";
+                const kind = inferKindFromName(cleanedName);
+
+                let parentName = inferParentForFallback(kind);
+                const parentPrefixMatch = cleanedName.match(/^(.+?)\s+(Minor Moon|Meteoroid|Comet|Meteor)-\d+$/i);
+                if (parentPrefixMatch && getBody(parentPrefixMatch[1].trim())) {
+                    parentName = parentPrefixMatch[1].trim();
+                }
+
+                const fallback = registerBody({
+                    name: cleanedName,
+                    kind,
+                    massKg: defaultMassForKind(kind) * seededRange(cleanedName, 0.65, 1.35, 17),
+                    radiusMeters: defaultRadiusForKind(kind) * seededRange(cleanedName, 0.62, 1.28, 33),
+                    color: defaultColorForKind(kind),
+                    parentName,
+                    semiMajorMeters: null,
+                    periodDays: null,
+                    rotationHours: defaultRotationHours(kind) * seededRange(cleanedName, 0.7, 1.3, 49),
+                    inclinationDeg: seededRange(cleanedName, 0, 35, 73),
+                });
+
+                ensureBodyDefaults(fallback);
+                return fallback;
+            }
+
+            function resolveBodyByName(name) {
+                const query = (name || "").trim();
+                if (!query) {
+                    return getBody("Bumi");
+                }
+
+                const direct = getBody(query);
+                if (direct) {
+                    ensureBodyDefaults(direct);
+                    return direct;
+                }
+
+                const normalized = normalizeKey(query);
+                const loose = normalizeLooseKey(query);
+                const aliasTarget = aliasMap.get(normalized) || aliasMap.get(loose);
+                if (aliasTarget && getBody(aliasTarget)) {
+                    const aliasBody = getBody(aliasTarget);
+                    ensureBodyDefaults(aliasBody);
+                    return aliasBody;
+                }
+
+                const byNormalized = normalizedNameIndex.get(normalized) || normalizedNameIndex.get(loose);
+                if (byNormalized && getBody(byNormalized)) {
+                    const normalizedBody = getBody(byNormalized);
+                    ensureBodyDefaults(normalizedBody);
+                    return normalizedBody;
+                }
+
+                const lower = normalized;
+                for (const body of catalogByName.values()) {
+                    const n = normalizeKey(body.name);
+                    if (n.includes(lower) || lower.includes(n)) {
+                        ensureBodyDefaults(body);
+                        return body;
+                    }
+                }
+
+                return createFallbackBody(query);
+            }
+
+            function getChildren(parentName) {
+                const children = [];
+                for (const body of catalogByName.values()) {
+                    if (body.parentName === parentName) {
+                        ensureBodyDefaults(body);
+                        children.push(body);
+                    }
+                }
+                return children;
+            }
+
+            function sortByOrbit(a, b) {
+                const sa = Number.isFinite(a.semiMajorMeters) ? a.semiMajorMeters : Number.MAX_SAFE_INTEGER;
+                const sb = Number.isFinite(b.semiMajorMeters) ? b.semiMajorMeters : Number.MAX_SAFE_INTEGER;
+                if (sa !== sb) {
+                    return sa - sb;
+                }
+                return a.name.localeCompare(b.name);
+            }
+
+            function neighborhoodByFocus(items, focusName, count) {
+                if (items.length <= count) {
+                    return items;
+                }
+                const idx = items.findIndex((entry) => entry.name === focusName);
+                if (idx < 0) {
+                    return items.slice(0, count);
+                }
+                const half = Math.floor(count / 2);
+                let start = Math.max(0, idx - half);
+                if (start + count > items.length) {
+                    start = Math.max(0, items.length - count);
+                }
+                return items.slice(start, start + count);
+            }
+
+            function buildDisplayBodies(focusBody) {
+                const fixedRootKinds = new Set(["star", "galaxy", "cluster", "nebula", "black-hole"]);
+                const useParentAsRoot = !!(focusBody.parentName && !fixedRootKinds.has(focusBody.kind));
+                const rootBody = useParentAsRoot ? resolveBodyByName(focusBody.parentName) : focusBody;
+
+                ensureBodyDefaults(rootBody);
+                ensureBodyDefaults(focusBody);
+
+                const included = new Map();
+                const addBody = (body) => {
+                    if (!body || included.has(body.name)) {
+                        return;
+                    }
+                    ensureBodyDefaults(body);
+                    included.set(body.name, body);
+                };
+
+                addBody(rootBody);
+                addBody(focusBody);
+
+                let rootChildren = getChildren(rootBody.name).sort(sortByOrbit);
+                if (focusBody.name !== rootBody.name) {
+                    rootChildren = neighborhoodByFocus(rootChildren, focusBody.name, rootBody.kind === "planet" ? 12 : 9);
+                } else {
+                    const rootLimit = rootBody.kind === "star"
+                        ? 16
+                        : rootBody.kind === "planet"
+                            ? 26
+                            : rootBody.kind === "galaxy"
+                                ? 12
+                                : 10;
+                    rootChildren = rootChildren.slice(0, rootLimit);
+                }
+                rootChildren.forEach(addBody);
+
+                const focusChildren = getChildren(focusBody.name).sort(sortByOrbit).slice(0, 30);
+                focusChildren.forEach(addBody);
+
+                if (focusBody.kind === "star" && focusBody.name === rootBody.name) {
+                    rootChildren
+                        .filter((body) => body.kind === "planet" || body.kind === "dwarf")
+                        .forEach((planet) => {
+                            getChildren(planet.name).sort(sortByOrbit).slice(0, 4).forEach(addBody);
+                        });
+                }
+
+                if (focusBody.kind === "galaxy" && focusBody.name === rootBody.name) {
+                    getChildren(focusBody.name).sort(sortByOrbit).slice(0, 18).forEach(addBody);
+                }
+
+                const bodies = Array.from(included.values());
+                return { rootBody, focusBody, bodies };
+            }
+
+            function depthFromRoot(body, rootName) {
+                let depth = 0;
+                let cursor = body;
+                let guard = 0;
+                while (cursor && cursor.name !== rootName && guard < 48) {
+                    const parent = cursor.parentName ? getBody(cursor.parentName) : null;
+                    if (!parent) {
+                        depth += 1;
+                        break;
+                    }
+                    depth += 1;
+                    cursor = parent;
+                    guard += 1;
+                }
+                return depth;
+            }
+
+            function createEntity(tagName, attrs) {
+                const el = document.createElement(tagName);
+                if (attrs) {
+                    Object.keys(attrs).forEach((key) => {
+                        el.setAttribute(key, attrs[key]);
+                    });
+                }
+                return el;
+            }
+
+            function isRingedBody(bodyName) {
+                return bodyName === "Saturnus" || bodyName === "Uranus";
+            }
+
+            function displayRadiusForBody(body, parentNode, focusName) {
+                const logRadius = Math.log10(Math.max(body.radiusMeters, 1));
+                let base;
+
+                if (body.kind === "star") {
+                    base = clamp(0.28 + (logRadius - 6.0) * 0.16, 0.26, 0.54);
+                } else if (body.kind === "black-hole") {
+                    base = clamp(0.24 + (logRadius - 7.0) * 0.12, 0.22, 0.46);
+                } else if (body.kind === "planet" || body.kind === "dwarf") {
+                    base = clamp(0.12 + (logRadius - 5.5) * 0.08, 0.08, 0.33);
+                } else if (body.kind === "moon") {
+                    base = clamp(0.08 + (logRadius - 5.0) * 0.06, 0.05, 0.24);
+                } else if (body.kind === "galaxy") {
+                    base = clamp(0.38 + (logRadius - 20.0) * 0.05, 0.34, 0.58);
+                } else if (body.kind === "cluster" || body.kind === "nebula") {
+                    base = clamp(0.34 + (logRadius - 19.0) * 0.05, 0.3, 0.55);
+                } else if (body.kind === "comet" || body.kind === "meteor") {
+                    base = clamp(0.06 + (logRadius - 4.0) * 0.05, 0.04, 0.16);
+                } else {
+                    base = clamp(0.11 + (logRadius - 5.5) * 0.07, 0.07, 0.26);
+                }
+
+                let radius = base;
+                if (parentNode) {
+                    const parentPhysical = Math.max(parentNode.body.radiusMeters, 1);
+                    const ratio = Math.max(body.radiusMeters / parentPhysical, 1e-6);
+                    const relative = parentNode.displayRadius * Math.pow(ratio, 0.5) * 0.95;
+                    const min = parentNode.displayRadius * (body.kind === "moon" ? 0.1 : 0.08);
+                    const max = parentNode.displayRadius * (body.kind === "moon" ? 0.52 : 0.68);
+                    radius = clamp(radius * 0.34 + relative * 0.66, min, max);
+                }
+
+                if (body.name === focusName) {
+                    radius *= 1.08;
+                }
+
+                return clamp(radius, 0.03, 0.62);
+            }
+
+            function orbitRadiusForBody(body, parentNode) {
+                const parentBody = parentNode.body;
+                const semiMajor = Math.max(body.semiMajorMeters || parentBody.radiusMeters * 8, parentBody.radiusMeters * 2.2);
+
+                const base = parentBody.kind === "star"
+                    ? 0.55 + Math.log10(semiMajor / 2e9 + 1) * 0.52
+                    : parentBody.kind === "planet"
+                        ? 0.28 + Math.log10(semiMajor / 2e6 + 1) * 0.33
+                        : 0.34 + Math.log10(semiMajor / 5e8 + 1) * 0.42;
+
+                const min = Math.max(parentNode.displayRadius * 2.4, 0.26);
+                const max = parentBody.kind === "star"
+                    ? 2.95
+                    : parentBody.kind === "planet"
+                        ? 1.36
+                        : 1.9;
+
+                return clamp(Math.max(base, min), min, max);
+            }
+
+            function appearanceForBody(body, displayRadius) {
+                const kind = body.kind;
+                if (kind === "meteor") {
+                    return {
+                        geometry: `primitive: dodecahedron; radius: ${displayRadius.toFixed(4)}`,
+                        material: `color: ${body.color}; roughness: 0.9; metalness: 0.04`,
+                    };
+                }
+                if (kind === "comet") {
+                    return {
+                        geometry: `primitive: icosahedron; radius: ${displayRadius.toFixed(4)}`,
+                        material: `color: ${body.color}; roughness: 0.74; metalness: 0.02`,
+                    };
+                }
+                if (kind === "black-hole") {
+                    return {
+                        geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
+                        material: "color: #191a2d; roughness: 0.2; metalness: 0.35; emissive: #31377f; emissiveIntensity: 0.52",
+                    };
+                }
+                if (kind === "galaxy") {
+                    return {
+                        geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
+                        material: `color: ${body.color}; roughness: 0.94; metalness: 0.02; opacity: 0.7; transparent: true`,
+                    };
+                }
+                if (kind === "nebula") {
+                    return {
+                        geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
+                        material: `color: ${body.color}; roughness: 1; metalness: 0; opacity: 0.62; transparent: true`,
+                    };
+                }
+                if (kind === "star") {
+                    return {
+                        geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
+                        material: `color: ${body.color}; roughness: 0.28; metalness: 0.04; emissive: ${body.color}; emissiveIntensity: 0.58`,
+                    };
+                }
+                return {
+                    geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
+                    material: `color: ${body.color}; roughness: 0.76; metalness: 0.08`,
+                };
+            }
+
+            function createBodyNode(body, parentNode, focusName, rootContainer) {
+                const orbitAnchorEl = createEntity("a-entity", { position: "0 0 0" });
+                const parentContainer = parentNode ? parentNode.orbitAnchorEl : rootContainer;
+                parentContainer.appendChild(orbitAnchorEl);
+
+                const displayRadius = displayRadiusForBody(body, parentNode, focusName);
+                const appearance = appearanceForBody(body, displayRadius);
+
+                const bodyMeshEl = createEntity("a-entity", {
+                    geometry: appearance.geometry,
+                    material: appearance.material,
+                    position: "0 0 0",
+                });
+                orbitAnchorEl.appendChild(bodyMeshEl);
+
+                let glowEl = null;
+                if (body.kind === "star") {
+                    glowEl = createEntity("a-entity", {
+                        geometry: `primitive: sphere; radius: ${(displayRadius * 1.2).toFixed(4)}`,
+                        material: `color: ${body.color}; opacity: 0.24; transparent: true; emissive: ${body.color}; emissiveIntensity: 0.48`,
+                    });
+                    orbitAnchorEl.appendChild(glowEl);
+                }
+
+                let cometTailEl = null;
+                if (body.kind === "comet") {
+                    cometTailEl = createEntity("a-entity", {
+                        geometry: `primitive: cone; radiusBottom: ${(displayRadius * 0.7).toFixed(4)}; radiusTop: ${(displayRadius * 0.08).toFixed(4)}; height: ${(displayRadius * 4.2).toFixed(4)}`,
+                        material: "color: #dcecff; opacity: 0.38; transparent: true",
+                        position: `0 0 ${(-displayRadius * 2.5).toFixed(4)}`,
+                        rotation: "-90 0 0",
+                    });
+                    orbitAnchorEl.appendChild(cometTailEl);
+                }
+
+                if (isRingedBody(body.name)) {
+                    const ringEl = createEntity("a-entity", {
+                        geometry: `primitive: torus; radius: ${(displayRadius * 1.62).toFixed(4)}; radiusTubular: ${(displayRadius * 0.19).toFixed(4)}; segmentsTubular: 56; segmentsRadial: 10`,
+                        material: "color: #cdb58d; roughness: 0.84; metalness: 0.04; opacity: 0.72; transparent: true",
+                        rotation: "90 10 0",
+                    });
+                    orbitAnchorEl.appendChild(ringEl);
+                }
+
+                if (body.kind === "black-hole") {
+                    const accretionEl = createEntity("a-entity", {
+                        geometry: `primitive: torus; radius: ${(displayRadius * 1.58).toFixed(4)}; radiusTubular: ${(displayRadius * 0.21).toFixed(4)}; segmentsTubular: 72; segmentsRadial: 12`,
+                        material: "color: #7c8dff; opacity: 0.62; transparent: true; emissive: #3247cc; emissiveIntensity: 0.7",
+                        rotation: "90 0 0",
+                    });
+                    orbitAnchorEl.appendChild(accretionEl);
+                }
+
+                if (body.kind === "galaxy") {
+                    const diskEl = createEntity("a-entity", {
+                        geometry: `primitive: torus; radius: ${(displayRadius * 1.42).toFixed(4)}; radiusTubular: ${(displayRadius * 0.26).toFixed(4)}; segmentsTubular: 92; segmentsRadial: 14`,
+                        material: `color: ${body.color}; opacity: 0.36; transparent: true`,
+                        rotation: "88 0 0",
+                    });
+                    orbitAnchorEl.appendChild(diskEl);
+                }
+
+                if (body.name === focusName) {
+                    const focusRing = createEntity("a-entity", {
+                        geometry: `primitive: torus; radius: ${(displayRadius * 1.38).toFixed(4)}; radiusTubular: ${(displayRadius * 0.05).toFixed(4)}; segmentsTubular: 52; segmentsRadial: 8`,
+                        material: "color: #9dc8ff; opacity: 0.74; transparent: true",
+                        rotation: "90 0 0",
+                    });
+                    orbitAnchorEl.appendChild(focusRing);
+                }
+
+                const label = createEntity("a-text", {
+                    value: body.name === focusName ? `${body.name} [fokus]` : body.name,
+                    align: "center",
+                    color: body.name === focusName ? "#eaf4ff" : "#c8daff",
+                    position: `0 ${(displayRadius * 1.9).toFixed(4)} 0`,
+                    side: "double",
+                    width: "2.6",
+                    scale: "0.58 0.58 0.58",
+                });
+                orbitAnchorEl.appendChild(label);
+
+                let orbitRadius = 0;
+                let orbitTrackEl = null;
+                if (parentNode) {
+                    orbitRadius = orbitRadiusForBody(body, parentNode);
+                    orbitTrackEl = createEntity("a-entity", {
+                        geometry: `primitive: ring; radiusInner: ${(orbitRadius - 0.003).toFixed(4)}; radiusOuter: ${(orbitRadius + 0.003).toFixed(4)}; segmentsTheta: 96`,
+                        material: "color: #7ea8e6; opacity: 0.24; transparent: true; side: double",
+                        rotation: "-90 0 0",
+                        position: "0 0 0",
+                    });
+                    parentNode.orbitAnchorEl.appendChild(orbitTrackEl);
+                }
+
+                const orbitOmega = parentNode && body.periodDays
+                    ? TAU / Math.max(body.periodDays * DAY_SECONDS, 1)
+                    : 0;
+                const spinOmega = TAU / Math.max(Math.abs(body.rotationHours || 30) * 3600, 1);
+
+                return {
+                    body,
+                    parentNode,
+                    orbitAnchorEl,
+                    bodyMeshEl,
+                    glowEl,
+                    cometTailEl,
+                    orbitTrackEl,
+                    displayRadius,
+                    orbitRadius,
+                    orbitOmega,
+                    spinOmega,
+                    spinSign: (body.rotationHours || 1) < 0 ? -1 : 1,
+                    phase: seededRange(body.name, 0, TAU, 109),
+                    inclinationRad: ((Number.isFinite(body.inclinationDeg) ? body.inclinationDeg : seededRange(body.name, 0, 15, 113)) * Math.PI) / 180,
+                    pulseSeed: seededRange(body.name, 0, TAU, 127),
+                };
+            }
+
+            function buildArSystem(focusBody) {
+                modelRoot.innerHTML = "";
+
+                const system = buildDisplayBodies(focusBody);
+                const rootContainer = createEntity("a-entity", { position: "0 0.22 0" });
+                modelRoot.appendChild(rootContainer);
+
+                const nodes = [];
+                const nodeByName = new Map();
+
+                const orderedBodies = system.bodies.slice().sort((a, b) => {
+                    const depthA = depthFromRoot(a, system.rootBody.name);
+                    const depthB = depthFromRoot(b, system.rootBody.name);
+                    if (depthA !== depthB) {
+                        return depthA - depthB;
+                    }
+                    return sortByOrbit(a, b);
+                });
+
+                for (const body of orderedBodies) {
+                    let parentNode = null;
+                    if (body.name !== system.rootBody.name) {
+                        parentNode = body.parentName ? nodeByName.get(body.parentName) || null : null;
+                        if (!parentNode) {
+                            parentNode = nodeByName.get(system.rootBody.name) || null;
+                        }
+                    }
+
+                    const node = createBodyNode(body, parentNode, system.focusBody.name, rootContainer);
+                    nodes.push(node);
+                    nodeByName.set(body.name, node);
+                }
+
+                return {
+                    rootBody: system.rootBody,
+                    focusBody: system.focusBody,
+                    nodes,
+                    nodeByName,
+                    rootContainer,
+                };
+            }
+
+            let orbitDaysPerSecond = clamp(Number(speedRange.value) || 2.5, 0.05, 24);
+            speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} hari/detik`;
+
+            const focusBody = resolveBodyByName(requestedModel);
+            const arSystem = buildArSystem(focusBody);
+
+            systemMetaEl.textContent = `Root: ${arSystem.rootBody.name} | Fokus: ${arSystem.focusBody.name} | Node AR: ${arSystem.nodes.length}`;
+            statusEl.textContent = "Aktifkan kamera, scan marker Hiro, lalu gunakan drag/pinch untuk rotate dan zoom.";
+
+            let viewScale = 1;
+            let viewRotX = -0.16;
+            let viewRotY = 0.34;
+
+            function applyViewTransform() {
+                const obj = modelRoot.object3D;
+                obj.position.set(0, 0.22, 0);
+                obj.scale.setScalar(viewScale);
+                obj.rotation.set(viewRotX, viewRotY, 0);
+            }
+
+            function zoomBy(factor) {
+                viewScale = clamp(viewScale * factor, 0.45, 2.8);
+                applyViewTransform();
+            }
+
+            function resetView() {
+                viewScale = 1;
+                viewRotX = -0.16;
+                viewRotY = 0.34;
+                applyViewTransform();
+            }
+
+            zoomInButton.addEventListener("click", () => zoomBy(1.12));
+            zoomOutButton.addEventListener("click", () => zoomBy(0.9));
+            rotLeftButton.addEventListener("click", () => {
+                viewRotY -= 0.18;
+                applyViewTransform();
+            });
+            rotRightButton.addEventListener("click", () => {
+                viewRotY += 0.18;
+                applyViewTransform();
+            });
+            viewResetButton.addEventListener("click", resetView);
+
+            speedRange.addEventListener("input", () => {
+                orbitDaysPerSecond = clamp(Number(speedRange.value) || 2.5, 0.05, 24);
+                speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} hari/detik`;
+            });
+
+            const activePointers = new Map();
+            let pinchDistance = 0;
+
+            function pointerDistance(points) {
+                if (points.length < 2) {
+                    return 0;
+                }
+                return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+            }
+
+            gesturePad.addEventListener("pointerdown", (event) => {
+                activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+                gesturePad.setPointerCapture(event.pointerId);
+                if (activePointers.size === 2) {
+                    pinchDistance = pointerDistance(Array.from(activePointers.values()));
+                }
+            });
+
+            gesturePad.addEventListener("pointermove", (event) => {
+                const prev = activePointers.get(event.pointerId);
+                if (!prev) {
+                    return;
+                }
+
+                const next = { x: event.clientX, y: event.clientY };
+                activePointers.set(event.pointerId, next);
+
+                if (activePointers.size === 1) {
+                    const dx = next.x - prev.x;
+                    const dy = next.y - prev.y;
+                    viewRotY += dx * 0.008;
+                    viewRotX = clamp(viewRotX + dy * 0.005, -0.88, 0.88);
+                    applyViewTransform();
+                    return;
+                }
+
+                if (activePointers.size === 2) {
+                    const points = Array.from(activePointers.values());
+                    const dist = pointerDistance(points);
+                    if (pinchDistance > 0 && dist > 0) {
+                        zoomBy(Math.pow(dist / pinchDistance, 1.02));
+                    }
+                    pinchDistance = dist;
+                }
+            });
+
+            function releasePointer(pointerId) {
+                activePointers.delete(pointerId);
+                if (activePointers.size < 2) {
+                    pinchDistance = 0;
+                }
+            }
+
+            gesturePad.addEventListener("pointerup", (event) => releasePointer(event.pointerId));
+            gesturePad.addEventListener("pointercancel", (event) => releasePointer(event.pointerId));
+            gesturePad.addEventListener("pointerleave", (event) => releasePointer(event.pointerId));
+
+            gesturePad.addEventListener("wheel", (event) => {
+                event.preventDefault();
+                zoomBy(event.deltaY < 0 ? 1.08 : 0.92);
+            }, { passive: false });
+
+            applyViewTransform();
+
+            let lastFrameMs = performance.now();
+            function animateFrame(nowMs) {
+                const dtSec = clamp((nowMs - lastFrameMs) / 1000, 0, 0.08);
+                lastFrameMs = nowMs;
+
+                const simSec = dtSec * orbitDaysPerSecond * DAY_SECONDS;
+                for (const node of arSystem.nodes) {
+                    if (node.parentNode && node.orbitOmega > 0 && node.orbitRadius > 0) {
+                        node.phase = (node.phase + node.orbitOmega * simSec) % TAU;
+                        const cosP = Math.cos(node.phase);
+                        const sinP = Math.sin(node.phase);
+                        const x = node.orbitRadius * cosP;
+                        const zPlane = node.orbitRadius * sinP;
+                        const y = zPlane * Math.sin(node.inclinationRad);
+                        const z = zPlane * Math.cos(node.inclinationRad);
+                        node.orbitAnchorEl.object3D.position.set(x, y, z);
+                    }
+
+                    node.bodyMeshEl.object3D.rotation.y += node.spinSign * node.spinOmega * simSec;
+
+                    if (node.glowEl) {
+                        const glowScale = 1 + Math.sin(nowMs / 520 + node.pulseSeed) * 0.04;
+                        node.glowEl.object3D.scale.setScalar(glowScale);
+                    }
+
+                    if (node.cometTailEl) {
+                        node.cometTailEl.object3D.rotation.y += 0.09 * dtSec;
+                    }
+                }
+
+                requestAnimationFrame(animateFrame);
+            }
+            requestAnimationFrame(animateFrame);
+
+            markerEl.addEventListener("markerFound", function () {
+                statusEl.textContent = "Marker terdeteksi. Sistem AR aktif: orbit + rotasi berjalan real-time.";
+            });
+
+            markerEl.addEventListener("markerLost", function () {
+                statusEl.textContent = "Marker hilang. Arahkan kamera ke marker Hiro agar sistem AR muncul lagi.";
+            });
+
+            if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
+                statusEl.textContent = "Perlu HTTPS agar izin kamera AR bisa aktif di browser modern.";
+            }
+        })();
+    </script>
 </body>
 
 </html>
