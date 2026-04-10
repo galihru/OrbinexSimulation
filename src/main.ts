@@ -255,7 +255,6 @@ const PLANCK_REDUCED = 1.054571817e-34;
 const BOLTZMANN = 1.380649e-23;
 const LIGHT_YEAR_METERS = 9.4607304725808e15;
 const HIRO_MARKER_URL = "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png";
-const KANJI_MARKER_URL = "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.png";
 
 const app = byId<HTMLElement>("app");
 app.innerHTML = `
@@ -3907,7 +3906,14 @@ function shouldLabelBody(body: UniverseBody): boolean {
     }
 
     if (body.kind === "moon" && body.parentName && solarSystemAnchors.has(body.parentName)) {
-        return body.parentName === uiState.focusName || body.name === uiState.focusName || cameraZoomSpan() < 1800;
+        const zoom = cameraZoomSpan();
+        if (body.name === uiState.focusName) {
+            return true;
+        }
+        if (body.parentName === uiState.focusName) {
+            return zoom < 720;
+        }
+        return zoom < 260;
     }
 
     if ((body.kind === "comet" || body.kind === "meteor") && body.parentName && solarSystemAnchors.has(body.parentName)) {
@@ -3915,6 +3921,78 @@ function shouldLabelBody(body: UniverseBody): boolean {
     }
 
     return body.name === uiState.focusName || body.kind === "black-hole";
+}
+
+type LabelDeclutterEntry = {
+    node: BodyNode;
+    screenX: number;
+    screenY: number;
+    radiusPx: number;
+    score: number;
+};
+
+function labelPriorityScore(body: UniverseBody): number {
+    let score = 0;
+    if (body.name === uiState.focusName) score += 200;
+    if (body.name === "Matahari") score += 180;
+    if (body.kind === "black-hole") score += 170;
+    if (body.parentName === uiState.focusName) score += 120;
+    if (body.kind === "planet") score += 70;
+    if (body.kind === "moon") score += 40;
+    return score;
+}
+
+function applySmartLabelDeclutter(nodes: BodyNode[]): void {
+    const width = Math.max(renderer.domElement.clientWidth, 1);
+    const height = Math.max(renderer.domElement.clientHeight, 1);
+    const candidates: LabelDeclutterEntry[] = [];
+
+    for (const node of nodes) {
+        if (!node.label || !node.label.visible || !node.mesh.visible) {
+            continue;
+        }
+
+        const projected = node.mesh.position.clone().project(camera);
+        if (projected.z < -1 || projected.z > 1) {
+            node.label.visible = false;
+            continue;
+        }
+
+        const screenX = (projected.x * 0.5 + 0.5) * width;
+        const screenY = (-projected.y * 0.5 + 0.5) * height;
+        const radiusPx = node.body.kind === "moon" ? 38 : 52;
+        const distancePenalty = camera.position.distanceTo(node.mesh.position) * 0.03;
+
+        candidates.push({
+            node,
+            screenX,
+            screenY,
+            radiusPx,
+            score: labelPriorityScore(node.body) - distancePenalty,
+        });
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+    const kept: LabelDeclutterEntry[] = [];
+    const maxLabels = width < 900 ? 10 : 18;
+
+    for (const entry of candidates) {
+        const mustKeep = entry.node.body.name === uiState.focusName || entry.node.body.name === "Matahari";
+        const overlaps = kept.some((placed) => {
+            const dx = Math.abs(entry.screenX - placed.screenX);
+            const dy = Math.abs(entry.screenY - placed.screenY);
+            return dx < (entry.radiusPx + placed.radiusPx) * 0.72 && dy < 22;
+        });
+
+        if (!mustKeep && (overlaps || kept.length >= maxLabels)) {
+            if (entry.node.label) {
+                entry.node.label.visible = false;
+            }
+            continue;
+        }
+
+        kept.push(entry);
+    }
 }
 
 function createLabelSprite(text: string, colorHex: string): THREE.Sprite {
@@ -4219,9 +4297,9 @@ function createNode(body: UniverseBody): BodyNode {
             new THREE.MeshBasicMaterial({
                 color: 0xbadfff,
                 transparent: true,
-                opacity: 0.22,
+                opacity: 0.16,
                 depthWrite: false,
-                blending: THREE.AdditiveBlending,
+                blending: THREE.NormalBlending,
             }),
         );
         coma.userData.cometRole = "coma";
@@ -4233,10 +4311,10 @@ function createNode(body: UniverseBody): BodyNode {
             new THREE.MeshBasicMaterial({
                 color: 0x9fd9ff,
                 transparent: true,
-                opacity: 0.34,
+                opacity: 0.2,
                 side: THREE.DoubleSide,
                 depthWrite: false,
-                blending: THREE.AdditiveBlending,
+                blending: THREE.NormalBlending,
             }),
         );
         tail.userData.cometRole = "tail";
@@ -4377,6 +4455,13 @@ function updateCometExtras(node: BodyNode, body: UniverseBody, position: THREE.V
         return;
     }
 
+    const showCometFX = (body.name === uiState.focusName || body.parentName === uiState.focusName) && viewState.showComets;
+    coma.visible = showCometFX;
+    tail.visible = showCometFX;
+    if (!showCometFX || !node.mesh.visible) {
+        return;
+    }
+
     const sun = bodyByNameAny("Matahari");
     let awayVector = new THREE.Vector3(0, 1, 0);
     if (sun) {
@@ -4406,21 +4491,21 @@ function updateCometExtras(node: BodyNode, body: UniverseBody, position: THREE.V
         )
         : 1;
 
-    const tailBoost = clamp(2.1 + speed / 12000 + 1 / Math.sqrt(sunDistanceAu), 2.2, 8.8);
-    const comaScale = radius * clamp(2.6 + tailBoost * 0.18, 2.8, 5.2);
-    const tailLength = radius * clamp(3.4 + tailBoost * 0.95, 4.2, 18.5);
-    const tailRadius = radius * clamp(0.9 + tailBoost * 0.16, 1.0, 2.9);
+    const tailBoost = clamp(1.4 + speed / 18000 + 1 / Math.sqrt(sunDistanceAu), 1.6, 4.4);
+    const comaScale = radius * clamp(1.9 + tailBoost * 0.12, 1.9, 3.4);
+    const tailLength = radius * clamp(2.2 + tailBoost * 0.55, 2.7, 9.2);
+    const tailRadius = radius * clamp(0.62 + tailBoost * 0.11, 0.68, 1.8);
 
     coma.position.copy(position);
     coma.scale.setScalar(comaScale);
     const comaMaterial = coma.material as THREE.MeshBasicMaterial;
-    comaMaterial.opacity = clamp(0.44 - sunDistanceAu * 0.03, 0.14, 0.42);
+    comaMaterial.opacity = clamp(0.24 - sunDistanceAu * 0.02, 0.08, 0.22);
 
     tail.position.copy(position).addScaledVector(awayVector, radius * 1.1 + tailLength * 0.48);
     tail.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), awayVector);
     tail.scale.set(tailRadius, tailLength, tailRadius);
     const tailMaterial = tail.material as THREE.MeshBasicMaterial;
-    tailMaterial.opacity = clamp(0.56 - sunDistanceAu * 0.034, 0.18, 0.5);
+    tailMaterial.opacity = clamp(0.3 - sunDistanceAu * 0.02, 0.08, 0.24);
 }
 
 function updateNodes(dtMs: number): void {
@@ -4443,6 +4528,7 @@ function updateNodes(dtMs: number): void {
         ? renderPositionForBody(focusBody, solarAnchor, structureAnchor, structureRoot, bodyIndex)
         : controls.target.clone();
     const focusIsSolar = !!(focusBody && isSolarSystemBody(focusBody));
+    const labelCandidates: BodyNode[] = [];
 
     for (const body of bodies) {
         const key = bodyKey(body);
@@ -4613,6 +4699,9 @@ function updateNodes(dtMs: number): void {
             const crowdedInner = position.length() < 9 && !isCriticalLabel && body.kind !== "star";
             const hiddenByZoom = (cameraDistance > 300 && !isCriticalLabel) || crowdedInner;
             node.label.visible = shouldLabelBody(body) && !hiddenByZoom;
+            if (node.label.visible) {
+                labelCandidates.push(node);
+            }
         }
 
         if (node.trail && !shouldTrailBody(body)) {
@@ -4676,6 +4765,8 @@ function updateNodes(dtMs: number): void {
             node.trail.visible = viewState.showTrails;
         }
     }
+
+    applySmartLabelDeclutter(labelCandidates);
 
     for (const [key, node] of bodyNodes) {
         if (!aliveKeys.has(key)) {
@@ -5169,16 +5260,6 @@ type ArMarkerProfile = {
 };
 
 function markerProfileForObject(objectName?: string): ArMarkerProfile {
-    const name = objectName?.trim() ?? "";
-
-    if (name === "Mars") {
-        return {
-            markerLabel: "Kanji",
-            markerHint: "marker Kanji",
-            markerImageUrl: KANJI_MARKER_URL,
-        };
-    }
-
     return {
         markerLabel: "Hiro",
         markerHint: "marker Hiro",
