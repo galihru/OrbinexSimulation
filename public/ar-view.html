@@ -59,8 +59,7 @@
         }
 
         #arjs-video,
-        .arjs-video,
-        #ar-app video {
+        .arjs-video {
             position: fixed !important;
             inset: 0 !important;
             width: 100vw !important;
@@ -68,6 +67,8 @@
             object-fit: cover !important;
             z-index: 0 !important;
             background: #000 !important;
+            opacity: 0;
+            transition: opacity 260ms ease;
         }
 
         .a-canvas,
@@ -78,6 +79,26 @@
             height: 100vh !important;
             z-index: 2 !important;
             background: transparent !important;
+            opacity: 1;
+            transition: opacity 260ms ease, transform 260ms ease, border-radius 260ms ease;
+        }
+
+        body.mode-ar-main #arjs-video,
+        body.mode-ar-main .arjs-video {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        body.mode-camera-main #arjs-video,
+        body.mode-camera-main .arjs-video {
+            opacity: 1;
+            pointer-events: none;
+            z-index: 2 !important;
+        }
+
+        body.mode-camera-main a-scene,
+        body.mode-camera-main #ar-scene {
+            z-index: 3 !important;
         }
 
         .ar-overlay {
@@ -309,6 +330,8 @@
         }
 
         .pip-swap video {
+            position: absolute;
+            inset: 0;
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -348,10 +371,19 @@
             box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
             cursor: pointer;
             background: #000 !important;
+            opacity: 1;
         }
 
         body.mode-camera-main #gesture-pad {
             pointer-events: none;
+        }
+
+        body.swap-animating #arjs-video,
+        body.swap-animating .arjs-video,
+        body.swap-animating .a-canvas,
+        body.swap-animating a-scene canvas,
+        body.swap-animating .pip-swap {
+            transition-duration: 340ms !important;
         }
 
         .a-enter-vr-button,
@@ -519,6 +551,7 @@
 
             let currentViewMode = "ar-main";
             let arMiniSwapBound = false;
+            let swapAnimationTimer = 0;
 
             function setSheetOpen(open) {
                 sheetIsOpen = !!open;
@@ -548,7 +581,14 @@
 
             function setViewMode(mode) {
                 currentViewMode = mode === "camera-main" ? "camera-main" : "ar-main";
+                bodyEl.classList.toggle("mode-ar-main", currentViewMode === "ar-main");
                 bodyEl.classList.toggle("mode-camera-main", currentViewMode === "camera-main");
+
+                bodyEl.classList.add("swap-animating");
+                window.clearTimeout(swapAnimationTimer);
+                swapAnimationTimer = window.setTimeout(() => {
+                    bodyEl.classList.remove("swap-animating");
+                }, 360);
 
                 if (currentViewMode === "camera-main") {
                     gesturePad.style.pointerEvents = "none";
@@ -570,11 +610,14 @@
                 }
 
                 arMiniSwapBound = true;
-                canvasEl.addEventListener("click", () => {
+                const restoreArMain = () => {
                     if (currentViewMode === "camera-main") {
                         setViewMode("ar-main");
                     }
-                });
+                };
+
+                canvasEl.addEventListener("click", restoreArMain);
+                canvasEl.addEventListener("pointerdown", restoreArMain);
             }
 
             function syncPipCameraStream() {
@@ -1426,7 +1469,7 @@
             let cameraReady = false;
 
             function cameraVideoElement() {
-                return document.getElementById("arjs-video") || document.querySelector("#ar-app video");
+                return document.getElementById("arjs-video") || document.querySelector("video.arjs-video, .arjs-video");
             }
 
             function updateCameraReadyStatus() {
