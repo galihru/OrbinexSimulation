@@ -1,4 +1,4 @@
-const CACHE_VERSION = "orbinex-pwa-v2";
+const CACHE_VERSION = "orbinex-pwa-v3";
 const CORE_CACHE = `${CACHE_VERSION}-core`;
 const DB_CACHE = `${CACHE_VERSION}-db`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
@@ -100,22 +100,32 @@ async function staleWhileRevalidate(request, cacheName) {
     return cached || networkPromise || new Response("Offline", { status: 503, statusText: "Offline" });
 }
 
-async function networkFirstNavigate(request) {
-    const cache = await caches.open(RUNTIME_CACHE);
-    try {
-        const network = await fetch(request);
-        if (network.ok || network.type === "opaque") {
-            await cache.put(request, network.clone());
-        }
-        return network;
-    } catch {
-        const cached = await cache.match(request);
-        if (cached) {
-            return cached;
-        }
-        const fallback = await cache.match("./index.html");
-        return fallback || new Response("Offline", { status: 503, statusText: "Offline" });
+function navigationFallbackPath(pathname) {
+    if (pathname.endsWith("/ar-view.html") || pathname.endsWith("ar-view.html")) {
+        return "./ar-view.html";
     }
+    return "./index.html";
+}
+
+async function networkFirstNavigate(request) {
+    const url = new URL(request.url);
+    try {
+        const network = await fetch(request, { cache: "no-store" });
+        if (network.ok || network.type === "opaque") {
+            return network;
+        }
+    } catch {
+        // Fallback to offline cache below.
+    }
+
+    const coreCache = await caches.open(CORE_CACHE);
+    const fallback = await coreCache.match(navigationFallbackPath(url.pathname));
+    if (fallback) {
+        return fallback;
+    }
+
+    const defaultFallback = await coreCache.match("./index.html");
+    return defaultFallback || new Response("Offline", { status: 503, statusText: "Offline" });
 }
 
 self.addEventListener("fetch", (event) => {

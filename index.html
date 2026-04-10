@@ -22,6 +22,79 @@
   <link rel="icon" href="%BASE_URL%orbinex-logo.svg" type="image/svg+xml" />
   <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
 
+  <script>
+    (function () {
+      let recovering = false;
+
+      function looksLikeViteEntryScript(src) {
+        return /\/assets\/index-[^/]+\.js(?:\?.*)?$/.test(src);
+      }
+
+      async function recoverEntryFromManifest() {
+        const baseUrl = new URL("%BASE_URL%", window.location.href);
+        const manifestUrl = new URL(".vite/manifest.json", baseUrl).toString();
+        const response = await fetch(manifestUrl, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Manifest fetch failed");
+        }
+
+        const manifest = await response.json();
+        const entry = manifest && manifest["index.html"];
+        if (!entry || typeof entry.file !== "string") {
+          throw new Error("Manifest entry missing");
+        }
+
+        if (Array.isArray(entry.css)) {
+          entry.css.forEach((cssPath) => {
+            if (typeof cssPath !== "string") {
+              return;
+            }
+            const href = new URL(cssPath, baseUrl).toString();
+            if (document.querySelector(`link[rel="stylesheet"][href="${href}"]`)) {
+              return;
+            }
+            const link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = href;
+            link.crossOrigin = "";
+            document.head.appendChild(link);
+          });
+        }
+
+        const scriptUrl = new URL(entry.file, baseUrl).toString();
+        const existingRecoveryScript = Array.from(document.querySelectorAll("script[data-recovery-entry='1']"))
+          .find((script) => script instanceof HTMLScriptElement && script.src === scriptUrl);
+        if (existingRecoveryScript) {
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.type = "module";
+        script.crossOrigin = "";
+        script.src = scriptUrl;
+        script.setAttribute("data-recovery-entry", "1");
+        document.head.appendChild(script);
+      }
+
+      window.addEventListener("error", (event) => {
+        const target = event.target;
+        if (recovering || !(target instanceof HTMLScriptElement)) {
+          return;
+        }
+        if (!looksLikeViteEntryScript(target.src || "")) {
+          return;
+        }
+
+        recovering = true;
+        void recoverEntryFromManifest().catch(() => {
+          const retryUrl = new URL(window.location.href);
+          retryUrl.searchParams.set("recover", Date.now().toString());
+          window.location.replace(retryUrl.toString());
+        });
+      }, true);
+    })();
+  </script>
+
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="OrbinexSimulation" />
   <meta property="og:title" content="OrbinexSimulation - Universe Sandbox Scientific 3D Web" />

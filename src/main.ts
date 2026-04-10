@@ -3084,7 +3084,11 @@ async function registerPwaServiceWorker(): Promise<void> {
         const base = new URL(import.meta.env.BASE_URL, window.location.origin);
         const swUrl = new URL("sw.js", base);
         swUrl.searchParams.set("v", APP_BUILD_HASH);
-        await navigator.serviceWorker.register(swUrl.toString(), { scope: base.pathname });
+        const registration = await navigator.serviceWorker.register(swUrl.toString(), {
+            scope: base.pathname,
+            updateViaCache: "none",
+        });
+        await registration.update();
     } catch {
         addLocalEvent("Service worker gagal didaftarkan. Mode offline terbatas.");
     }

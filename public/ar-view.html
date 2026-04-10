@@ -684,7 +684,7 @@
                 return "Bumi";
             })();
             const requestedAltModel = (params.get("altModel") || "Mars").trim() || "Mars";
-            const swBuildToken = (params.get("build") || "20260411").trim() || "20260411";
+            const swBuildToken = (params.get("build") || "latest").trim() || "latest";
 
             const modelNameEl = document.getElementById("ar-model-name");
             const statusEl = document.getElementById("ar-status");
@@ -1174,9 +1174,11 @@
                 try {
                     const swUrl = new URL("./sw.js", baseUrl);
                     swUrl.searchParams.set("v", swBuildToken);
-                    await navigator.serviceWorker.register(swUrl.toString(), {
+                    const registration = await navigator.serviceWorker.register(swUrl.toString(), {
                         scope: baseUrl.pathname,
+                        updateViaCache: "none",
                     });
+                    await registration.update();
                 } catch {
                     // Fallback: app still works without offline cache.
                 }
