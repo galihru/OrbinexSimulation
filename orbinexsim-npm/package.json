@@ -1,0 +1,55 @@
+{
+  "name": "@galihru/orbinexsim",
+  "version": "0.1.0",
+  "description": "High-level Orbinex simulation + AR wrapper with one-call setup.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Galih Ridho Utomo",
+  "homepage": "https://github.com/galihru/OrbinexSimulation/tree/main/orbinexsim-npm#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/galihru/OrbinexSimulation.git",
+    "directory": "orbinexsim-npm"
+  },
+  "bugs": {
+    "url": "https://github.com/galihru/OrbinexSimulation/issues"
+  },
+  "keywords": [
+    "orbinex",
+    "ar",
+    "threejs",
+    "simulation",
+    "astronomy",
+    "webxr"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --dts --format esm,cjs --clean",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@galihru/orbinex": "^0.1.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
