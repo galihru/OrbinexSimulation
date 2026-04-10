@@ -331,23 +331,29 @@
             position: fixed;
             right: 10px;
             bottom: 10px;
-            width: 84px;
-            height: 84px;
-            z-index: 11;
+            width: min(228px, calc(100vw - 20px));
+            z-index: 15;
             border-radius: 10px;
             border: 1px solid rgba(137, 178, 239, 0.5);
-            background: rgba(255, 255, 255, 0.94);
-            padding: 4px;
+            background: rgba(11, 24, 45, 0.82);
+            color: #dbe8ff;
+            padding: 0.42rem 0.54rem;
             box-sizing: border-box;
             pointer-events: auto;
+            display: grid;
+            gap: 0.16rem;
+            font-size: 0.66rem;
+            line-height: 1.32;
         }
 
-        .ar-marker-hint img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            border-radius: 6px;
-            display: block;
+        .ar-marker-hint strong {
+            font-size: 0.68rem;
+            letter-spacing: 0.02em;
+            color: #eff5ff;
+        }
+
+        .ar-marker-hint span {
+            color: #c5d8fa;
         }
 
         .pip-swap {
@@ -522,8 +528,7 @@
             }
 
             .ar-marker-hint {
-                width: 78px;
-                height: 78px;
+                width: min(212px, calc(100vw - 16px));
             }
 
             .pip-swap,
@@ -550,11 +555,13 @@
                 <span class="sheet-swipe-text">Swipe down untuk tutup panel</span>
             </div>
             <h1>Orbinex AR Viewer: <span id="ar-model-name">Bumi</span></h1>
-            <p id="ar-status">Aktifkan kamera, scan marker Hiro, lalu objek akan muncul di atas marker.</p>
+            <p id="ar-status">Aktifkan kamera, scan marker objek (Hiro/Barcode), lalu model sesuai marker akan muncul.</p>
             <div class="ar-toolbar">
                 <a id="open-desktop" href="#" rel="noopener noreferrer">Buka Simulasi Desktop</a>
                 <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" target="_blank"
-                    rel="noopener noreferrer">Buka Marker Hiro</a>
+                    rel="noopener noreferrer">Marker Hiro (fallback)</a>
+                <a href="https://ar-js-org.github.io/AR.js-Docs/marker-training/examples/generator.html" target="_blank"
+                    rel="noopener noreferrer">Generator Marker Barcode</a>
                 <button id="zoom-in" type="button">Zoom +</button>
                 <button id="zoom-out" type="button">Zoom -</button>
                 <button id="rot-left" type="button">Rotasi -</button>
@@ -569,11 +576,13 @@
             <p id="ar-system-meta" class="ar-system-meta">Menyiapkan sistem orbit AR...</p>
         </section>
 
-        <a href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png" class="ar-marker-hint"
-            target="_blank" rel="noopener noreferrer" aria-label="Marker Hiro">
-            <img src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
-                alt="Marker Hiro untuk tracking AR" />
-        </a>
+        <div class="ar-marker-hint" aria-label="Peta marker AR objek">
+            <strong>Peta Marker Objek</strong>
+            <span>Hiro: mengikuti model dari QR/link</span>
+            <span>Kanji: Mars</span>
+            <span>B0 Bumi, B1 Mars, B2 Jupiter, B3 Saturnus</span>
+            <span>B4 Uranus, B5 Neptunus, B6 Venus, B7 Merkurius, B8 Bulan</span>
+        </div>
 
         <video id="camera-display-video" class="camera-display-video" autoplay muted playsinline webkit-playsinline></video>
 
@@ -587,9 +596,59 @@
         <a-scene id="ar-scene" embedded loading-screen="enabled: false" vr-mode-ui="enabled: false"
             renderer="antialias: true; alpha: true; precision: mediump"
             arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false; detectionMode: mono; matrixCodeType: 3x3; maxDetectionRate: 60; canvasWidth: 1280; canvasHeight: 960;">
-            <a-marker id="orbinex-marker" preset="hiro" emitevents="true" smooth="true" smoothCount="8"
+            <a-marker id="orbinex-marker-hiro" data-model="" data-marker-label="Hiro" preset="hiro" emitevents="true" smooth="true" smoothCount="8"
                 smoothTolerance="0.01" smoothThreshold="5">
-                <a-entity id="model-root" position="0 0 0"></a-entity>
+                <a-entity id="model-root-hiro" data-model-root position="0 0 0"></a-entity>
+            </a-marker>
+
+            <a-marker id="orbinex-marker-kanji" data-model="Mars" data-marker-label="Kanji" preset="kanji" emitevents="true" smooth="true" smoothCount="8"
+                smoothTolerance="0.01" smoothThreshold="5">
+                <a-entity id="model-root-kanji" data-model-root position="0 0 0"></a-entity>
+            </a-marker>
+
+            <a-marker id="orbinex-marker-b0" data-model="Bumi" data-marker-label="Barcode 0" type="barcode" value="0" emitevents="true" smooth="true" smoothCount="8"
+                smoothTolerance="0.01" smoothThreshold="5">
+                <a-entity id="model-root-b0" data-model-root position="0 0 0"></a-entity>
+            </a-marker>
+
+            <a-marker id="orbinex-marker-b1" data-model="Mars" data-marker-label="Barcode 1" type="barcode" value="1" emitevents="true" smooth="true" smoothCount="8"
+                smoothTolerance="0.01" smoothThreshold="5">
+                <a-entity id="model-root-b1" data-model-root position="0 0 0"></a-entity>
+            </a-marker>
+
+            <a-marker id="orbinex-marker-b2" data-model="Jupiter" data-marker-label="Barcode 2" type="barcode" value="2" emitevents="true" smooth="true" smoothCount="8"
+                smoothTolerance="0.01" smoothThreshold="5">
+                <a-entity id="model-root-b2" data-model-root position="0 0 0"></a-entity>
+            </a-marker>
+
+            <a-marker id="orbinex-marker-b3" data-model="Saturnus" data-marker-label="Barcode 3" type="barcode" value="3" emitevents="true" smooth="true" smoothCount="8"
+                smoothTolerance="0.01" smoothThreshold="5">
+                <a-entity id="model-root-b3" data-model-root position="0 0 0"></a-entity>
+            </a-marker>
+
+            <a-marker id="orbinex-marker-b4" data-model="Uranus" data-marker-label="Barcode 4" type="barcode" value="4" emitevents="true" smooth="true" smoothCount="8"
+                smoothTolerance="0.01" smoothThreshold="5">
+                <a-entity id="model-root-b4" data-model-root position="0 0 0"></a-entity>
+            </a-marker>
+
+            <a-marker id="orbinex-marker-b5" data-model="Neptunus" data-marker-label="Barcode 5" type="barcode" value="5" emitevents="true" smooth="true" smoothCount="8"
+                smoothTolerance="0.01" smoothThreshold="5">
+                <a-entity id="model-root-b5" data-model-root position="0 0 0"></a-entity>
+            </a-marker>
+
+            <a-marker id="orbinex-marker-b6" data-model="Venus" data-marker-label="Barcode 6" type="barcode" value="6" emitevents="true" smooth="true" smoothCount="8"
+                smoothTolerance="0.01" smoothThreshold="5">
+                <a-entity id="model-root-b6" data-model-root position="0 0 0"></a-entity>
+            </a-marker>
+
+            <a-marker id="orbinex-marker-b7" data-model="Merkurius" data-marker-label="Barcode 7" type="barcode" value="7" emitevents="true" smooth="true" smoothCount="8"
+                smoothTolerance="0.01" smoothThreshold="5">
+                <a-entity id="model-root-b7" data-model-root position="0 0 0"></a-entity>
+            </a-marker>
+
+            <a-marker id="orbinex-marker-b8" data-model="Bulan" data-marker-label="Barcode 8" type="barcode" value="8" emitevents="true" smooth="true" smoothCount="8"
+                smoothTolerance="0.01" smoothThreshold="5">
+                <a-entity id="model-root-b8" data-model-root position="0 0 0"></a-entity>
             </a-marker>
             <a-entity camera></a-entity>
         </a-scene>
@@ -619,8 +678,7 @@
             const statusEl = document.getElementById("ar-status");
             const systemMetaEl = document.getElementById("ar-system-meta");
             const sceneEl = document.getElementById("ar-scene");
-            const markerEl = document.getElementById("orbinex-marker");
-            const modelRoot = document.getElementById("model-root");
+            const markerEls = Array.from(document.querySelectorAll("a-marker[data-model]"));
             const openDesktopLink = document.getElementById("open-desktop");
             const zoomInButton = document.getElementById("zoom-in");
             const zoomOutButton = document.getElementById("zoom-out");
@@ -639,6 +697,16 @@
             const pipSwapLabel = document.getElementById("pip-swap-label");
             const rootHtml = document.documentElement;
             const bodyEl = document.body;
+
+            const hiroMarkerEl = document.getElementById("orbinex-marker-hiro");
+            if (hiroMarkerEl && requestedModel) {
+                hiroMarkerEl.dataset.model = requestedModel;
+            }
+
+            let modelRoot = (hiroMarkerEl && hiroMarkerEl.querySelector("[data-model-root]"))
+                || (markerEls[0] && markerEls[0].querySelector("[data-model-root]"));
+            let activeMarkerEl = hiroMarkerEl || markerEls[0] || null;
+            const markerVisibilityState = new Map();
 
             modelNameEl.textContent = requestedModel;
 
@@ -1141,16 +1209,61 @@
 
             const catalogByName = new Map();
             const normalizedNameIndex = new Map();
-            const realisticMaterialByName = new Map([
-                ["Merkurius", "color: #91867b; roughness: 0.93; metalness: 0.02"],
-                ["Venus", "color: #dcb988; roughness: 0.88; metalness: 0.01"],
-                ["Bumi", "color: #2d6fa3; roughness: 0.8; metalness: 0.02"],
-                ["Mars", "color: #b65e44; roughness: 0.9; metalness: 0.01"],
-                ["Jupiter", "color: #c8a17d; roughness: 0.86; metalness: 0.02"],
-                ["Saturnus", "color: #d7c08f; roughness: 0.87; metalness: 0.02"],
-                ["Uranus", "color: #88c1cb; roughness: 0.83; metalness: 0.02"],
-                ["Neptunus", "color: #3e64b7; roughness: 0.83; metalness: 0.03"],
-                ["Bulan", "color: #c9cdd0; roughness: 0.97; metalness: 0.01"],
+            const visualProfileByName = new Map([
+                ["Matahari", {
+                    texture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/sun.jpg",
+                    roughness: 0.26,
+                    metalness: 0.02,
+                    emissive: "#ffb648",
+                    emissiveIntensity: 0.72,
+                }],
+                ["Merkurius", {
+                    texture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/mercury.jpg",
+                    roughness: 0.93,
+                    metalness: 0.02,
+                }],
+                ["Venus", {
+                    texture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/venus.jpg",
+                    roughness: 0.88,
+                    metalness: 0.01,
+                }],
+                ["Bumi", {
+                    texture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_atmos_2048.jpg",
+                    cloudTexture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/earth_clouds_1024.png",
+                    roughness: 0.82,
+                    metalness: 0.02,
+                }],
+                ["Mars", {
+                    texture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/mars_1k_color.jpg",
+                    roughness: 0.9,
+                    metalness: 0.01,
+                }],
+                ["Jupiter", {
+                    texture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/jupiter.jpg",
+                    roughness: 0.86,
+                    metalness: 0.02,
+                }],
+                ["Saturnus", {
+                    texture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/saturn.jpg",
+                    roughness: 0.87,
+                    metalness: 0.02,
+                    ringTexture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/saturnringcolor.jpg",
+                }],
+                ["Uranus", {
+                    texture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/uranus.jpg",
+                    roughness: 0.83,
+                    metalness: 0.02,
+                }],
+                ["Neptunus", {
+                    texture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/neptune.jpg",
+                    roughness: 0.83,
+                    metalness: 0.03,
+                }],
+                ["Bulan", {
+                    texture: "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/planets/moon_1024.jpg",
+                    roughness: 0.97,
+                    metalness: 0.01,
+                }],
             ]);
 
             function registerBody(entry) {
@@ -1432,12 +1545,27 @@
 
             function appearanceForBody(body, displayRadius) {
                 const kind = body.kind;
-                const realisticMaterial = realisticMaterialByName.get(body.name);
+                const visualProfile = visualProfileByName.get(body.name);
 
-                if (realisticMaterial) {
+                if (visualProfile && visualProfile.texture) {
+                    const materialParts = [
+                        `color: ${body.color}`,
+                        `src: ${visualProfile.texture}`,
+                        `roughness: ${Number.isFinite(visualProfile.roughness) ? visualProfile.roughness : 0.86}`,
+                        `metalness: ${Number.isFinite(visualProfile.metalness) ? visualProfile.metalness : 0.02}`,
+                    ];
+
+                    if (visualProfile.emissive) {
+                        materialParts.push(`emissive: ${visualProfile.emissive}`);
+                    }
+
+                    if (Number.isFinite(visualProfile.emissiveIntensity)) {
+                        materialParts.push(`emissiveIntensity: ${visualProfile.emissiveIntensity}`);
+                    }
+
                     return {
                         geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
-                        material: realisticMaterial,
+                        material: materialParts.join("; "),
                     };
                 }
 
@@ -1490,6 +1618,7 @@
 
                 const displayRadius = displayRadiusForBody(body, parentNode, focusName);
                 const appearance = appearanceForBody(body, displayRadius);
+                const visualProfile = visualProfileByName.get(body.name) || null;
 
                 const bodyMeshEl = createEntity("a-entity", {
                     geometry: appearance.geometry,
@@ -1506,6 +1635,16 @@
                         position: "0 0 0",
                     });
                     orbitAnchorEl.appendChild(atmosphereEl);
+                }
+
+                let cloudLayerEl = null;
+                if (visualProfile && visualProfile.cloudTexture) {
+                    cloudLayerEl = createEntity("a-entity", {
+                        geometry: `primitive: sphere; radius: ${(displayRadius * 1.016).toFixed(4)}`,
+                        material: `src: ${visualProfile.cloudTexture}; color: #ffffff; opacity: 0.62; transparent: true; side: double; depthWrite: false; roughness: 1; metalness: 0`,
+                        position: "0 0 0",
+                    });
+                    orbitAnchorEl.appendChild(cloudLayerEl);
                 }
 
                 let glowEl = null;
@@ -1529,10 +1668,14 @@
                 }
 
                 if (isRingedBody(body.name)) {
+                    const hasRingTexture = !!(visualProfile && visualProfile.ringTexture);
+                    const ringMaterial = hasRingTexture
+                        ? `src: ${visualProfile.ringTexture}; color: #d7c08f; roughness: 0.9; metalness: 0.02; opacity: 0.82; transparent: true; side: double`
+                        : "color: #bcd4d8; roughness: 0.9; metalness: 0.02; opacity: 0.34; transparent: true; side: double";
                     const ringEl = createEntity("a-entity", {
-                        geometry: `primitive: torus; radius: ${(displayRadius * 1.62).toFixed(4)}; radiusTubular: ${(displayRadius * 0.19).toFixed(4)}; segmentsTubular: 56; segmentsRadial: 10`,
-                        material: "color: #cdb58d; roughness: 0.84; metalness: 0.04; opacity: 0.72; transparent: true",
-                        rotation: "90 10 0",
+                        geometry: `primitive: ring; radiusInner: ${(displayRadius * 1.42).toFixed(4)}; radiusOuter: ${(displayRadius * 2.06).toFixed(4)}; segmentsTheta: 96`,
+                        material: ringMaterial,
+                        rotation: "-90 10 0",
                     });
                     orbitAnchorEl.appendChild(ringEl);
                 }
@@ -1570,13 +1713,15 @@
                 let orbitTrackEl = null;
                 if (parentNode) {
                     orbitRadius = orbitRadiusForBody(body, parentNode);
-                    orbitTrackEl = createEntity("a-entity", {
-                        geometry: `primitive: ring; radiusInner: ${(orbitRadius - 0.003).toFixed(4)}; radiusOuter: ${(orbitRadius + 0.003).toFixed(4)}; segmentsTheta: 96`,
-                        material: "color: #7ea8e6; opacity: 0.24; transparent: true; side: double",
-                        rotation: "-90 0 0",
-                        position: "0 0 0",
-                    });
-                    parentNode.orbitAnchorEl.appendChild(orbitTrackEl);
+                    if (parentNode.body.name !== focusName) {
+                        orbitTrackEl = createEntity("a-entity", {
+                            geometry: `primitive: ring; radiusInner: ${(orbitRadius - 0.003).toFixed(4)}; radiusOuter: ${(orbitRadius + 0.003).toFixed(4)}; segmentsTheta: 96`,
+                            material: "color: #7ea8e6; opacity: 0.24; transparent: true; side: double",
+                            rotation: "-90 0 0",
+                            position: "0 0 0",
+                        });
+                        parentNode.orbitAnchorEl.appendChild(orbitTrackEl);
+                    }
                 }
 
                 const orbitOmega = parentNode && body.periodDays
@@ -1591,6 +1736,7 @@
                     bodyMeshEl,
                     labelEl: label,
                     atmosphereEl,
+                    cloudLayerEl,
                     glowEl,
                     cometTailEl,
                     orbitTrackEl,
@@ -1606,6 +1752,16 @@
             }
 
             function buildArSystem(focusBody) {
+                if (!modelRoot) {
+                    return {
+                        rootBody: focusBody,
+                        focusBody,
+                        nodes: [],
+                        nodeByName: new Map(),
+                        rootContainer: null,
+                    };
+                }
+
                 modelRoot.innerHTML = "";
 
                 const system = buildDisplayBodies(focusBody);
@@ -1650,18 +1806,75 @@
             let orbitDaysPerSecond = clamp(Number(speedRange.value) || 2.5, 0.05, 24);
             speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} hari/detik`;
 
-            const focusBody = resolveBodyByName(requestedModel);
-            modelNameEl.textContent = focusBody.name;
-            const arSystem = buildArSystem(focusBody);
+            let currentFocusBody = resolveBodyByName(requestedModel);
+            let arSystem = null;
 
-            systemMetaEl.textContent = `Root: ${arSystem.rootBody.name} | Fokus: ${arSystem.focusBody.name} | Node AR: ${arSystem.nodes.length}`;
-            statusEl.textContent = "Aktifkan kamera, scan marker Hiro, lalu gunakan drag/pinch untuk rotate dan zoom.";
+            function updateSystemMeta(markerLabel) {
+                if (!arSystem) {
+                    return;
+                }
+
+                const label = markerLabel || (activeMarkerEl && activeMarkerEl.dataset.markerLabel) || "QR/Hiro";
+                systemMetaEl.textContent = `Marker: ${label} | Root: ${arSystem.rootBody.name} | Fokus: ${arSystem.focusBody.name} | Node AR: ${arSystem.nodes.length}`;
+            }
+
+            function setActiveFocusByName(bodyName, markerLabel) {
+                if (!modelRoot) {
+                    return;
+                }
+
+                currentFocusBody = resolveBodyByName(bodyName || requestedModel);
+                modelNameEl.textContent = currentFocusBody.name;
+                desktopUrl.searchParams.set("model", currentFocusBody.name);
+                openDesktopLink.href = desktopUrl.toString();
+                arSystem = buildArSystem(currentFocusBody);
+                applyViewTransform();
+                updateSystemMeta(markerLabel);
+            }
+
+            function modelRootFromMarker(markerNode) {
+                if (!markerNode) {
+                    return null;
+                }
+                return markerNode.querySelector("[data-model-root]");
+            }
+
+            function activateMarker(markerNode) {
+                if (!markerNode) {
+                    return;
+                }
+
+                const nextRoot = modelRootFromMarker(markerNode);
+                if (!nextRoot) {
+                    return;
+                }
+
+                const rootChanged = modelRoot !== nextRoot;
+                if (rootChanged && modelRoot) {
+                    modelRoot.innerHTML = "";
+                }
+
+                modelRoot = nextRoot;
+                activeMarkerEl = markerNode;
+                const markerLabel = markerNode.dataset.markerLabel || markerNode.id || "marker";
+                const markerModel = (markerNode.dataset.model || requestedModel || "Bumi").trim();
+                const focusChanged = !arSystem || !currentFocusBody || currentFocusBody.name !== resolveBodyByName(markerModel).name;
+
+                if (rootChanged || focusChanged) {
+                    setActiveFocusByName(markerModel, markerLabel);
+                }
+
+                statusEl.textContent = `Marker ${markerLabel} terdeteksi. Menampilkan ${currentFocusBody.name}.`;
+            }
 
             let viewScale = 1;
             let viewRotX = -0.16;
             let viewRotY = 0.34;
 
             function applyViewTransform() {
+                if (!modelRoot || !modelRoot.object3D) {
+                    return;
+                }
                 const obj = modelRoot.object3D;
                 obj.position.set(0, 0.22, 0);
                 obj.scale.setScalar(viewScale);
@@ -1680,6 +1893,9 @@
                 applyViewTransform();
             }
 
+            setActiveFocusByName(requestedModel, (activeMarkerEl && activeMarkerEl.dataset.markerLabel) || "QR/Hiro");
+            statusEl.textContent = "Aktifkan kamera, scan marker objek (Hiro/Barcode), lalu gunakan drag/pinch untuk rotasi + zoom.";
+
             zoomInButton.addEventListener("click", () => zoomBy(1.12));
             zoomOutButton.addEventListener("click", () => zoomBy(0.9));
             rotLeftButton.addEventListener("click", () => {
@@ -1695,6 +1911,10 @@
             speedRange.addEventListener("input", () => {
                 orbitDaysPerSecond = clamp(Number(speedRange.value) || 2.5, 0.05, 24);
                 speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} hari/detik`;
+
+                if (orbitDaysPerSecond > 14) {
+                    statusEl.textContent = `Kecepatan ${orbitDaysPerSecond.toFixed(2)} hari/detik: mode chaos visual aktif (orbit jadi tidak stabil).`;
+                }
             });
 
             let markerDetected = false;
@@ -1746,7 +1966,7 @@
                         cameraReady = true;
                         autoCloseSheetAfterCameraReady();
                         if (!markerDetected) {
-                            statusEl.textContent = "Kamera aktif. Arahkan marker Hiro (25-60% area layar) agar objek muncul.";
+                            statusEl.textContent = "Kamera aktif. Arahkan marker objek (Hiro/Barcode) 25-60% area layar agar model muncul.";
                         }
                     }
                     return true;
@@ -1763,7 +1983,7 @@
                 bindArMiniSwapTarget();
                 autoCloseSheetAfterCameraReady();
                 if (!markerDetected) {
-                    statusEl.textContent = "Kamera AR terinisialisasi. Arahkan ke marker Hiro sekarang.";
+                    statusEl.textContent = "Kamera AR terinisialisasi. Arahkan ke marker objek sekarang.";
                 }
             }
 
@@ -1780,7 +2000,7 @@
                 applyMainVideoLayer();
                 applySceneCanvasLayout();
                 bindArMiniSwapTarget();
-                statusEl.textContent = "Scene AR siap. Menunggu kamera dan marker Hiro.";
+                statusEl.textContent = "Scene AR siap. Menunggu kamera dan marker objek (Hiro/Barcode).";
             });
 
             sceneEl.addEventListener("renderstart", () => {
@@ -1810,7 +2030,7 @@
                     return;
                 }
                 if (!markerDetected) {
-                    statusEl.textContent = "Kamera aktif, tapi marker belum terbaca. Dekatkan HP ke marker Hiro dan hindari blur/pantulan layar.";
+                    statusEl.textContent = "Kamera aktif, tapi marker belum terbaca. Dekatkan HP ke marker objek dan hindari blur/pantulan layar.";
                 }
             }, 12000);
 
@@ -1883,13 +2103,22 @@
                 const dtSec = clamp((nowMs - lastFrameMs) / 1000, 0, 0.08);
                 lastFrameMs = nowMs;
 
+                if (!arSystem) {
+                    requestAnimationFrame(animateFrame);
+                    return;
+                }
+
                 const simSec = dtSec * orbitDaysPerSecond * DAY_SECONDS;
+                const chaosIntensity = clamp((orbitDaysPerSecond - 14) / 10, 0, 1);
                 for (const node of arSystem.nodes) {
                     if (node.parentNode && node.orbitOmega > 0 && node.orbitRadius > 0) {
                         node.phase = (node.phase + node.orbitOmega * simSec) % TAU;
                         const cosP = Math.cos(node.phase);
                         const sinP = Math.sin(node.phase);
-                        const x = node.orbitRadius * cosP;
+                        const wobble = chaosIntensity > 0
+                            ? Math.sin(nowMs * 0.006 + node.pulseSeed) * node.orbitRadius * 0.12 * chaosIntensity
+                            : 0;
+                        const x = node.orbitRadius * cosP + wobble;
                         const zPlane = node.orbitRadius * sinP;
                         const y = zPlane * Math.sin(node.inclinationRad);
                         const z = zPlane * Math.cos(node.inclinationRad);
@@ -1897,6 +2126,17 @@
                     }
 
                     node.bodyMeshEl.object3D.rotation.y += node.spinSign * node.spinOmega * simSec;
+
+                    if (node.cloudLayerEl) {
+                        node.cloudLayerEl.object3D.rotation.y += node.spinSign * node.spinOmega * simSec * 1.05;
+                    }
+
+                    if (chaosIntensity > 0.86 && node.body.kind !== "star") {
+                        const pulse = 1 + Math.sin(nowMs * 0.04 + node.pulseSeed) * 0.1 * chaosIntensity;
+                        node.bodyMeshEl.object3D.scale.setScalar(pulse);
+                    } else {
+                        node.bodyMeshEl.object3D.scale.set(1, 1, 1);
+                    }
 
                     if (node.glowEl) {
                         const glowScale = 1 + Math.sin(nowMs / 520 + node.pulseSeed) * 0.04;
@@ -1918,14 +2158,23 @@
             }
             requestAnimationFrame(animateFrame);
 
-            markerEl.addEventListener("markerFound", function () {
-                markerDetected = true;
-                statusEl.textContent = "Marker terdeteksi. Sistem AR aktif: orbit + rotasi berjalan real-time.";
-            });
+            markerEls.forEach((markerNode) => {
+                markerVisibilityState.set(markerNode.id, false);
 
-            markerEl.addEventListener("markerLost", function () {
-                markerDetected = false;
-                statusEl.textContent = "Marker hilang. Arahkan kamera ke marker Hiro agar sistem AR muncul lagi.";
+                markerNode.addEventListener("markerFound", () => {
+                    markerVisibilityState.set(markerNode.id, true);
+                    markerDetected = true;
+                    activateMarker(markerNode);
+                });
+
+                markerNode.addEventListener("markerLost", () => {
+                    markerVisibilityState.set(markerNode.id, false);
+                    markerDetected = Array.from(markerVisibilityState.values()).some(Boolean);
+
+                    if (!markerDetected) {
+                        statusEl.textContent = "Marker hilang. Arahkan kamera ke marker objek agar model muncul lagi.";
+                    }
+                });
             });
 
             if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
