@@ -25,7 +25,7 @@
             padding: 0;
             width: 100%;
             height: 100%;
-            background: var(--bg);
+            background: transparent;
             color: var(--text);
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
@@ -34,6 +34,37 @@
         #ar-app {
             position: fixed;
             inset: 0;
+            background: #000;
+        }
+
+        a-scene {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 1 !important;
+        }
+
+        #arjs-video,
+        .arjs-video,
+        #ar-app video {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            object-fit: cover !important;
+            z-index: 0 !important;
+            background: #000 !important;
+        }
+
+        .a-canvas,
+        a-scene canvas {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 2 !important;
+            background: transparent !important;
         }
 
         .ar-overlay {
@@ -126,7 +157,7 @@
         .gesture-pad {
             position: fixed;
             inset: 0;
-            z-index: 8;
+            z-index: 7;
             touch-action: none;
             background: transparent;
         }
@@ -196,9 +227,9 @@
 
         <div id="gesture-pad" class="gesture-pad" aria-hidden="true"></div>
 
-        <a-scene embedded vr-mode-ui="enabled: false" renderer="antialias: true; alpha: true"
+        <a-scene id="ar-scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; alpha: true"
             arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false;">
-            <a-marker id="orbinex-marker" preset="hiro">
+            <a-marker id="orbinex-marker" preset="hiro" emitevents="true" smooth="true" smoothCount="8" smoothTolerance="0.01" smoothThreshold="5">
                 <a-entity id="model-root" position="0 0 0"></a-entity>
             </a-marker>
             <a-entity camera></a-entity>
@@ -219,6 +250,7 @@
             const modelNameEl = document.getElementById("ar-model-name");
             const statusEl = document.getElementById("ar-status");
             const systemMetaEl = document.getElementById("ar-system-meta");
+            const sceneEl = document.getElementById("ar-scene");
             const markerEl = document.getElementById("orbinex-marker");
             const modelRoot = document.getElementById("model-root");
             const openDesktopLink = document.getElementById("open-desktop");
@@ -969,6 +1001,70 @@
                 speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} hari/detik`;
             });
 
+            let markerDetected = false;
+            let cameraReady = false;
+
+            function cameraVideoElement() {
+                return document.getElementById("arjs-video") || document.querySelector("#ar-app video");
+            }
+
+            function updateCameraReadyStatus() {
+                const video = cameraVideoElement();
+                if (!video) {
+                    return false;
+                }
+
+                if (video.readyState >= 2 || (video.videoWidth > 0 && video.videoHeight > 0)) {
+                    if (!cameraReady) {
+                        cameraReady = true;
+                        if (!markerDetected) {
+                            statusEl.textContent = "Kamera aktif. Arahkan marker Hiro (25-60% area layar) agar objek muncul.";
+                        }
+                    }
+                    return true;
+                }
+
+                return false;
+            }
+
+            window.addEventListener("camera-init", () => {
+                cameraReady = true;
+                if (!markerDetected) {
+                    statusEl.textContent = "Kamera AR terinisialisasi. Arahkan ke marker Hiro sekarang.";
+                }
+            });
+
+            window.addEventListener("camera-error", () => {
+                statusEl.textContent = "Gagal membuka kamera. Pastikan izin kamera aktif dan browser mendukung WebRTC.";
+            });
+
+            sceneEl.addEventListener("loaded", () => {
+                statusEl.textContent = "Scene AR siap. Menunggu kamera dan marker Hiro.";
+            });
+
+            sceneEl.addEventListener("renderstart", () => {
+                updateCameraReadyStatus();
+            });
+
+            let cameraPollTick = 0;
+            const cameraPoll = window.setInterval(() => {
+                cameraPollTick += 1;
+                const ready = updateCameraReadyStatus();
+                if (ready || cameraPollTick > 40) {
+                    window.clearInterval(cameraPoll);
+                }
+            }, 400);
+
+            window.setTimeout(() => {
+                if (!cameraReady) {
+                    statusEl.textContent = "Kamera belum aktif. Cek izin kamera browser, lalu reload halaman AR.";
+                    return;
+                }
+                if (!markerDetected) {
+                    statusEl.textContent = "Kamera aktif, tapi marker belum terbaca. Dekatkan HP ke marker Hiro dan hindari blur/pantulan layar.";
+                }
+            }, 12000);
+
             const activePointers = new Map();
             let pinchDistance = 0;
 
@@ -1068,10 +1164,12 @@
             requestAnimationFrame(animateFrame);
 
             markerEl.addEventListener("markerFound", function () {
+                markerDetected = true;
                 statusEl.textContent = "Marker terdeteksi. Sistem AR aktif: orbit + rotasi berjalan real-time.";
             });
 
             markerEl.addEventListener("markerLost", function () {
+                markerDetected = false;
                 statusEl.textContent = "Marker hilang. Arahkan kamera ke marker Hiro agar sistem AR muncul lagi.";
             });
 

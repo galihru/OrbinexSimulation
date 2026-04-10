@@ -574,8 +574,8 @@ input:focus-visible {
 }
 
 .info-ar-marker {
-    width: 58px;
-    height: 58px;
+    width: 96px;
+    height: 96px;
     border-radius: 6px;
     border: 1px solid rgba(142, 180, 236, 0.4);
     background: #f6f9ff;
