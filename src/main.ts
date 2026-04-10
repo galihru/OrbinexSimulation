@@ -254,6 +254,19 @@ const AUTO_REFRESH_MS = 45 * 1000;
 const PLANCK_REDUCED = 1.054571817e-34;
 const BOLTZMANN = 1.380649e-23;
 const LIGHT_YEAR_METERS = 9.4607304725808e15;
+const HIRO_MARKER_URL = "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png";
+const KANJI_MARKER_URL = "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.png";
+const objectMarkerBarcode = new Map<string, number>([
+    ["Bumi", 0],
+    ["Mars", 1],
+    ["Jupiter", 2],
+    ["Saturnus", 3],
+    ["Uranus", 4],
+    ["Neptunus", 5],
+    ["Venus", 6],
+    ["Merkurius", 7],
+    ["Bulan", 8],
+]);
 
 const app = byId<HTMLElement>("app");
 app.innerHTML = `
@@ -314,22 +327,36 @@ app.innerHTML = `
             <section id="info-panel" class="info-panel" aria-live="polite" aria-label="Panel detail objek">
                 <div class="info-head">
                     <div class="info-media">
-                        <canvas id="info-preview" class="info-image" aria-label="Pratinjau 3D objek"></canvas>
-                        <figure id="info-ar-card" class="info-ar-card" aria-label="QR AR objek aktif">
-                            <img id="info-ar-qr" class="info-ar-qr" alt="QR AR belum tersedia" />
-                            <figcaption id="info-ar-caption" class="info-ar-caption">Scan HP untuk AR objek aktif</figcaption>
-                            <a id="info-ar-link" class="info-ar-link" href="#" target="_blank" rel="noopener noreferrer">Buka AR di HP</a>
+                        <div class="info-image-wrap">
+                            <canvas id="info-preview" class="info-image" aria-label="Pratinjau 3D objek"></canvas>
                             <img
-                                id="info-ar-marker"
-                                class="info-ar-marker"
+                                id="info-preview-marker"
+                                class="info-preview-marker"
                                 src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
-                                alt="Marker Hiro untuk tracking AR"
+                                alt="Ikon marker objek"
                                 loading="lazy"
                             />
-                        </figure>
+                        </div>
                     </div>
                     <div>
-                        <h2 id="info-name">Tidak ada objek dipilih</h2>
+                        <div class="info-title-row">
+                            <h2 id="info-name">Tidak ada objek dipilih</h2>
+                            <button id="info-ar-trigger" class="info-ar-trigger" type="button" aria-label="Lihat barcode dan marker AR">AR</button>
+                            <figure id="info-ar-card" class="info-ar-card" aria-label="QR AR objek aktif">
+                                <div class="info-ar-code-wrap">
+                                    <img id="info-ar-qr" class="info-ar-qr" alt="QR AR belum tersedia" />
+                                    <img
+                                        id="info-ar-marker"
+                                        class="info-ar-marker"
+                                        src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
+                                        alt="Marker Hiro untuk tracking AR"
+                                        loading="lazy"
+                                    />
+                                </div>
+                                <figcaption id="info-ar-caption" class="info-ar-caption">Scan HP untuk AR objek aktif</figcaption>
+                                <a id="info-ar-link" class="info-ar-link" href="#" target="_blank" rel="noopener noreferrer">Buka AR di HP</a>
+                            </figure>
+                        </div>
                         <p id="info-kind">-</p>
                         <p id="info-source" class="info-source">Sumber: Orbinex Engine</p>
                         <p id="info-quality" class="info-quality">Kualitas referensi: internal model</p>
@@ -432,10 +459,13 @@ const hierarchyResetButton = byId<HTMLButtonElement>("hierarchy-reset");
 
 const infoPanel = byId<HTMLElement>("info-panel");
 const infoPreviewCanvas = byId<HTMLCanvasElement>("info-preview");
+const infoPreviewMarker = byId<HTMLImageElement>("info-preview-marker");
+const infoArTrigger = byId<HTMLButtonElement>("info-ar-trigger");
 const infoArCard = byId<HTMLElement>("info-ar-card");
 const infoArQr = byId<HTMLImageElement>("info-ar-qr");
 const infoArCaption = byId<HTMLElement>("info-ar-caption");
 const infoArLink = byId<HTMLAnchorElement>("info-ar-link");
+const infoArMarker = byId<HTMLImageElement>("info-ar-marker");
 const infoName = byId<HTMLElement>("info-name");
 const infoKind = byId<HTMLElement>("info-kind");
 const infoSource = byId<HTMLElement>("info-source");
@@ -5157,6 +5187,61 @@ function formatOrbitDistance(distanceMeters: number): string {
     return `${(ly / 1_000_000).toFixed(3)} Mly`;
 }
 
+type ArMarkerProfile = {
+    markerLabel: string;
+    markerHint: string;
+    markerImageUrl: string;
+};
+
+const barcodeMarkerBadgeCache = new Map<number, string>();
+
+function barcodeMarkerBadgeDataUrl(value: number): string {
+    const existing = barcodeMarkerBadgeCache.get(value);
+    if (existing) {
+        return existing;
+    }
+
+    const label = `B${value}`;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><rect x='1' y='1' width='158' height='158' rx='18' fill='#0a1733' stroke='#d9e7ff' stroke-width='2'/><rect x='24' y='24' width='112' height='112' rx='10' fill='#f6f9ff'/><rect x='36' y='36' width='88' height='88' rx='8' fill='#0b1326'/><text x='80' y='96' font-size='30' text-anchor='middle' fill='#f6f9ff' font-family='Arial, sans-serif' font-weight='700'>${label}</text></svg>`;
+    const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    barcodeMarkerBadgeCache.set(value, dataUrl);
+    return dataUrl;
+}
+
+function markerProfileForObject(objectName?: string): ArMarkerProfile {
+    const name = objectName?.trim() ?? "";
+    const barcodeValue = objectMarkerBarcode.get(name);
+
+    if (name === "Mars") {
+        return {
+            markerLabel: "Kanji / B1",
+            markerHint: "marker Kanji atau Barcode B1",
+            markerImageUrl: KANJI_MARKER_URL,
+        };
+    }
+
+    if (typeof barcodeValue === "number") {
+        return {
+            markerLabel: `Barcode B${barcodeValue}`,
+            markerHint: `marker Barcode B${barcodeValue}`,
+            markerImageUrl: barcodeMarkerBadgeDataUrl(barcodeValue),
+        };
+    }
+
+    return {
+        markerLabel: "Hiro",
+        markerHint: "marker Hiro (fallback)",
+        markerImageUrl: HIRO_MARKER_URL,
+    };
+}
+
+function applyMarkerProfileToInfoUi(profile: ArMarkerProfile): void {
+    infoArMarker.src = profile.markerImageUrl;
+    infoArMarker.alt = `Ikon ${profile.markerLabel}`;
+    infoPreviewMarker.src = profile.markerImageUrl;
+    infoPreviewMarker.alt = `Marker ${profile.markerLabel}`;
+}
+
 function arViewerUrlForObject(objectName?: string): string {
     const baseUrl = new URL(".", window.location.href);
     const arUrl = new URL("ar-view.html", baseUrl);
@@ -5169,22 +5254,31 @@ function arViewerUrlForObject(objectName?: string): string {
 }
 
 function resetInfoArCard(): void {
+    const profile = markerProfileForObject();
     infoArQrCurrentUrl = "";
     infoArQrPendingUrl = "";
     infoArQrRenderToken += 1;
     infoArCard.classList.remove("is-loading");
+    infoArCard.classList.remove("is-open");
     infoArQr.removeAttribute("src");
     infoArQr.alt = "QR AR belum tersedia";
-    infoArCaption.textContent = "Scan HP untuk AR objek aktif";
+    applyMarkerProfileToInfoUi(profile);
+    infoArTrigger.title = `QR AR + ${profile.markerLabel}`;
+    infoArTrigger.setAttribute("aria-label", `Lihat QR AR dan ${profile.markerHint}`);
+    infoArCaption.textContent = "Hover/click ikon AR, scan QR, lalu gunakan marker objek.";
     infoArLink.textContent = "Buka AR di HP";
     infoArLink.href = arViewerUrlForObject();
 }
 
 async function updateInfoArCard(body: UniverseBody): Promise<void> {
     const arUrl = arViewerUrlForObject(body.name);
+    const profile = markerProfileForObject(body.name);
     infoArLink.href = arUrl;
     infoArLink.textContent = `Buka AR ${body.name}`;
-    infoArCaption.textContent = "Scan QR HP, lalu arahkan ke marker Hiro.";
+    applyMarkerProfileToInfoUi(profile);
+    infoArTrigger.title = `QR AR + ${profile.markerLabel}`;
+    infoArTrigger.setAttribute("aria-label", `Lihat QR AR ${body.name} dan ${profile.markerHint}`);
+    infoArCaption.textContent = `Scan QR HP, lalu arahkan ke ${profile.markerHint}.`;
     infoArQr.alt = `QR AR untuk ${body.name}`;
 
     if (infoArQrCurrentUrl === arUrl && !!infoArQr.getAttribute("src")) {
@@ -5984,6 +6078,27 @@ function bindUiHandlers(): void {
             uiState.selectedKey = uiState.hoverKey;
         }
         updateInfoPanel();
+    });
+
+    infoArTrigger.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        infoArCard.classList.toggle("is-open");
+    });
+
+    infoArCard.addEventListener("pointerdown", (event) => {
+        event.stopPropagation();
+    });
+
+    document.addEventListener("pointerdown", (event) => {
+        const target = event.target;
+        if (!(target instanceof Node)) {
+            return;
+        }
+        if (infoArCard.contains(target) || infoArTrigger.contains(target)) {
+            return;
+        }
+        infoArCard.classList.remove("is-open");
     });
 
     eventsList.addEventListener("click", (event) => {
