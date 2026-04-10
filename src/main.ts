@@ -333,13 +333,6 @@ app.innerHTML = `
                             <figure id="info-ar-card" class="info-ar-card" aria-label="QR AR objek aktif">
                                 <div class="info-ar-code-wrap">
                                     <img id="info-ar-qr" class="info-ar-qr" alt="QR AR belum tersedia" />
-                                    <img
-                                        id="info-ar-marker"
-                                        class="info-ar-marker"
-                                        src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
-                                        alt="Marker Hiro untuk tracking AR"
-                                        loading="lazy"
-                                    />
                                 </div>
                                 <figcaption id="info-ar-caption" class="info-ar-caption">Scan HP untuk AR objek aktif</figcaption>
                                 <a id="info-ar-link" class="info-ar-link" href="#" target="_blank" rel="noopener noreferrer">Buka AR di HP</a>
@@ -453,7 +446,6 @@ const infoArCard = byId<HTMLElement>("info-ar-card");
 const infoArQr = byId<HTMLImageElement>("info-ar-qr");
 const infoArCaption = byId<HTMLElement>("info-ar-caption");
 const infoArLink = byId<HTMLAnchorElement>("info-ar-link");
-const infoArMarker = byId<HTMLImageElement>("info-ar-marker");
 const infoName = byId<HTMLElement>("info-name");
 const infoKind = byId<HTMLElement>("info-kind");
 const infoSource = byId<HTMLElement>("info-source");
@@ -5195,8 +5187,6 @@ function markerProfileForObject(objectName?: string): ArMarkerProfile {
 }
 
 function applyMarkerProfileToInfoUi(profile: ArMarkerProfile): void {
-    infoArMarker.src = profile.markerImageUrl;
-    infoArMarker.alt = `Ikon ${profile.markerLabel}`;
     infoPreviewMarker.src = profile.markerImageUrl;
     infoPreviewMarker.alt = `Marker ${profile.markerLabel}`;
 }
