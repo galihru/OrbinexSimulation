@@ -59,7 +59,8 @@
         }
 
         #arjs-video,
-        .arjs-video {
+        .arjs-video,
+        .ar-main-video {
             position: fixed !important;
             inset: 0 !important;
             width: 100vw !important;
@@ -67,7 +68,7 @@
             object-fit: cover !important;
             z-index: 0 !important;
             background: #000 !important;
-            opacity: 0;
+            opacity: 0 !important;
             transition: opacity 260ms ease;
         }
 
@@ -84,15 +85,17 @@
         }
 
         body.mode-ar-main #arjs-video,
-        body.mode-ar-main .arjs-video {
-            opacity: 0;
-            pointer-events: none;
+        body.mode-ar-main .arjs-video,
+        body.mode-ar-main .ar-main-video {
+            opacity: 0 !important;
+            pointer-events: none !important;
         }
 
         body.mode-camera-main #arjs-video,
-        body.mode-camera-main .arjs-video {
-            opacity: 1;
-            pointer-events: none;
+        body.mode-camera-main .arjs-video,
+        body.mode-camera-main .ar-main-video {
+            opacity: 1 !important;
+            pointer-events: none !important;
             z-index: 2 !important;
         }
 
@@ -579,10 +582,37 @@
                 setSheetOpen(false);
             }
 
+            function applyMainVideoLayer() {
+                const mainVideo = cameraVideoElement();
+                if (!mainVideo) {
+                    return;
+                }
+
+                mainVideo.classList.add("ar-main-video");
+                mainVideo.style.setProperty("position", "fixed", "important");
+                mainVideo.style.setProperty("inset", "0", "important");
+                mainVideo.style.setProperty("top", "0", "important");
+                mainVideo.style.setProperty("left", "0", "important");
+                mainVideo.style.setProperty("width", "100vw", "important");
+                mainVideo.style.setProperty("height", "100vh", "important");
+                mainVideo.style.setProperty("object-fit", "cover", "important");
+                mainVideo.style.setProperty("background", "#000", "important");
+
+                if (currentViewMode === "camera-main") {
+                    mainVideo.style.setProperty("opacity", "1", "important");
+                    mainVideo.style.setProperty("z-index", "2", "important");
+                } else {
+                    mainVideo.style.setProperty("opacity", "0", "important");
+                    mainVideo.style.setProperty("z-index", "0", "important");
+                }
+                mainVideo.style.setProperty("pointer-events", "none", "important");
+            }
+
             function setViewMode(mode) {
                 currentViewMode = mode === "camera-main" ? "camera-main" : "ar-main";
                 bodyEl.classList.toggle("mode-ar-main", currentViewMode === "ar-main");
                 bodyEl.classList.toggle("mode-camera-main", currentViewMode === "camera-main");
+                applyMainVideoLayer();
 
                 bodyEl.classList.add("swap-animating");
                 window.clearTimeout(swapAnimationTimer);
@@ -625,6 +655,8 @@
                 if (!mainVideo || !mainVideo.srcObject) {
                     return;
                 }
+
+                applyMainVideoLayer();
 
                 if (pipCameraVideo.srcObject !== mainVideo.srcObject) {
                     pipCameraVideo.srcObject = mainVideo.srcObject;
@@ -1469,7 +1501,32 @@
             let cameraReady = false;
 
             function cameraVideoElement() {
-                return document.getElementById("arjs-video") || document.querySelector("video.arjs-video, .arjs-video");
+                const byId = document.getElementById("arjs-video");
+                if (byId && byId !== pipCameraVideo) {
+                    byId.classList.add("ar-main-video");
+                    return byId;
+                }
+
+                const byClass = document.querySelector("video.arjs-video:not(#pip-camera-video), video.ar-main-video:not(#pip-camera-video)");
+                if (byClass) {
+                    byClass.classList.add("ar-main-video");
+                    return byClass;
+                }
+
+                const candidates = Array.from(document.querySelectorAll("video:not(#pip-camera-video)"));
+                if (!candidates.length) {
+                    return null;
+                }
+
+                candidates.sort((a, b) => {
+                    const areaA = (Number(a.videoWidth) || 0) * (Number(a.videoHeight) || 0);
+                    const areaB = (Number(b.videoWidth) || 0) * (Number(b.videoHeight) || 0);
+                    return areaB - areaA;
+                });
+
+                const mainVideo = candidates[0];
+                mainVideo.classList.add("ar-main-video");
+                return mainVideo;
             }
 
             function updateCameraReadyStatus() {
@@ -1481,6 +1538,7 @@
                 video.setAttribute("playsinline", "true");
                 video.setAttribute("webkit-playsinline", "true");
                 video.style.opacity = "1";
+                applyMainVideoLayer();
                 syncPipCameraStream();
 
                 if (video.readyState >= 2 || (video.videoWidth > 0 && video.videoHeight > 0)) {
@@ -1499,6 +1557,7 @@
 
             function handleCameraInit() {
                 cameraReady = true;
+                applyMainVideoLayer();
                 syncPipCameraStream();
                 bindArMiniSwapTarget();
                 autoCloseSheetAfterCameraReady();
@@ -1517,11 +1576,13 @@
             sceneEl.addEventListener("camera-error", handleCameraError);
 
             sceneEl.addEventListener("loaded", () => {
+                applyMainVideoLayer();
                 bindArMiniSwapTarget();
                 statusEl.textContent = "Scene AR siap. Menunggu kamera dan marker Hiro.";
             });
 
             sceneEl.addEventListener("renderstart", () => {
+                applyMainVideoLayer();
                 bindArMiniSwapTarget();
                 updateCameraReadyStatus();
             });
