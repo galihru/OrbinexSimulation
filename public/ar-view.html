@@ -75,10 +75,12 @@
 
         .a-canvas,
         a-scene canvas {
-            position: fixed !important;
+            position: absolute !important;
             inset: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
             z-index: 2 !important;
             background: transparent !important;
             opacity: 1;
@@ -382,8 +384,9 @@
             inset: 0 !important;
             top: 0 !important;
             left: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
+            width: 100% !important;
+            height: 100% !important;
+            position: absolute !important;
             z-index: 2 !important;
             border-radius: 0 !important;
             border: 0 !important;
@@ -394,11 +397,16 @@
         body.mode-camera-main #ar-scene,
         body.mode-camera-main a-scene {
             inset: auto !important;
+            top: auto !important;
+            right: auto !important;
             left: max(10px, env(safe-area-inset-left)) !important;
             bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+            width: 220px !important;
             width: clamp(140px, 38vw, 220px) !important;
+            height: 132px !important;
             height: clamp(92px, 24vw, 132px) !important;
             z-index: 14 !important;
+            position: fixed !important;
             border-radius: 14px !important;
             border: 1px solid rgba(150, 192, 255, 0.68);
             box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
@@ -414,6 +422,7 @@
             left: 0 !important;
             width: 100% !important;
             height: 100% !important;
+            position: absolute !important;
             z-index: 1 !important;
             border-radius: 14px !important;
             border: 0 !important;
@@ -652,11 +661,87 @@
                 mainVideo.style.setProperty("pointer-events", "none", "important");
             }
 
+            function sceneCanvasElement() {
+                if (!sceneEl) {
+                    return null;
+                }
+
+                const localCanvas = sceneEl.querySelector(".a-canvas, canvas");
+                if (localCanvas) {
+                    return localCanvas;
+                }
+
+                return document.querySelector("#ar-scene .a-canvas, #ar-scene canvas, .a-canvas, a-scene canvas");
+            }
+
+            function applySceneCanvasLayout() {
+                if (!sceneEl) {
+                    return;
+                }
+
+                const sceneCanvas = sceneCanvasElement();
+                sceneEl.style.setProperty("position", "fixed", "important");
+                sceneEl.style.setProperty("background", "transparent", "important");
+
+                if (currentViewMode === "camera-main") {
+                    sceneEl.style.setProperty("inset", "auto", "important");
+                    sceneEl.style.setProperty("top", "auto", "important");
+                    sceneEl.style.setProperty("right", "auto", "important");
+                    sceneEl.style.setProperty("left", "max(10px, env(safe-area-inset-left))", "important");
+                    sceneEl.style.setProperty("bottom", "calc(10px + env(safe-area-inset-bottom))", "important");
+                    sceneEl.style.setProperty("width", "220px", "important");
+                    sceneEl.style.setProperty("width", "clamp(140px, 38vw, 220px)", "important");
+                    sceneEl.style.setProperty("height", "132px", "important");
+                    sceneEl.style.setProperty("height", "clamp(92px, 24vw, 132px)", "important");
+                    sceneEl.style.setProperty("z-index", "14", "important");
+                    sceneEl.style.setProperty("border-radius", "14px", "important");
+                    sceneEl.style.setProperty("border", "1px solid rgba(150, 192, 255, 0.68)", "important");
+                    sceneEl.style.setProperty("box-shadow", "0 12px 30px rgba(0, 0, 0, 0.42)", "important");
+                    sceneEl.style.setProperty("overflow", "hidden", "important");
+                } else {
+                    sceneEl.style.setProperty("inset", "0", "important");
+                    sceneEl.style.setProperty("top", "0", "important");
+                    sceneEl.style.setProperty("right", "auto", "important");
+                    sceneEl.style.setProperty("left", "0", "important");
+                    sceneEl.style.setProperty("bottom", "auto", "important");
+                    sceneEl.style.setProperty("width", "100vw", "important");
+                    sceneEl.style.setProperty("height", "100vh", "important");
+                    sceneEl.style.setProperty("z-index", "1", "important");
+                    sceneEl.style.setProperty("border-radius", "0", "important");
+                    sceneEl.style.setProperty("border", "0", "important");
+                    sceneEl.style.setProperty("box-shadow", "none", "important");
+                    sceneEl.style.setProperty("overflow", "visible", "important");
+                }
+
+                if (!sceneCanvas) {
+                    return;
+                }
+
+                sceneCanvas.style.setProperty("position", "absolute", "important");
+                sceneCanvas.style.setProperty("inset", "0", "important");
+                sceneCanvas.style.setProperty("top", "0", "important");
+                sceneCanvas.style.setProperty("left", "0", "important");
+                sceneCanvas.style.setProperty("width", "100%", "important");
+                sceneCanvas.style.setProperty("height", "100%", "important");
+                sceneCanvas.style.setProperty("transform", "none", "important");
+                sceneCanvas.style.setProperty("background", "transparent", "important");
+                sceneCanvas.style.setProperty("pointer-events", "none", "important");
+
+                if (currentViewMode === "camera-main") {
+                    sceneCanvas.style.setProperty("z-index", "1", "important");
+                    sceneCanvas.style.setProperty("border-radius", "14px", "important");
+                } else {
+                    sceneCanvas.style.setProperty("z-index", "2", "important");
+                    sceneCanvas.style.setProperty("border-radius", "0", "important");
+                }
+            }
+
             function setViewMode(mode) {
                 currentViewMode = mode === "camera-main" ? "camera-main" : "ar-main";
                 bodyEl.classList.toggle("mode-ar-main", currentViewMode === "ar-main");
                 bodyEl.classList.toggle("mode-camera-main", currentViewMode === "camera-main");
                 applyMainVideoLayer();
+                applySceneCanvasLayout();
 
                 bodyEl.classList.add("swap-animating");
                 window.clearTimeout(swapAnimationTimer);
@@ -678,7 +763,7 @@
                     return;
                 }
 
-                const canvasEl = document.querySelector(".a-canvas, a-scene canvas");
+                const canvasEl = sceneCanvasElement();
                 const hasScene = !!sceneEl;
                 if (!canvasEl && !hasScene) {
                     return;
@@ -1591,6 +1676,7 @@
                 video.setAttribute("webkit-playsinline", "true");
                 video.style.opacity = "1";
                 applyMainVideoLayer();
+                applySceneCanvasLayout();
                 syncPipCameraStream();
 
                 if (video.readyState >= 2 || (video.videoWidth > 0 && video.videoHeight > 0)) {
@@ -1610,6 +1696,7 @@
             function handleCameraInit() {
                 cameraReady = true;
                 applyMainVideoLayer();
+                applySceneCanvasLayout();
                 syncPipCameraStream();
                 bindArMiniSwapTarget();
                 autoCloseSheetAfterCameraReady();
@@ -1629,14 +1716,21 @@
 
             sceneEl.addEventListener("loaded", () => {
                 applyMainVideoLayer();
+                applySceneCanvasLayout();
                 bindArMiniSwapTarget();
                 statusEl.textContent = "Scene AR siap. Menunggu kamera dan marker Hiro.";
             });
 
             sceneEl.addEventListener("renderstart", () => {
                 applyMainVideoLayer();
+                applySceneCanvasLayout();
                 bindArMiniSwapTarget();
                 updateCameraReadyStatus();
+            });
+
+            window.addEventListener("resize", () => {
+                applyMainVideoLayer();
+                applySceneCanvasLayout();
             });
 
             let cameraPollTick = 0;
