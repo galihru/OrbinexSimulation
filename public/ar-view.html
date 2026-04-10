@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="id">
 
 <head>
@@ -29,12 +29,25 @@
             color: var(--text);
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
+            overflow-x: hidden;
+            overscroll-behavior-x: none;
+            overscroll-behavior-y: none;
+            touch-action: manipulation;
+        }
+
+        html.modal-open,
+        body.modal-open {
+            overflow: hidden !important;
+            overscroll-behavior-y: none;
         }
 
         #ar-app {
             position: fixed;
             inset: 0;
             background: #000;
+            overflow: hidden;
+            overscroll-behavior-x: none;
+            overscroll-behavior-y: none;
         }
 
         a-scene {
@@ -69,16 +82,98 @@
 
         .ar-overlay {
             position: fixed;
-            left: 10px;
-            right: 10px;
-            top: 10px;
+            left: max(10px, env(safe-area-inset-left));
+            right: max(10px, env(safe-area-inset-right));
+            bottom: calc(10px + env(safe-area-inset-bottom));
             z-index: 12;
-            padding: 0.65rem 0.72rem;
-            border-radius: 12px;
+            padding: 0.4rem 0.72rem 0.78rem;
+            border-radius: 16px;
             border: 1px solid var(--panel-border);
-            background: var(--panel);
-            backdrop-filter: blur(10px) saturate(125%);
+            background: rgba(8, 20, 44, 0.62);
+            backdrop-filter: blur(18px) saturate(140%);
+            -webkit-backdrop-filter: blur(18px) saturate(140%);
             pointer-events: auto;
+            max-height: min(62vh, 430px);
+            max-width: min(560px, calc(100vw - 20px));
+            margin: 0 auto;
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-gutter: stable;
+            overscroll-behavior: contain;
+            touch-action: pan-y;
+            transform: translate3d(0, 0, 0);
+            transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 220ms ease;
+            will-change: transform;
+            box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+        }
+
+        .ar-overlay.sheet-closed {
+            transform: translate3d(0, calc(100% + 28px), 0);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .ar-overlay.sheet-dragging {
+            transition: none;
+        }
+
+        .ar-overlay::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .ar-overlay::-webkit-scrollbar-thumb {
+            background: rgba(133, 177, 247, 0.42);
+            border-radius: 6px;
+        }
+
+        .sheet-handle-zone {
+            display: grid;
+            gap: 0.24rem;
+            justify-items: center;
+            margin: -0.12rem 0 0.24rem;
+            padding: 0.2rem 0 0.12rem;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .sheet-grabber {
+            width: 50px;
+            height: 5px;
+            border-radius: 999px;
+            background: rgba(180, 208, 255, 0.74);
+        }
+
+        .sheet-swipe-text {
+            font-size: 0.68rem;
+            color: #aac4ea;
+        }
+
+        .ar-sheet-toggle {
+            position: fixed;
+            top: calc(10px + env(safe-area-inset-top));
+            left: max(10px, env(safe-area-inset-left));
+            width: 42px;
+            height: 42px;
+            z-index: 13;
+            border-radius: 11px;
+            border: 1px solid rgba(141, 185, 250, 0.62);
+            background: rgba(11, 29, 57, 0.92);
+            color: #dbeaff;
+            font-size: 1.15rem;
+            font-weight: 700;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(8px) saturate(120%);
+            cursor: pointer;
+            transition: opacity 160ms ease, transform 160ms ease;
+        }
+
+        .ar-sheet-toggle[aria-expanded="true"] {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-8px);
         }
 
         .ar-overlay h1 {
@@ -92,6 +187,7 @@
             color: var(--muted);
             font-size: 0.8rem;
             line-height: 1.35;
+            overflow-wrap: anywhere;
         }
 
         .ar-toolbar {
@@ -99,6 +195,8 @@
             display: flex;
             gap: 0.45rem;
             flex-wrap: wrap;
+            width: 100%;
+            overflow: hidden;
         }
 
         .ar-toolbar a,
@@ -116,6 +214,10 @@
             text-decoration: none;
             font-weight: 600;
             cursor: pointer;
+            min-width: 0;
+            max-width: 100%;
+            white-space: normal;
+            overflow-wrap: anywhere;
         }
 
         .ar-toolbar a:hover,
@@ -129,6 +231,8 @@
             grid-template-columns: auto 1fr auto;
             align-items: center;
             gap: 0.42rem;
+            width: 100%;
+            min-width: 0;
         }
 
         .ar-speed-row label {
@@ -138,6 +242,7 @@
 
         .ar-speed-row input[type="range"] {
             width: 100%;
+            min-width: 0;
         }
 
         .ar-speed-value {
@@ -185,20 +290,139 @@
             display: block;
         }
 
+        .pip-swap {
+            position: fixed;
+            left: max(10px, env(safe-area-inset-left));
+            bottom: calc(10px + env(safe-area-inset-bottom));
+            width: clamp(140px, 38vw, 220px);
+            height: clamp(92px, 24vw, 132px);
+            z-index: 14;
+            border-radius: 14px;
+            border: 1px solid rgba(150, 192, 255, 0.68);
+            background: rgba(6, 18, 38, 0.44);
+            backdrop-filter: blur(12px) saturate(130%);
+            -webkit-backdrop-filter: blur(12px) saturate(130%);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
+            overflow: hidden;
+            padding: 0;
+            cursor: pointer;
+        }
+
+        .pip-swap video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            background: #000;
+        }
+
+        .pip-swap-label {
+            position: absolute;
+            right: 6px;
+            bottom: 6px;
+            font-size: 0.66rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #eff6ff;
+            background: rgba(10, 26, 50, 0.7);
+            border: 1px solid rgba(158, 199, 255, 0.55);
+            border-radius: 999px;
+            padding: 0.16rem 0.42rem;
+            pointer-events: none;
+        }
+
+        body.mode-camera-main .pip-swap {
+            display: none;
+        }
+
+        body.mode-camera-main .a-canvas,
+        body.mode-camera-main a-scene canvas {
+            inset: auto !important;
+            left: max(10px, env(safe-area-inset-left)) !important;
+            bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+            width: clamp(140px, 38vw, 220px) !important;
+            height: clamp(92px, 24vw, 132px) !important;
+            z-index: 14 !important;
+            border-radius: 14px !important;
+            border: 1px solid rgba(150, 192, 255, 0.68);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
+            cursor: pointer;
+            background: #000 !important;
+        }
+
+        body.mode-camera-main #gesture-pad {
+            pointer-events: none;
+        }
+
         .a-enter-vr-button,
         .a-orientation-modal,
         .a-canvas-loader {
             display: none !important;
         }
+
+        .arjs-loader {
+            display: none !important;
+        }
+
+        @media (max-width: 560px) {
+            .ar-overlay {
+                max-height: min(58vh, 360px);
+                border-radius: 15px;
+                left: max(8px, env(safe-area-inset-left));
+                right: max(8px, env(safe-area-inset-right));
+            }
+
+            .ar-toolbar {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.4rem;
+            }
+
+            .ar-toolbar a,
+            .ar-toolbar button {
+                min-height: 30px;
+                font-size: 0.72rem;
+                padding: 0.32rem 0.5rem;
+                width: 100%;
+            }
+
+            .ar-speed-row {
+                grid-template-columns: 1fr;
+                gap: 0.3rem;
+            }
+
+            .ar-speed-value {
+                text-align: left;
+            }
+
+            .ar-marker-hint {
+                width: 78px;
+                height: 78px;
+            }
+
+            .pip-swap,
+            body.mode-camera-main .a-canvas,
+            body.mode-camera-main a-scene canvas {
+                left: max(8px, env(safe-area-inset-left)) !important;
+                bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+            }
+        }
     </style>
 
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.min.js"></script>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.8/aframe/build/aframe-ar.min.js"></script>
 </head>
 
 <body>
     <div id="ar-app">
-        <section class="ar-overlay" aria-live="polite">
+        <button id="sheet-toggle" class="ar-sheet-toggle" type="button" aria-controls="ar-overlay" aria-expanded="true"
+            aria-label="Buka panel info AR">&#9776;</button>
+
+        <section id="ar-overlay" class="ar-overlay" aria-live="polite">
+            <div id="sheet-handle" class="sheet-handle-zone" aria-label="Geser ke bawah untuk menutup panel">
+                <span class="sheet-grabber" aria-hidden="true"></span>
+                <span class="sheet-swipe-text">Swipe down untuk tutup panel</span>
+            </div>
             <h1>Orbinex AR Viewer: <span id="ar-model-name">Bumi</span></h1>
             <p id="ar-status">Aktifkan kamera, scan marker Hiro, lalu objek akan muncul di atas marker.</p>
             <div class="ar-toolbar">
@@ -227,9 +451,16 @@
 
         <div id="gesture-pad" class="gesture-pad" aria-hidden="true"></div>
 
-        <a-scene id="ar-scene" embedded vr-mode-ui="enabled: false" renderer="antialias: true; alpha: true"
-            arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false;">
-            <a-marker id="orbinex-marker" preset="hiro" emitevents="true" smooth="true" smoothCount="8" smoothTolerance="0.01" smoothThreshold="5">
+        <button id="pip-swap" class="pip-swap" type="button" aria-label="Tukar tampilan ke kamera utama">
+            <video id="pip-camera-video" autoplay muted playsinline webkit-playsinline></video>
+            <span id="pip-swap-label" class="pip-swap-label">Kamera</span>
+        </button>
+
+        <a-scene id="ar-scene" embedded loading-screen="enabled: false" vr-mode-ui="enabled: false"
+            renderer="antialias: true; alpha: true; precision: mediump"
+            arjs="trackingMethod: best; sourceType: webcam; facingMode: environment; debugUIEnabled: false; detectionMode: mono; matrixCodeType: 3x3; maxDetectionRate: 60; canvasWidth: 1280; canvasHeight: 960;">
+            <a-marker id="orbinex-marker" preset="hiro" emitevents="true" smooth="true" smoothCount="8"
+                smoothTolerance="0.01" smoothThreshold="5">
                 <a-entity id="model-root" position="0 0 0"></a-entity>
             </a-marker>
             <a-entity camera></a-entity>
@@ -262,6 +493,14 @@
             const speedRange = document.getElementById("speed-range");
             const speedValue = document.getElementById("speed-value");
             const gesturePad = document.getElementById("gesture-pad");
+            const sheetEl = document.getElementById("ar-overlay");
+            const sheetHandle = document.getElementById("sheet-handle");
+            const sheetToggleButton = document.getElementById("sheet-toggle");
+            const pipSwapButton = document.getElementById("pip-swap");
+            const pipCameraVideo = document.getElementById("pip-camera-video");
+            const pipSwapLabel = document.getElementById("pip-swap-label");
+            const rootHtml = document.documentElement;
+            const bodyEl = document.body;
 
             modelNameEl.textContent = requestedModel;
 
@@ -270,6 +509,188 @@
             desktopUrl.searchParams.set("desktop", "1");
             desktopUrl.searchParams.set("model", requestedModel);
             openDesktopLink.href = desktopUrl.toString();
+
+            let sheetIsOpen = true;
+            let sheetDragPointerId = null;
+            let sheetDragStartY = 0;
+            let sheetDragOffset = 0;
+            let sheetAutoClosedAfterCamera = false;
+            const SHEET_CLOSE_THRESHOLD = 92;
+
+            let currentViewMode = "ar-main";
+            let arMiniSwapBound = false;
+
+            function setSheetOpen(open) {
+                sheetIsOpen = !!open;
+                sheetEl.classList.remove("sheet-dragging");
+                sheetEl.style.transform = "";
+                sheetEl.classList.toggle("sheet-closed", !sheetIsOpen);
+                sheetToggleButton.setAttribute("aria-expanded", sheetIsOpen ? "true" : "false");
+                rootHtml.classList.toggle("modal-open", sheetIsOpen);
+                bodyEl.classList.toggle("modal-open", sheetIsOpen);
+            }
+
+            function finishSheetDrag(forceClose) {
+                sheetEl.classList.remove("sheet-dragging");
+                const shouldClose = forceClose || sheetDragOffset > SHEET_CLOSE_THRESHOLD;
+                sheetDragPointerId = null;
+                sheetDragOffset = 0;
+                setSheetOpen(!shouldClose);
+            }
+
+            function autoCloseSheetAfterCameraReady() {
+                if (sheetAutoClosedAfterCamera) {
+                    return;
+                }
+                sheetAutoClosedAfterCamera = true;
+                setSheetOpen(false);
+            }
+
+            function setViewMode(mode) {
+                currentViewMode = mode === "camera-main" ? "camera-main" : "ar-main";
+                bodyEl.classList.toggle("mode-camera-main", currentViewMode === "camera-main");
+
+                if (currentViewMode === "camera-main") {
+                    gesturePad.style.pointerEvents = "none";
+                } else {
+                    gesturePad.style.pointerEvents = "auto";
+                }
+
+                pipSwapLabel.textContent = currentViewMode === "ar-main" ? "Kamera" : "AR";
+            }
+
+            function bindArMiniSwapTarget() {
+                if (arMiniSwapBound) {
+                    return;
+                }
+
+                const canvasEl = document.querySelector(".a-canvas, a-scene canvas");
+                if (!canvasEl) {
+                    return;
+                }
+
+                arMiniSwapBound = true;
+                canvasEl.addEventListener("click", () => {
+                    if (currentViewMode === "camera-main") {
+                        setViewMode("ar-main");
+                    }
+                });
+            }
+
+            function syncPipCameraStream() {
+                const mainVideo = cameraVideoElement();
+                if (!mainVideo || !mainVideo.srcObject) {
+                    return;
+                }
+
+                if (pipCameraVideo.srcObject !== mainVideo.srcObject) {
+                    pipCameraVideo.srcObject = mainVideo.srcObject;
+                    const playResult = pipCameraVideo.play();
+                    if (playResult && typeof playResult.catch === "function") {
+                        playResult.catch(() => { });
+                    }
+                }
+            }
+
+            sheetToggleButton.addEventListener("click", () => {
+                setSheetOpen(true);
+            });
+
+            pipSwapButton.addEventListener("click", () => {
+                if (currentViewMode === "ar-main") {
+                    setViewMode("camera-main");
+                    bindArMiniSwapTarget();
+                }
+            });
+
+            const supportsPointerDrag = "PointerEvent" in window;
+            if (supportsPointerDrag) {
+                sheetHandle.addEventListener("pointerdown", (event) => {
+                    if (!sheetIsOpen) {
+                        return;
+                    }
+                    if (event.pointerType === "mouse" && event.button !== 0) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    sheetDragPointerId = event.pointerId;
+                    sheetDragStartY = event.clientY;
+                    sheetDragOffset = 0;
+                    sheetEl.classList.add("sheet-dragging");
+                    sheetHandle.setPointerCapture(event.pointerId);
+                });
+
+                sheetHandle.addEventListener("pointermove", (event) => {
+                    if (event.pointerId !== sheetDragPointerId) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    sheetDragOffset = Math.max(0, event.clientY - sheetDragStartY);
+                    sheetEl.style.transform = `translate3d(0, ${sheetDragOffset}px, 0)`;
+                });
+
+                sheetHandle.addEventListener("pointerup", (event) => {
+                    if (event.pointerId !== sheetDragPointerId) {
+                        return;
+                    }
+                    event.preventDefault();
+                    finishSheetDrag(false);
+                });
+
+                sheetHandle.addEventListener("pointercancel", (event) => {
+                    if (event.pointerId !== sheetDragPointerId) {
+                        return;
+                    }
+                    finishSheetDrag(false);
+                });
+
+                sheetHandle.addEventListener("lostpointercapture", () => {
+                    if (sheetDragPointerId === null) {
+                        return;
+                    }
+                    finishSheetDrag(false);
+                });
+            } else {
+                sheetHandle.addEventListener("touchstart", (event) => {
+                    if (!sheetIsOpen || event.touches.length !== 1) {
+                        return;
+                    }
+                    event.preventDefault();
+                    sheetDragPointerId = -1;
+                    sheetDragStartY = event.touches[0].clientY;
+                    sheetDragOffset = 0;
+                    sheetEl.classList.add("sheet-dragging");
+                }, { passive: false });
+
+                sheetHandle.addEventListener("touchmove", (event) => {
+                    if (sheetDragPointerId !== -1 || event.touches.length !== 1) {
+                        return;
+                    }
+                    event.preventDefault();
+                    sheetDragOffset = Math.max(0, event.touches[0].clientY - sheetDragStartY);
+                    sheetEl.style.transform = `translate3d(0, ${sheetDragOffset}px, 0)`;
+                }, { passive: false });
+
+                sheetHandle.addEventListener("touchend", (event) => {
+                    if (sheetDragPointerId !== -1) {
+                        return;
+                    }
+                    event.preventDefault();
+                    finishSheetDrag(false);
+                }, { passive: false });
+
+                sheetHandle.addEventListener("touchcancel", () => {
+                    if (sheetDragPointerId !== -1) {
+                        return;
+                    }
+                    finishSheetDrag(false);
+                }, { passive: false });
+            }
+
+            setSheetOpen(true);
+            setViewMode("ar-main");
 
             function clamp(value, min, max) {
                 return Math.min(max, Math.max(min, value));
@@ -284,8 +705,8 @@
             }
 
             function seededRange(label, min, max, salt) {
-                const h = hashString(`${label}:${salt}`) % 1_000_003;
-                const t = h / 1_000_003;
+                const h = hashString(`${label}:${salt}`) % 1000003;
+                const t = h / 1000003;
                 return min + (max - min) * t;
             }
 
@@ -347,9 +768,9 @@
                 if (kind === "planet") return 30;
                 if (kind === "moon") return 65;
                 if (kind === "black-hole") return 10;
-                if (kind === "galaxy") return 24_000;
-                if (kind === "cluster") return 120_000;
-                if (kind === "nebula") return 24_000;
+                if (kind === "galaxy") return 24000;
+                if (kind === "cluster") return 120000;
+                if (kind === "nebula") return 24000;
                 return 90;
             }
 
@@ -396,7 +817,7 @@
                 { name: "Saturnus", kind: "planet", massKg: 5.6834e26, radiusMeters: 5.8232e7, color: "#e0c787", parentName: "Matahari", semiMajorMeters: 9.5826 * AU_METERS, periodDays: 10759.2, rotationHours: 10.7 },
                 { name: "Uranus", kind: "planet", massKg: 8.6810e25, radiusMeters: 2.5362e7, color: "#96dcdc", parentName: "Matahari", semiMajorMeters: 19.201 * AU_METERS, periodDays: 30688.5, rotationHours: -17.24 },
                 { name: "Neptunus", kind: "planet", massKg: 1.02413e26, radiusMeters: 2.4622e7, color: "#5a87ff", parentName: "Matahari", semiMajorMeters: 30.047 * AU_METERS, periodDays: 60182.0, rotationHours: 16.11 },
-                { name: "Bulan", kind: "moon", massKg: 7.3476e22, radiusMeters: 1.7374e6, color: "#e4e4e4", parentName: "Bumi", semiMajorMeters: 384_400_000, periodDays: 27.3217, rotationHours: 655.7 },
+                { name: "Bulan", kind: "moon", massKg: 7.3476e22, radiusMeters: 1.7374e6, color: "#e4e4e4", parentName: "Bumi", semiMajorMeters: 384400000, periodDays: 27.3217, rotationHours: 655.7 },
                 { name: "Phobos", kind: "moon", massKg: 1.0659e16, radiusMeters: 1.1267e4, color: "#a08f82", parentName: "Mars", semiMajorMeters: 9.376e6, periodDays: 0.319, rotationHours: 7.65 },
                 { name: "Deimos", kind: "moon", massKg: 1.476e15, radiusMeters: 6.2e3, color: "#988c83", parentName: "Mars", semiMajorMeters: 2.346e7, periodDays: 1.263, rotationHours: 30.3 },
                 { name: "Io", kind: "moon", massKg: 8.9319e22, radiusMeters: 1.8216e6, color: "#f0d782", parentName: "Jupiter", semiMajorMeters: 4.217e8, periodDays: 1.769, rotationHours: 42.46 },
@@ -417,16 +838,16 @@
                 { name: "Eris", kind: "dwarf", massKg: 1.6466e22, radiusMeters: 1.163e6, color: "#d2d2d2", parentName: "Matahari", semiMajorMeters: 67.67 * AU_METERS, periodDays: 203830, rotationHours: 25.9 },
                 { name: "Haumea", kind: "dwarf", massKg: 4.006e21, radiusMeters: 8.2e5, color: "#c4d7e8", parentName: "Matahari", semiMajorMeters: 43.13 * AU_METERS, periodDays: 103410, rotationHours: 3.91 },
                 { name: "Makemake", kind: "dwarf", massKg: 3.1e21, radiusMeters: 7.15e5, color: "#dfc49a", parentName: "Matahari", semiMajorMeters: 45.79 * AU_METERS, periodDays: 112900, rotationHours: 22.5 },
-                { name: "Bima Sakti", kind: "galaxy", massKg: 1.1e12 * SOLAR_MASS_KG, radiusMeters: 5.0e20, color: "#8bc1ff", rotationHours: 2_400_000 },
-                { name: "Sagittarius A*", kind: "black-hole", massKg: 4.154e6 * SOLAR_MASS_KG, radiusMeters: 1.227e10, color: "#8f8fff", parentName: "Bima Sakti", semiMajorMeters: 8.2e19, periodDays: 226_000_000 * 365.25, rotationHours: 10 },
-                { name: "Lengan Orion", kind: "other", massKg: 3e10 * SOLAR_MASS_KG, radiusMeters: 2.8e20, color: "#8ac4ff", parentName: "Bima Sakti", semiMajorMeters: 3.4e20, periodDays: 260_000_000 * 365.25, rotationHours: 320_000 },
-                { name: "Andromeda (M31)", kind: "galaxy", massKg: 1.5e12 * SOLAR_MASS_KG, radiusMeters: 1.0e21, color: "#9ab4ff", parentName: "Grup Lokal", semiMajorMeters: 2.401e22, periodDays: 3_000_000_000 * 365.25, rotationHours: 2_800_000 },
-                { name: "Triangulum (M33)", kind: "galaxy", massKg: 5.0e10 * SOLAR_MASS_KG, radiusMeters: 3.0e20, color: "#88b2ff", parentName: "Grup Lokal", semiMajorMeters: 2.583e22, periodDays: 3_200_000_000 * 365.25, rotationHours: 2_900_000 },
-                { name: "Grup Lokal", kind: "cluster", massKg: 3.0e12 * SOLAR_MASS_KG, radiusMeters: 1.5e22, color: "#8eb4bf", parentName: "Laniakea", semiMajorMeters: 1.419e22, periodDays: 7_000_000_000 * 365.25, rotationHours: 8_000_000 },
-                { name: "Laniakea", kind: "cluster", massKg: 3.0e13 * SOLAR_MASS_KG, radiusMeters: 1.6e24, color: "#9de0d0", parentName: "Filamen Kosmik", semiMajorMeters: 4.73e24, periodDays: 12_000_000_000 * 365.25, rotationHours: 15_000_000 },
-                { name: "Filamen Kosmik", kind: "other", massKg: 1.0e14 * SOLAR_MASS_KG, radiusMeters: 3.0e24, color: "#7ca7bf", rotationHours: 20_000_000 },
-                { name: "Orion Nebula (M42)", kind: "nebula", massKg: 2.0e4 * SOLAR_MASS_KG, radiusMeters: 1.2e17, color: "#76b5ff", parentName: "Bima Sakti", semiMajorMeters: 1.27e19, periodDays: 240_000_000 * 365.25, rotationHours: 1_200_000 },
-                { name: "M87 Galaxy", kind: "galaxy", massKg: 2.4e12 * SOLAR_MASS_KG, radiusMeters: 1.2e21, color: "#a2b8d8", parentName: "Laniakea", semiMajorMeters: 5.0e23, periodDays: 8_500_000_000 * 365.25, rotationHours: 9_000_000 },
+                { name: "Bima Sakti", kind: "galaxy", massKg: 1.1e12 * SOLAR_MASS_KG, radiusMeters: 5.0e20, color: "#8bc1ff", rotationHours: 2400000 },
+                { name: "Sagittarius A*", kind: "black-hole", massKg: 4.154e6 * SOLAR_MASS_KG, radiusMeters: 1.227e10, color: "#8f8fff", parentName: "Bima Sakti", semiMajorMeters: 8.2e19, periodDays: 226000000 * 365.25, rotationHours: 10 },
+                { name: "Lengan Orion", kind: "other", massKg: 3e10 * SOLAR_MASS_KG, radiusMeters: 2.8e20, color: "#8ac4ff", parentName: "Bima Sakti", semiMajorMeters: 3.4e20, periodDays: 260000000 * 365.25, rotationHours: 320000 },
+                { name: "Andromeda (M31)", kind: "galaxy", massKg: 1.5e12 * SOLAR_MASS_KG, radiusMeters: 1.0e21, color: "#9ab4ff", parentName: "Grup Lokal", semiMajorMeters: 2.401e22, periodDays: 3000000000 * 365.25, rotationHours: 2800000 },
+                { name: "Triangulum (M33)", kind: "galaxy", massKg: 5.0e10 * SOLAR_MASS_KG, radiusMeters: 3.0e20, color: "#88b2ff", parentName: "Grup Lokal", semiMajorMeters: 2.583e22, periodDays: 3200000000 * 365.25, rotationHours: 2900000 },
+                { name: "Grup Lokal", kind: "cluster", massKg: 3.0e12 * SOLAR_MASS_KG, radiusMeters: 1.5e22, color: "#8eb4bf", parentName: "Laniakea", semiMajorMeters: 1.419e22, periodDays: 7000000000 * 365.25, rotationHours: 8000000 },
+                { name: "Laniakea", kind: "cluster", massKg: 3.0e13 * SOLAR_MASS_KG, radiusMeters: 1.6e24, color: "#9de0d0", parentName: "Filamen Kosmik", semiMajorMeters: 4.73e24, periodDays: 12000000000 * 365.25, rotationHours: 15000000 },
+                { name: "Filamen Kosmik", kind: "other", massKg: 1.0e14 * SOLAR_MASS_KG, radiusMeters: 3.0e24, color: "#7ca7bf", rotationHours: 20000000 },
+                { name: "Orion Nebula (M42)", kind: "nebula", massKg: 2.0e4 * SOLAR_MASS_KG, radiusMeters: 1.2e17, color: "#76b5ff", parentName: "Bima Sakti", semiMajorMeters: 1.27e19, periodDays: 240000000 * 365.25, rotationHours: 1200000 },
+                { name: "M87 Galaxy", kind: "galaxy", massKg: 2.4e12 * SOLAR_MASS_KG, radiusMeters: 1.2e21, color: "#a2b8d8", parentName: "Laniakea", semiMajorMeters: 5.0e23, periodDays: 8500000000 * 365.25, rotationHours: 9000000 },
             ];
 
             const catalogByName = new Map();
@@ -1014,9 +1435,15 @@
                     return false;
                 }
 
+                video.setAttribute("playsinline", "true");
+                video.setAttribute("webkit-playsinline", "true");
+                video.style.opacity = "1";
+                syncPipCameraStream();
+
                 if (video.readyState >= 2 || (video.videoWidth > 0 && video.videoHeight > 0)) {
                     if (!cameraReady) {
                         cameraReady = true;
+                        autoCloseSheetAfterCameraReady();
                         if (!markerDetected) {
                             statusEl.textContent = "Kamera aktif. Arahkan marker Hiro (25-60% area layar) agar objek muncul.";
                         }
@@ -1027,22 +1454,32 @@
                 return false;
             }
 
-            window.addEventListener("camera-init", () => {
+            function handleCameraInit() {
                 cameraReady = true;
+                syncPipCameraStream();
+                bindArMiniSwapTarget();
+                autoCloseSheetAfterCameraReady();
                 if (!markerDetected) {
                     statusEl.textContent = "Kamera AR terinisialisasi. Arahkan ke marker Hiro sekarang.";
                 }
-            });
+            }
 
-            window.addEventListener("camera-error", () => {
+            function handleCameraError() {
                 statusEl.textContent = "Gagal membuka kamera. Pastikan izin kamera aktif dan browser mendukung WebRTC.";
-            });
+            }
+
+            window.addEventListener("camera-init", handleCameraInit);
+            sceneEl.addEventListener("camera-init", handleCameraInit);
+            window.addEventListener("camera-error", handleCameraError);
+            sceneEl.addEventListener("camera-error", handleCameraError);
 
             sceneEl.addEventListener("loaded", () => {
+                bindArMiniSwapTarget();
                 statusEl.textContent = "Scene AR siap. Menunggu kamera dan marker Hiro.";
             });
 
             sceneEl.addEventListener("renderstart", () => {
+                bindArMiniSwapTarget();
                 updateCameraReadyStatus();
             });
 
