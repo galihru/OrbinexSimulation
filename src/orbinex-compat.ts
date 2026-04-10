@@ -518,10 +518,23 @@ class UniverseEngine {
     }
 
     triggerSupernova(starName: string): boolean {
+        if (this.supernovaTriggered) {
+            return false;
+        }
+
         const star = this.findBody(starName);
         if (!star) {
             return false;
         }
+
+        if (star.kind === "star") {
+            star.kind = "black-hole";
+            star.colorHex = "#7f95ff";
+            star.massKg = Math.max(star.massKg * 0.92, constants.solarMassKg * 3);
+            star.radiusMeters = Math.max(star.radiusMeters * 0.07, 1.4e9);
+            this.addEvent("stellar-collapse", `${starName} collapsed into black hole model.`, star.position, starName, "", 0);
+        }
+
         this.supernovaTriggered = true;
         this.addEvent("supernova", `${starName} supernova trigger registered.`, star.position, starName, "", 0);
         this.updateForecasts();

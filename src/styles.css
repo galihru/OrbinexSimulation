@@ -413,7 +413,7 @@ input:focus-visible {
     max-height: none;
     margin-top: auto;
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     z-index: 1;
 }
 
@@ -424,15 +424,61 @@ input:focus-visible {
     font-size: 0.88rem;
 }
 
-#events-text {
+.events-tip {
     margin: 0;
-    padding: 0.54rem 0.68rem 0.68rem;
-    font-family: "JetBrains Mono", monospace;
+    padding: 0.2rem 0.68rem 0;
+    color: #9bb8e4;
     font-size: 0.68rem;
-    line-height: 1.44;
+}
+
+.events-list {
+    margin: 0;
+    padding: 0.52rem 0.58rem 0.66rem;
     overflow: auto;
-    color: #d8e5fb;
+    list-style: none;
+    display: grid;
+    gap: 0.34rem;
+}
+
+.event-item {
+    margin: 0;
+}
+
+.event-button {
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid rgba(125, 169, 244, 0.42);
+    background: linear-gradient(180deg, rgba(22, 46, 84, 0.86), rgba(12, 28, 56, 0.9));
+    color: #e2ecff;
+    text-align: left;
     white-space: pre-wrap;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.66rem;
+    line-height: 1.4;
+    font-weight: 600;
+    padding: 0.44rem 0.5rem;
+}
+
+.event-button:hover {
+    border-color: rgba(160, 204, 255, 0.66);
+    background: linear-gradient(180deg, rgba(33, 61, 105, 0.92), rgba(16, 38, 72, 0.94));
+}
+
+.event-button:focus-visible {
+    outline: 2px solid rgba(154, 205, 255, 0.78);
+    outline-offset: 1px;
+}
+
+.event-item-local,
+.event-item-empty {
+    color: #b8cae8;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.66rem;
+    line-height: 1.38;
+    border-radius: 8px;
+    padding: 0.34rem 0.42rem;
+    background: rgba(10, 23, 45, 0.58);
+    border: 1px solid rgba(107, 150, 224, 0.22);
 }
 
 .help-panel {

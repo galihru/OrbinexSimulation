@@ -6,6 +6,7 @@ import {
     createUniverseEngine,
     type UniverseBody,
     type UniverseOrbitGuide,
+    type UniverseSimulationEvent,
 } from "./orbinex-compat";
 
 import "./styles.css";
@@ -94,6 +95,25 @@ type BodyNode = {
     spinRadPerSec: number;
     trail: THREE.Line | null;
     trailPoints: THREE.Vector3[];
+};
+
+type CameraFlight = {
+    fromPosition: THREE.Vector3;
+    toPosition: THREE.Vector3;
+    fromTarget: THREE.Vector3;
+    toTarget: THREE.Vector3;
+    startMs: number;
+    durationMs: number;
+};
+
+type EventPulse = {
+    core: THREE.Mesh;
+    ring: THREE.Mesh | null;
+    ageMs: number;
+    lifetimeMs: number;
+    startScale: number;
+    endScale: number;
+    spinSpeed: number;
 };
 
 function byId<T extends HTMLElement>(id: string): T {
@@ -270,7 +290,10 @@ app.innerHTML = `
 
             <section class="events-panel" aria-label="Panel event simulasi">
                 <h2>Log event berbasis AI</h2>
-                <pre id="events-text">Belum ada event.</pre>
+                <p class="events-tip">Klik event untuk fokus ke koordinat kejadian.</p>
+                <ol id="events-list" class="events-list">
+                    <li class="event-item event-item-empty">Belum ada event.</li>
+                </ol>
             </section>
         </aside>
 
@@ -296,7 +319,7 @@ const splashProgress = byId<HTMLProgressElement>("splash-progress");
 const splashPercent = byId<HTMLElement>("splash-percent");
 
 const hudText = byId<HTMLPreElement>("hud-text");
-const eventsText = byId<HTMLPreElement>("events-text");
+const eventsList = byId<HTMLOListElement>("events-list");
 const bottomHint = byId<HTMLElement>("bottom-hint");
 
 const searchPanel = byId<HTMLElement>("search-panel");
@@ -478,6 +501,12 @@ const starfield = (() => {
 const orbitGuideGroup = new THREE.Group();
 scene.add(orbitGuideGroup);
 
+const eventPulseGroup = new THREE.Group();
+scene.add(eventPulseGroup);
+
+const eventPulseCoreGeometry = new THREE.SphereGeometry(1, 16, 16);
+const eventPulseRingGeometry = new THREE.RingGeometry(0.84, 1.08, 52);
+
 const bodyNodes = new Map<string, BodyNode>();
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2(2, 2);
@@ -493,6 +522,12 @@ const bodySourcesByName = new Map<string, Set<string>>();
 const bodyDescriptionsDynamic = new Map<string, string>();
 const bodyImagesDynamic = new Map<string, string>();
 const ingestStatuses = new Map<string, IngestStatus>();
+const eventById = new Map<number, UniverseSimulationEvent>();
+const seenEventIds = new Set<number>();
+const eventPulses: EventPulse[] = [];
+let engineEventsSynced = false;
+let cameraFlight: CameraFlight | null = null;
+let focusSuspendUntilMs = 0;
 
 const bodyDescriptions: Record<string, string> = {
     Matahari: "Bintang pusat sistem; sumber utama energi dan referensi gravitasi.",
@@ -1690,9 +1725,9 @@ function createNode(body: UniverseBody): BodyNode {
             ? new THREE.Color(color).multiplyScalar(0.35)
             : body.kind === "galaxy" || body.kind === "cluster"
                 ? new THREE.Color(color).multiplyScalar(0.22)
-            : body.kind === "nebula"
-                ? new THREE.Color(color).multiplyScalar(0.1)
-                : new THREE.Color(0x000000),
+                : body.kind === "nebula"
+                    ? new THREE.Color(color).multiplyScalar(0.1)
+                    : new THREE.Color(0x000000),
     });
 
     const mesh = new THREE.Mesh(geometry, material);
@@ -1847,6 +1882,10 @@ function updateNodes(dtMs: number): void {
         meshMaterial.color.setHex(nextColor);
         if (body.kind === "star") {
             meshMaterial.emissive = new THREE.Color(nextColor).multiplyScalar(0.35);
+        } else if (body.kind === "galaxy" || body.kind === "cluster") {
+            meshMaterial.emissive = new THREE.Color(nextColor).multiplyScalar(0.22);
+        } else if (body.kind === "nebula") {
+            meshMaterial.emissive = new THREE.Color(nextColor).multiplyScalar(0.1);
         } else {
             meshMaterial.emissive = new THREE.Color(0x000000);
         }
@@ -1911,9 +1950,25 @@ function updateNodes(dtMs: number): void {
         if (node.trail) {
             const last = node.trailPoints[node.trailPoints.length - 1];
             let trailUpdated = false;
-            if (!last || last.distanceToSquared(position) > 0.02) {
+            if (!last) {
                 node.trailPoints.push(position.clone());
                 trailUpdated = true;
+            } else {
+                const stepDistance = Math.sqrt(last.distanceToSquared(position));
+                const orbitalScale = Math.max(position.length(), 1);
+                const maxSegmentLength = clamp(
+                    orbitalScale * 0.22,
+                    bodyLooksComet(body) ? 2.4 : 1.2,
+                    bodyLooksComet(body) ? 28 : 16,
+                );
+
+                if (stepDistance > maxSegmentLength) {
+                    node.trailPoints = [position.clone()];
+                    trailUpdated = true;
+                } else if (stepDistance > 0.02) {
+                    node.trailPoints.push(position.clone());
+                    trailUpdated = true;
+                }
             }
             if (node.trailPoints.length > 240) {
                 node.trailPoints.splice(0, node.trailPoints.length - 240);
@@ -1970,6 +2025,10 @@ function cycleFocus(): void {
 }
 
 function updateFocusTarget(): void {
+    if (cameraFlight || performance.now() < focusSuspendUntilMs) {
+        return;
+    }
+
     const targetNode = Array.from(bodyNodes.values()).find((node) => node.body.name === uiState.focusName);
     if (!targetNode) {
         return;
@@ -2178,19 +2237,251 @@ function updateHudPanel(): void {
     ].join("\n");
 }
 
-function updateEventsPanel(): void {
-    const events = engine.getEvents(12);
-    if (events.length === 0 && localEvents.length === 0) {
-        eventsText.textContent = "Belum ada event.";
+function eventVisualProfile(kind: string): {
+    color: number;
+    lifetimeMs: number;
+    startScale: number;
+    endScale: number;
+    coreOpacity: number;
+    ringOpacity: number;
+} {
+    if (kind === "impact" || kind === "accretion") {
+        return { color: 0xff8b57, lifetimeMs: 1600, startScale: 0.3, endScale: 4.6, coreOpacity: 0.92, ringOpacity: 0.72 };
+    }
+    if (kind === "supernova" || kind === "stellar-collapse") {
+        return { color: 0xffd788, lifetimeMs: 2400, startScale: 0.6, endScale: 9.8, coreOpacity: 0.98, ringOpacity: 0.84 };
+    }
+    if (kind === "meteor-shower") {
+        return { color: 0xffb06b, lifetimeMs: 1500, startScale: 0.26, endScale: 3.2, coreOpacity: 0.88, ringOpacity: 0.64 };
+    }
+    if (kind === "comet-wave") {
+        return { color: 0x93d7ff, lifetimeMs: 1700, startScale: 0.24, endScale: 3.9, coreOpacity: 0.84, ringOpacity: 0.6 };
+    }
+    if (kind.includes("close-pass") || kind.includes("collision")) {
+        return { color: 0xa4c6ff, lifetimeMs: 1300, startScale: 0.22, endScale: 2.7, coreOpacity: 0.8, ringOpacity: 0.52 };
+    }
+    return { color: 0x87a9ff, lifetimeMs: 1200, startScale: 0.2, endScale: 2.4, coreOpacity: 0.7, ringOpacity: 0.45 };
+}
+
+function disposeEventPulse(pulse: EventPulse): void {
+    eventPulseGroup.remove(pulse.core);
+    const coreMaterial = pulse.core.material;
+    if (Array.isArray(coreMaterial)) {
+        coreMaterial.forEach((material: THREE.Material) => material.dispose());
+    } else {
+        coreMaterial.dispose();
+    }
+
+    if (pulse.ring) {
+        eventPulseGroup.remove(pulse.ring);
+        const ringMaterial = pulse.ring.material;
+        if (Array.isArray(ringMaterial)) {
+            ringMaterial.forEach((material: THREE.Material) => material.dispose());
+        } else {
+            ringMaterial.dispose();
+        }
+    }
+}
+
+function spawnEventPulse(event: UniverseSimulationEvent): void {
+    let worldPosition = event.location;
+    const nearOrigin = Math.hypot(worldPosition.x, worldPosition.y, worldPosition.z) < constants.auMeters * 1e-7;
+    if (nearOrigin && event.bodyA) {
+        const body = bodyByName(event.bodyA);
+        if (body) {
+            worldPosition = body.position;
+        }
+    }
+
+    const position = toRenderPosition(worldPosition);
+    const profile = eventVisualProfile(event.kind);
+
+    const coreMaterial = new THREE.MeshBasicMaterial({
+        color: profile.color,
+        transparent: true,
+        opacity: profile.coreOpacity,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+    });
+    const core = new THREE.Mesh(eventPulseCoreGeometry, coreMaterial);
+    core.position.copy(position);
+    core.scale.setScalar(profile.startScale);
+    eventPulseGroup.add(core);
+
+    const ringMaterial = new THREE.MeshBasicMaterial({
+        color: profile.color,
+        transparent: true,
+        opacity: profile.ringOpacity,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+    });
+    const ring = new THREE.Mesh(eventPulseRingGeometry, ringMaterial);
+    ring.position.copy(position);
+    ring.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    ring.scale.setScalar(profile.startScale * 1.3);
+    eventPulseGroup.add(ring);
+
+    eventPulses.push({
+        core,
+        ring,
+        ageMs: 0,
+        lifetimeMs: profile.lifetimeMs,
+        startScale: profile.startScale,
+        endScale: profile.endScale,
+        spinSpeed: (Math.random() * 2 - 1) * 1.1,
+    });
+
+    while (eventPulses.length > 90) {
+        const oldPulse = eventPulses.shift();
+        if (oldPulse) {
+            disposeEventPulse(oldPulse);
+        }
+    }
+}
+
+function updateEventPulses(dtMs: number): void {
+    for (let i = eventPulses.length - 1; i >= 0; i -= 1) {
+        const pulse = eventPulses[i];
+        pulse.ageMs += dtMs;
+        const t = clamp(pulse.ageMs / pulse.lifetimeMs, 0, 1);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const scale = pulse.startScale + (pulse.endScale - pulse.startScale) * eased;
+
+        pulse.core.scale.setScalar(scale);
+        const coreMaterial = pulse.core.material as THREE.MeshBasicMaterial;
+        coreMaterial.opacity = (1 - t) * 0.9;
+
+        if (pulse.ring) {
+            pulse.ring.scale.setScalar(scale * 1.22);
+            pulse.ring.rotation.z += pulse.spinSpeed * (dtMs / 1000);
+            const ringMaterial = pulse.ring.material as THREE.MeshBasicMaterial;
+            ringMaterial.opacity = (1 - t) * 0.68;
+        }
+
+        if (t >= 1) {
+            const donePulse = eventPulses.splice(i, 1)[0];
+            disposeEventPulse(donePulse);
+        }
+    }
+}
+
+function beginCameraFlight(target: THREE.Vector3, durationMs = 920): void {
+    const offset = camera.position.clone().sub(controls.target);
+    if (offset.lengthSq() < 1e-6) {
+        offset.set(36, 20, 52);
+    }
+    offset.setLength(clamp(offset.length(), 26, 320));
+
+    cameraFlight = {
+        fromPosition: camera.position.clone(),
+        toPosition: target.clone().add(offset),
+        fromTarget: controls.target.clone(),
+        toTarget: target.clone(),
+        startMs: performance.now(),
+        durationMs,
+    };
+}
+
+function updateCameraFlight(nowMs: number): void {
+    if (!cameraFlight) {
         return;
     }
 
-    const engineLines = events
-        .map((event) => {
-            return `[${event.kind}] waktu=${event.timeYears.toFixed(3)} tahun | ${event.message}`;
-        });
+    const elapsed = nowMs - cameraFlight.startMs;
+    const t = clamp(elapsed / cameraFlight.durationMs, 0, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
 
-    eventsText.textContent = [...localEvents.slice(0, 5), ...engineLines].join("\n");
+    camera.position.lerpVectors(cameraFlight.fromPosition, cameraFlight.toPosition, eased);
+    controls.target.lerpVectors(cameraFlight.fromTarget, cameraFlight.toTarget, eased);
+
+    if (t >= 1) {
+        cameraFlight = null;
+    }
+}
+
+function focusEventById(eventId: number): void {
+    const event = eventById.get(eventId);
+    if (!event) {
+        return;
+    }
+
+    const primaryBody = event.bodyA ? bodyByName(event.bodyA) : null;
+    const secondaryBody = event.bodyB ? bodyByName(event.bodyB) : null;
+    const anchorBody = primaryBody ?? secondaryBody;
+
+    let worldLocation = event.location;
+    if (Math.hypot(worldLocation.x, worldLocation.y, worldLocation.z) < constants.auMeters * 1e-7 && anchorBody) {
+        worldLocation = anchorBody.position;
+    }
+
+    if (anchorBody) {
+        uiState.focusName = anchorBody.name;
+        uiState.selectedKey = bodyKey(anchorBody);
+        uiState.infoPinned = true;
+    } else {
+        uiState.infoPinned = false;
+        uiState.selectedKey = null;
+    }
+
+    focusSuspendUntilMs = performance.now() + 1500;
+    beginCameraFlight(toRenderPosition(worldLocation));
+    spawnEventPulse(event);
+    updateInfoPanel();
+}
+
+function updateEventsPanel(): void {
+    const events = engine.getEvents(18);
+
+    eventById.clear();
+    events.forEach((event) => eventById.set(event.id, event));
+
+    if (!engineEventsSynced) {
+        events.forEach((event) => seenEventIds.add(event.id));
+        engineEventsSynced = true;
+    } else {
+        for (const event of events) {
+            if (!seenEventIds.has(event.id)) {
+                seenEventIds.add(event.id);
+                spawnEventPulse(event);
+            }
+        }
+    }
+
+    eventsList.innerHTML = "";
+
+    localEvents.slice(0, 4).forEach((line) => {
+        const item = document.createElement("li");
+        item.className = "event-item event-item-local";
+        item.textContent = line;
+        eventsList.appendChild(item);
+    });
+
+    for (const event of events) {
+        const item = document.createElement("li");
+        item.className = "event-item";
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "event-button";
+        button.dataset.eventId = String(event.id);
+        button.title = "Klik untuk fokus ke koordinat kejadian";
+
+        const distanceAu = Math.hypot(event.location.x, event.location.y, event.location.z) / constants.auMeters;
+        const anchor = [event.bodyA, event.bodyB].filter((token) => token.trim().length > 0).join(" -> ");
+        const anchorText = anchor.length > 0 ? ` | ${anchor}` : "";
+        button.textContent = `[${event.kind}] t=${event.timeYears.toFixed(3)} th${anchorText}${Number.isFinite(distanceAu) ? ` | r=${distanceAu.toFixed(3)} AU` : ""}\n${event.message}`;
+
+        item.appendChild(button);
+        eventsList.appendChild(item);
+    }
+
+    if (eventsList.children.length === 0) {
+        const empty = document.createElement("li");
+        empty.className = "event-item event-item-empty";
+        empty.textContent = "Belum ada event.";
+        eventsList.appendChild(empty);
+    }
 }
 
 function updateActionButtons(): void {
@@ -2303,6 +2594,22 @@ function bindUiHandlers(): void {
             uiState.selectedKey = uiState.hoverKey;
         }
         updateInfoPanel();
+    });
+
+    eventsList.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        const button = target.closest<HTMLButtonElement>("button[data-event-id]");
+        if (!button) {
+            return;
+        }
+        const rawId = Number.parseInt(button.dataset.eventId ?? "", 10);
+        if (!Number.isFinite(rawId)) {
+            return;
+        }
+        focusEventById(rawId);
     });
 
     searchInput.addEventListener("input", () => {
@@ -2500,6 +2807,8 @@ function animate(now: number): void {
     rebuildOrbitGuides();
     updateHoverByRaycast();
     updateFocusTarget();
+    updateCameraFlight(now);
+    updateEventPulses(dtMs);
 
     controls.update();
     renderer.render(scene, camera);
