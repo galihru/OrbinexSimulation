@@ -152,6 +152,10 @@ type PermissionCapabilityState = {
     virtualReality: PermissionProbeResult;
     augmentedReality: PermissionProbeResult;
     deviceUse: PermissionProbeResult;
+    geolocation: PermissionProbeResult;
+    motionSensors: PermissionProbeResult;
+    microphone: PermissionProbeResult;
+    relatedAppsProbe: PermissionProbeResult;
     camera: PermissionProbeResult;
     notifications: PermissionProbeResult;
     persistentStorage: PermissionProbeResult;
@@ -2782,6 +2786,10 @@ function permissionReportLines(capabilities: PermissionCapabilityState): string[
         permissionSummary("Virtual reality", capabilities.virtualReality),
         permissionSummary("Augmented reality", capabilities.augmentedReality),
         permissionSummary("Your device use", capabilities.deviceUse),
+        permissionSummary("Lokasi perangkat", capabilities.geolocation),
+        permissionSummary("Sensor gerak", capabilities.motionSensors),
+        permissionSummary("Mikrofon", capabilities.microphone),
+        permissionSummary("Device services", capabilities.relatedAppsProbe),
         permissionSummary("Akses kamera AR", capabilities.camera),
         permissionSummary("Notifikasi", capabilities.notifications),
         permissionSummary("Penyimpanan offline", capabilities.persistentStorage),
@@ -2791,6 +2799,16 @@ function permissionReportLines(capabilities: PermissionCapabilityState): string[
 
 function hasGrantedCapability(capabilities: PermissionCapabilityState): boolean {
     return Object.values(capabilities).some((value) => value === "granted");
+}
+
+function mergePermissionResults(results: PermissionProbeResult[]): PermissionProbeResult {
+    if (results.some((value) => value === "granted")) {
+        return "granted";
+    }
+    if (results.some((value) => value === "denied")) {
+        return "denied";
+    }
+    return "unsupported";
 }
 
 async function requestRelatedAppsPermission(): Promise<PermissionProbeResult> {
@@ -2805,6 +2823,64 @@ async function requestRelatedAppsPermission(): Promise<PermissionProbeResult> {
 
     try {
         await nav.getInstalledRelatedApps();
+        return "granted";
+    } catch {
+        return "denied";
+    }
+}
+
+async function requestGeolocationPermission(): Promise<PermissionProbeResult> {
+    if (!window.isSecureContext || !("geolocation" in navigator) || !navigator.geolocation) {
+        return "unsupported";
+    }
+
+    return new Promise<PermissionProbeResult>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+            () => resolve("granted"),
+            (error) => {
+                if (error.code === error.PERMISSION_DENIED) {
+                    resolve("denied");
+                    return;
+                }
+                resolve("denied");
+            },
+            {
+                enableHighAccuracy: false,
+                timeout: 7000,
+                maximumAge: 0,
+            },
+        );
+    });
+}
+
+async function requestMotionSensorPermission(): Promise<PermissionProbeResult> {
+    const maybeMotionEvent = window.DeviceMotionEvent as unknown as {
+        requestPermission?: () => Promise<"granted" | "denied">;
+    } | undefined;
+
+    if (!maybeMotionEvent || typeof maybeMotionEvent.requestPermission !== "function") {
+        return "unsupported";
+    }
+
+    try {
+        const outcome = await maybeMotionEvent.requestPermission();
+        return outcome === "granted" ? "granted" : "denied";
+    } catch {
+        return "denied";
+    }
+}
+
+async function requestMicrophonePermission(): Promise<PermissionProbeResult> {
+    if (!window.isSecureContext || !("mediaDevices" in navigator) || !navigator.mediaDevices?.getUserMedia) {
+        return "unsupported";
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: false,
+        });
+        stream.getTracks().forEach((track) => track.stop());
         return "granted";
     } catch {
         return "denied";
@@ -2911,7 +2987,11 @@ async function requestScreenWakeLockPermission(): Promise<PermissionProbeResult>
 async function requestInstallAccessPermissions(): Promise<PermissionCapabilityState> {
     const virtualReality = await requestXrSessionPermission("immersive-vr");
     const augmentedReality = await requestXrSessionPermission("immersive-ar");
-    const deviceUse = await requestRelatedAppsPermission();
+    const geolocation = await requestGeolocationPermission();
+    const motionSensors = await requestMotionSensorPermission();
+    const microphone = await requestMicrophonePermission();
+    const relatedAppsProbe = await requestRelatedAppsPermission();
+    const deviceUse = mergePermissionResults([geolocation, motionSensors, microphone, relatedAppsProbe]);
     const camera = await requestCameraPermissionForAr();
     const notifications = await requestNotificationPermissionForPwa();
     const persistentStorage = await requestPersistentStoragePermission();
@@ -2921,6 +3001,10 @@ async function requestInstallAccessPermissions(): Promise<PermissionCapabilitySt
         virtualReality,
         augmentedReality,
         deviceUse,
+        geolocation,
+        motionSensors,
+        microphone,
+        relatedAppsProbe,
         camera,
         notifications,
         persistentStorage,

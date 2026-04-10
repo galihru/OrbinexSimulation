@@ -803,6 +803,10 @@
                     permissionSummary("Virtual reality", capabilities.virtualReality),
                     permissionSummary("Augmented reality", capabilities.augmentedReality),
                     permissionSummary("Your device use", capabilities.deviceUse),
+                    permissionSummary("Lokasi perangkat", capabilities.geolocation),
+                    permissionSummary("Sensor gerak", capabilities.motionSensors),
+                    permissionSummary("Mikrofon", capabilities.microphone),
+                    permissionSummary("Device services", capabilities.relatedAppsProbe),
                     permissionSummary("Akses kamera AR", capabilities.camera),
                     permissionSummary("Notifikasi", capabilities.notifications),
                     permissionSummary("Penyimpanan offline", capabilities.persistentStorage),
@@ -814,6 +818,16 @@
                 return Object.values(capabilities).some((value) => value === "granted");
             }
 
+            function mergePermissionResults(results) {
+                if (results.some((value) => value === "granted")) {
+                    return "granted";
+                }
+                if (results.some((value) => value === "denied")) {
+                    return "denied";
+                }
+                return "unsupported";
+            }
+
             async function requestRelatedAppsPermission() {
                 if (!window.isSecureContext || typeof navigator.getInstalledRelatedApps !== "function") {
                     return "unsupported";
@@ -821,6 +835,61 @@
 
                 try {
                     await navigator.getInstalledRelatedApps();
+                    return "granted";
+                } catch {
+                    return "denied";
+                }
+            }
+
+            async function requestGeolocationPermission() {
+                if (!window.isSecureContext || !("geolocation" in navigator) || !navigator.geolocation) {
+                    return "unsupported";
+                }
+
+                return new Promise((resolve) => {
+                    navigator.geolocation.getCurrentPosition(
+                        () => resolve("granted"),
+                        (error) => {
+                            if (error && error.code === error.PERMISSION_DENIED) {
+                                resolve("denied");
+                                return;
+                            }
+                            resolve("denied");
+                        },
+                        {
+                            enableHighAccuracy: false,
+                            timeout: 7000,
+                            maximumAge: 0,
+                        },
+                    );
+                });
+            }
+
+            async function requestMotionSensorPermission() {
+                const motionEventApi = window.DeviceMotionEvent;
+                if (!motionEventApi || typeof motionEventApi.requestPermission !== "function") {
+                    return "unsupported";
+                }
+
+                try {
+                    const outcome = await motionEventApi.requestPermission();
+                    return outcome === "granted" ? "granted" : "denied";
+                } catch {
+                    return "denied";
+                }
+            }
+
+            async function requestMicrophonePermission() {
+                if (!window.isSecureContext || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+                    return "unsupported";
+                }
+
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        audio: true,
+                        video: false,
+                    });
+                    stream.getTracks().forEach((track) => track.stop());
                     return "granted";
                 } catch {
                     return "denied";
@@ -940,10 +1009,20 @@
             }
 
             async function requestArAccessPermissions() {
+                const geolocation = await requestGeolocationPermission();
+                const motionSensors = await requestMotionSensorPermission();
+                const microphone = await requestMicrophonePermission();
+                const relatedAppsProbe = await requestRelatedAppsPermission();
+                const deviceUse = mergePermissionResults([geolocation, motionSensors, microphone, relatedAppsProbe]);
+
                 const capabilities = {
                     virtualReality: await requestXrSessionPermission("immersive-vr"),
                     augmentedReality: await requestXrSessionPermission("immersive-ar"),
-                    deviceUse: await requestRelatedAppsPermission(),
+                    deviceUse,
+                    geolocation,
+                    motionSensors,
+                    microphone,
+                    relatedAppsProbe,
                     camera: await requestCameraPermissionForAr(),
                     notifications: await requestNotificationPermissionForPwa(),
                     persistentStorage: await requestPersistentStoragePermission(),
