@@ -141,11 +141,11 @@
 
         .ar-overlay {
             position: fixed;
-            top: calc(58px + env(safe-area-inset-top));
+            top: auto;
             left: max(10px, env(safe-area-inset-left));
             right: max(10px, env(safe-area-inset-right));
-            bottom: auto;
-            z-index: 12;
+            bottom: calc(10px + env(safe-area-inset-bottom));
+            z-index: 18;
             padding: 0.4rem 0.72rem 0.78rem;
             border-radius: 16px;
             border: 1px solid var(--panel-border);
@@ -153,7 +153,7 @@
             backdrop-filter: blur(18px) saturate(140%);
             -webkit-backdrop-filter: blur(18px) saturate(140%);
             pointer-events: auto;
-            max-height: min(42vh, 320px);
+            max-height: min(62vh, 430px);
             max-width: min(560px, calc(100vw - 20px));
             margin: 0 auto;
             overflow-y: auto;
@@ -168,7 +168,7 @@
         }
 
         .ar-overlay.sheet-closed {
-            transform: translate3d(0, -16px, 0) scale(0.98);
+            transform: translate3d(0, calc(100% + 28px), 0);
             opacity: 0;
             pointer-events: none;
         }
@@ -492,8 +492,7 @@
 
         @media (max-width: 560px) {
             .ar-overlay {
-                top: calc(56px + env(safe-area-inset-top));
-                max-height: min(40vh, 300px);
+                max-height: min(58vh, 360px);
                 border-radius: 15px;
                 left: max(8px, env(safe-area-inset-left));
                 right: max(8px, env(safe-area-inset-right));
@@ -605,7 +604,16 @@
             const TAU = Math.PI * 2;
 
             const params = new URLSearchParams(window.location.search);
-            const requestedModel = (params.get("model") || "Bumi").trim() || "Bumi";
+            const paramKeys = ["model", "object", "target", "name"];
+            const requestedModel = (() => {
+                for (const key of paramKeys) {
+                    const value = params.get(key);
+                    if (value && value.trim()) {
+                        return value.trim();
+                    }
+                }
+                return "Bumi";
+            })();
 
             const modelNameEl = document.getElementById("ar-model-name");
             const statusEl = document.getElementById("ar-status");
@@ -650,6 +658,8 @@
             let currentViewMode = "ar-main";
             let arMiniSwapBound = false;
             let swapAnimationTimer = 0;
+            const threeNs = (window.AFRAME && window.AFRAME.THREE) || window.THREE || null;
+            const cameraWorldPosition = threeNs ? new threeNs.Vector3() : null;
 
             function setSheetOpen(open) {
                 sheetIsOpen = !!open;
@@ -990,6 +1000,8 @@
             function normalizeKey(text) {
                 return (text || "")
                     .toLowerCase()
+                    .replace(/[_-]+/g, " ")
+                    .replace(/[^a-z0-9\s().*]+/g, " ")
                     .replace(/\s+/g, " ")
                     .trim();
             }
@@ -1262,15 +1274,6 @@
                     const normalizedBody = getBody(byNormalized);
                     ensureBodyDefaults(normalizedBody);
                     return normalizedBody;
-                }
-
-                const lower = normalized;
-                for (const body of catalogByName.values()) {
-                    const n = normalizeKey(body.name);
-                    if (n.includes(lower) || lower.includes(n)) {
-                        ensureBodyDefaults(body);
-                        return body;
-                    }
                 }
 
                 return createFallbackBody(query);
@@ -1586,6 +1589,7 @@
                     parentNode,
                     orbitAnchorEl,
                     bodyMeshEl,
+                    labelEl: label,
                     atmosphereEl,
                     glowEl,
                     cometTailEl,
@@ -1647,6 +1651,7 @@
             speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} hari/detik`;
 
             const focusBody = resolveBodyByName(requestedModel);
+            modelNameEl.textContent = focusBody.name;
             const arSystem = buildArSystem(focusBody);
 
             systemMetaEl.textContent = `Root: ${arSystem.rootBody.name} | Fokus: ${arSystem.focusBody.name} | Node AR: ${arSystem.nodes.length}`;
@@ -1900,6 +1905,12 @@
 
                     if (node.cometTailEl) {
                         node.cometTailEl.object3D.rotation.y += 0.09 * dtSec;
+                    }
+
+                    if (node.labelEl && node.labelEl.object3D && sceneEl.camera && cameraWorldPosition) {
+                        node.labelEl.object3D.lookAt(sceneEl.camera.getWorldPosition(cameraWorldPosition));
+                        node.labelEl.object3D.rotation.x = 0;
+                        node.labelEl.object3D.rotation.z = 0;
                     }
                 }
 
