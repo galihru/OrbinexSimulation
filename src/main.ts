@@ -256,17 +256,6 @@ const BOLTZMANN = 1.380649e-23;
 const LIGHT_YEAR_METERS = 9.4607304725808e15;
 const HIRO_MARKER_URL = "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png";
 const KANJI_MARKER_URL = "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.png";
-const objectMarkerBarcode = new Map<string, number>([
-    ["Bumi", 0],
-    ["Mars", 1],
-    ["Jupiter", 2],
-    ["Saturnus", 3],
-    ["Uranus", 4],
-    ["Neptunus", 5],
-    ["Venus", 6],
-    ["Merkurius", 7],
-    ["Bulan", 8],
-]);
 
 const app = byId<HTMLElement>("app");
 app.innerHTML = `
@@ -341,7 +330,7 @@ app.innerHTML = `
                     <div>
                         <div class="info-title-row">
                             <h2 id="info-name">Tidak ada objek dipilih</h2>
-                            <button id="info-ar-trigger" class="info-ar-trigger" type="button" aria-label="Lihat barcode dan marker AR">AR</button>
+                            <button id="info-ar-trigger" class="info-ar-trigger" type="button" aria-label="Lihat kode AR dan marker">AR</button>
                             <figure id="info-ar-card" class="info-ar-card" aria-label="QR AR objek aktif">
                                 <div class="info-ar-code-wrap">
                                     <img id="info-ar-qr" class="info-ar-qr" alt="QR AR belum tersedia" />
@@ -5193,44 +5182,20 @@ type ArMarkerProfile = {
     markerImageUrl: string;
 };
 
-const barcodeMarkerBadgeCache = new Map<number, string>();
-
-function barcodeMarkerBadgeDataUrl(value: number): string {
-    const existing = barcodeMarkerBadgeCache.get(value);
-    if (existing) {
-        return existing;
-    }
-
-    const label = `B${value}`;
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'><rect x='1' y='1' width='158' height='158' rx='18' fill='#0a1733' stroke='#d9e7ff' stroke-width='2'/><rect x='24' y='24' width='112' height='112' rx='10' fill='#f6f9ff'/><rect x='36' y='36' width='88' height='88' rx='8' fill='#0b1326'/><text x='80' y='96' font-size='30' text-anchor='middle' fill='#f6f9ff' font-family='Arial, sans-serif' font-weight='700'>${label}</text></svg>`;
-    const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-    barcodeMarkerBadgeCache.set(value, dataUrl);
-    return dataUrl;
-}
-
 function markerProfileForObject(objectName?: string): ArMarkerProfile {
     const name = objectName?.trim() ?? "";
-    const barcodeValue = objectMarkerBarcode.get(name);
 
     if (name === "Mars") {
         return {
-            markerLabel: "Kanji / B1",
-            markerHint: "marker Kanji atau Barcode B1",
+            markerLabel: "Kanji",
+            markerHint: "marker Kanji",
             markerImageUrl: KANJI_MARKER_URL,
-        };
-    }
-
-    if (typeof barcodeValue === "number") {
-        return {
-            markerLabel: `Barcode B${barcodeValue}`,
-            markerHint: `marker Barcode B${barcodeValue}`,
-            markerImageUrl: barcodeMarkerBadgeDataUrl(barcodeValue),
         };
     }
 
     return {
         markerLabel: "Hiro",
-        markerHint: "marker Hiro (fallback)",
+        markerHint: "marker Hiro",
         markerImageUrl: HIRO_MARKER_URL,
     };
 }
