@@ -123,6 +123,11 @@ type EventPulse = {
     spinSpeed: number;
 };
 
+type SolarRenderAnchor = {
+    physicalPosition: { x: number; y: number; z: number };
+    renderPosition: THREE.Vector3;
+};
+
 function byId<T extends HTMLElement>(id: string): T {
     const element = document.getElementById(id);
     if (!element) {
@@ -1244,12 +1249,70 @@ function toRenderPosition(position: { x: number; y: number; z: number }): THREE.
     return new THREE.Vector3(position.x * factor, position.y * factor, position.z * factor);
 }
 
-function toRenderRadius(body: UniverseBody): number {
+function toRenderPositionRelative(
+    position: { x: number; y: number; z: number },
+    origin: { x: number; y: number; z: number },
+    originRender: THREE.Vector3,
+): THREE.Vector3 {
+    const dx = position.x - origin.x;
+    const dy = position.y - origin.y;
+    const dz = position.z - origin.z;
+    const distance = Math.hypot(dx, dy, dz);
+    if (distance <= 1e-9) {
+        return originRender.clone();
+    }
+
+    const scaledDistance = compressedDistanceMeters(distance);
+    const factor = scaledDistance / distance;
+    return new THREE.Vector3(
+        originRender.x + dx * factor,
+        originRender.y + dy * factor,
+        originRender.z + dz * factor,
+    );
+}
+
+function solarRenderAnchorFromBodies(bodies: UniverseBody[]): SolarRenderAnchor | null {
+    const sun = bodies.find((body) => body.name === "Matahari");
+    if (!sun) {
+        return null;
+    }
+
+    return {
+        physicalPosition: sun.position,
+        renderPosition: toRenderPosition(sun.position),
+    };
+}
+
+function renderPositionForBody(body: UniverseBody, solarAnchor: SolarRenderAnchor | null): THREE.Vector3 {
+    if (solarAnchor && isSolarSystemBody(body)) {
+        return toRenderPositionRelative(body.position, solarAnchor.physicalPosition, solarAnchor.renderPosition);
+    }
+    return toRenderPosition(body.position);
+}
+
+function renderPositionForWorld(
+    worldPosition: { x: number; y: number; z: number },
+    isSolarLocal: boolean,
+    solarAnchor: SolarRenderAnchor | null,
+): THREE.Vector3 {
+    if (isSolarLocal && solarAnchor) {
+        return toRenderPositionRelative(worldPosition, solarAnchor.physicalPosition, solarAnchor.renderPosition);
+    }
+    return toRenderPosition(worldPosition);
+}
+
+function toRenderRadius(body: UniverseBody, zoomSpan = cameraZoomSpan()): number {
     const safeRadius = Math.max(body.radiusMeters, 1);
     const logRadius = Math.log10(safeRadius);
+    const zoomFactor = Math.max(zoomSpan, 1);
 
     if (body.kind === "star") {
-        return clamp(0.65 + (logRadius - 6.0) * 0.42, 0.65, 2.4);
+        const base = clamp(0.65 + (logRadius - 6.0) * 0.42, 0.65, 2.4);
+        if (body.name === "Matahari") {
+            const nearShrink = clamp(zoomFactor / 280, 0.42, 1.35);
+            return clamp(base * nearShrink, 0.56, 2.9);
+        }
+        return base;
     }
 
     if (body.kind === "black-hole") {
@@ -1257,11 +1320,21 @@ function toRenderRadius(body: UniverseBody): number {
     }
 
     if (body.kind === "planet" || body.kind === "dwarf" || body.kind === "hypothesis") {
-        return clamp(0.12 + (logRadius - 5.7) * 0.24, 0.08, 0.72);
+        const base = clamp(0.12 + (logRadius - 5.7) * 0.24, 0.08, 0.72);
+        if (isSolarSystemBody(body)) {
+            const nearBoost = clamp(1.36 - zoomFactor / 900, 1.0, 1.34);
+            return clamp(base * nearBoost, 0.12, 0.96);
+        }
+        return base;
     }
 
     if (body.kind === "moon") {
-        return clamp(0.06 + (logRadius - 5.0) * 0.14, 0.04, 0.32);
+        const base = clamp(0.06 + (logRadius - 5.0) * 0.14, 0.04, 0.32);
+        if (isSolarSystemBody(body)) {
+            const nearBoost = clamp(1.48 - zoomFactor / 920, 1.0, 1.44);
+            return clamp(base * nearBoost, 0.06, 0.48);
+        }
+        return base;
     }
 
     if (body.kind === "galaxy") {
@@ -1584,6 +1657,7 @@ function rebuildOrbitGuides(force = false): void {
     const zoomSpan = cameraZoomSpan();
     const nearZoom = zoomSpan < 260;
     const midZoom = zoomSpan >= 260 && zoomSpan < 900;
+    const solarAnchor = solarRenderAnchorFromBodies(engine.getMajorBodies());
 
     const guides = engine.getOrbitGuides(viewState.showContext)
         .filter((guide) => guide.kind !== "other")
@@ -1632,14 +1706,16 @@ function rebuildOrbitGuides(force = false): void {
 
         const points: THREE.Vector3[] = [];
         const segments = guide.kind === "moon" ? 140 : 200;
+        const solarLocalGuide = solarSystemAnchors.has(guide.parentName) || guide.parentName === "Matahari";
         for (let i = 0; i <= segments; i += 1) {
             const t = (i / segments) * Math.PI * 2;
             const localPoint = orbitGuidePoint(guide, t);
-            points.push(toRenderPosition({
+            const worldPoint = {
                 x: parent.position.x + localPoint.x,
                 y: parent.position.y + localPoint.y,
                 z: parent.position.z + localPoint.z,
-            }));
+            };
+            points.push(renderPositionForWorld(worldPoint, solarLocalGuide, solarAnchor));
         }
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -2017,8 +2093,9 @@ function updateNodes(dtMs: number): void {
     const aliveKeys = new Set<string>();
     const spinMultiplier = clamp(engine.currentTimeScale / 900, 0.7, 18);
     const zoomSpan = cameraZoomSpan();
+    const solarAnchor = solarRenderAnchorFromBodies(bodies);
     const focusBody = bodies.find((entry) => entry.name === uiState.focusName) ?? null;
-    const focusPosition = focusBody ? toRenderPosition(focusBody.position) : controls.target.clone();
+    const focusPosition = focusBody ? renderPositionForBody(focusBody, solarAnchor) : controls.target.clone();
 
     for (const body of bodies) {
         const key = bodyKey(body);
@@ -2033,8 +2110,8 @@ function updateNodes(dtMs: number): void {
         node.body = body;
         node.spinRadPerSec = spinRadPerSecForBody(body);
 
-        const position = toRenderPosition(body.position);
-        const radius = toRenderRadius(body);
+        const position = renderPositionForBody(body, solarAnchor);
+        const radius = toRenderRadius(body, zoomSpan);
         node.mesh.position.copy(position);
         node.mesh.scale.setScalar(radius);
 
@@ -2227,7 +2304,7 @@ function cycleFocus(): void {
     const preferredDistance = next.kind === "galaxy" || next.kind === "cluster"
         ? 220
         : next.kind === "star"
-            ? 52
+            ? 66
             : 32;
     setFocusBody(next, { pinInfo: false, preferredDistance, durationMs: 640 });
 }
@@ -2244,15 +2321,17 @@ function setFocusBody(
     uiState.selectedKey = bodyKey(body);
     uiState.infoPinned = options?.pinInfo ?? true;
 
-    const target = toRenderPosition(body.position);
-    const preferredDistance = options?.preferredDistance ?? (isSolarSystemBody(body) ? 30 : 180);
+    const targetNode = bodyNodes.get(bodyKey(body));
+    const fallbackAnchor = isSolarSystemBody(body) ? solarRenderAnchorFromBodies(engine.getMajorBodies()) : null;
+    const target = targetNode ? targetNode.mesh.position.clone() : renderPositionForBody(body, fallbackAnchor);
+    const preferredDistance = options?.preferredDistance ?? (body.name === "Matahari" ? 66 : isSolarSystemBody(body) ? 34 : 180);
     focusSuspendUntilMs = performance.now() + Math.max(900, (options?.durationMs ?? 920) + 200);
 
     const offset = camera.position.clone().sub(controls.target);
     if (offset.lengthSq() < 1e-6) {
         offset.set(42, 26, 68);
     }
-    offset.setLength(clamp(preferredDistance, 24, 380));
+    offset.setLength(clamp(preferredDistance, 28, 420));
 
     cameraFlight = {
         fromPosition: camera.position.clone(),
@@ -2276,7 +2355,12 @@ function updateFocusTarget(): void {
         return;
     }
 
-    controls.target.lerp(targetNode.mesh.position, 0.14);
+    const prevTarget = controls.target.clone();
+    controls.target.lerp(targetNode.mesh.position, 0.18);
+    const followDelta = controls.target.clone().sub(prevTarget);
+    if (followDelta.lengthSq() > 1e-10) {
+        camera.position.add(followDelta);
+    }
 
     if (targetNode.body.kind === "star") {
         keyLight.position.copy(targetNode.mesh.position);
@@ -2290,9 +2374,15 @@ function resetCameraToEarthView(): void {
     cameraFlight = null;
     focusSuspendUntilMs = 0;
 
+    const earthNode = Array.from(bodyNodes.values()).find((node) => node.body.name === "Bumi");
     const earth = engine.getMajorBodies().find((body) => body.name === "Bumi");
-    const target = earth ? toRenderPosition(earth.position) : new THREE.Vector3(0, 0, 0);
-    const offset = new THREE.Vector3(22, 12, 28);
+    const earthFallbackAnchor = earth ? solarRenderAnchorFromBodies(engine.getMajorBodies()) : null;
+    const target = earthNode
+        ? earthNode.mesh.position.clone()
+        : earth
+            ? renderPositionForBody(earth, earthFallbackAnchor)
+            : new THREE.Vector3(0, 0, 0);
+    const offset = new THREE.Vector3(28, 16, 36);
 
     controls.target.copy(target);
     camera.position.copy(target.clone().add(offset));
@@ -2463,7 +2553,7 @@ function focusBodyBySearchTerm(term: string): boolean {
     const preferredDistance = target.kind === "galaxy" || target.kind === "cluster"
         ? 220
         : target.kind === "star"
-            ? 52
+            ? 66
             : 32;
     setFocusBody(target, { pinInfo: true, preferredDistance, durationMs: 820 });
     return true;
@@ -2497,7 +2587,7 @@ function updateSearchResults(): void {
             const preferredDistance = body.kind === "galaxy" || body.kind === "cluster"
                 ? 220
                 : body.kind === "star"
-                    ? 52
+                    ? 66
                     : 32;
             setFocusBody(body, { pinInfo: true, preferredDistance, durationMs: 820 });
         });
@@ -2688,8 +2778,10 @@ function focusForecastByKey(key: string): void {
     }
 
     const relSpeed = relativeSpeedMps(bodyA, bodyB);
+    const solarLocal = !!((bodyA && isSolarSystemBody(bodyA)) || (bodyB && isSolarSystemBody(bodyB)));
+    const solarAnchor = solarLocal ? solarRenderAnchorFromBodies(engine.getMajorBodies()) : null;
     focusSuspendUntilMs = performance.now() + 1500;
-    beginCameraFlight(toRenderPosition(worldLocation));
+    beginCameraFlight(renderPositionForWorld(worldLocation, solarLocal, solarAnchor));
     spawnEventPulse({
         id: -1,
         kind: forecast.kind,
@@ -2757,15 +2849,19 @@ function disposeEventPulse(pulse: EventPulse): void {
 
 function spawnEventPulse(event: UniverseSimulationEvent): void {
     let worldPosition = event.location;
+    const bodyA = event.bodyA ? bodyByNameAny(event.bodyA) : null;
+    const bodyB = event.bodyB ? bodyByNameAny(event.bodyB) : null;
     const nearOrigin = Math.hypot(worldPosition.x, worldPosition.y, worldPosition.z) < constants.auMeters * 1e-7;
-    if (nearOrigin && event.bodyA) {
-        const body = bodyByName(event.bodyA);
+    if (nearOrigin && bodyA) {
+        const body = bodyA;
         if (body) {
             worldPosition = body.position;
         }
     }
 
-    const position = toRenderPosition(worldPosition);
+    const solarLocal = !!((bodyA && isSolarSystemBody(bodyA)) || (bodyB && isSolarSystemBody(bodyB)));
+    const solarAnchor = solarLocal ? solarRenderAnchorFromBodies(engine.getMajorBodies()) : null;
+    const position = renderPositionForWorld(worldPosition, solarLocal, solarAnchor);
     const profile = eventVisualProfile(event.kind);
 
     const coreMaterial = new THREE.MeshBasicMaterial({
@@ -2878,8 +2974,8 @@ function focusEventById(eventId: number): void {
         return;
     }
 
-    const primaryBody = event.bodyA ? bodyByName(event.bodyA) : null;
-    const secondaryBody = event.bodyB ? bodyByName(event.bodyB) : null;
+    const primaryBody = event.bodyA ? bodyByNameAny(event.bodyA) : null;
+    const secondaryBody = event.bodyB ? bodyByNameAny(event.bodyB) : null;
     const anchorBody = primaryBody ?? secondaryBody;
 
     let worldLocation = event.location;
@@ -2896,8 +2992,11 @@ function focusEventById(eventId: number): void {
         uiState.selectedKey = null;
     }
 
+    const solarLocal = !!((primaryBody && isSolarSystemBody(primaryBody)) || (secondaryBody && isSolarSystemBody(secondaryBody)));
+    const solarAnchor = solarLocal ? solarRenderAnchorFromBodies(engine.getMajorBodies()) : null;
+
     focusSuspendUntilMs = performance.now() + 1500;
-    beginCameraFlight(toRenderPosition(worldLocation));
+    beginCameraFlight(renderPositionForWorld(worldLocation, solarLocal, solarAnchor));
     spawnEventPulse(event);
     updateInfoPanel();
 }
@@ -3212,7 +3311,7 @@ function bindUiHandlers(): void {
                 const preferredDistance = selectedBody.kind === "galaxy" || selectedBody.kind === "cluster"
                     ? 220
                     : selectedBody.kind === "star"
-                        ? 52
+                        ? 66
                         : 32;
                 setFocusBody(selectedBody, { pinInfo: true, preferredDistance, durationMs: 760 });
             } else {
