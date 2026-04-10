@@ -140,6 +140,8 @@ type DynamicCatalogOrbitState = {
     argumentPeriapsisRad: number;
 };
 
+type GalaxyMorphology = "elliptical" | "spiral" | "barred-spiral" | "irregular";
+
 function byId<T extends HTMLElement>(id: string): T {
     const element = document.getElementById(id);
     if (!element) {
@@ -905,19 +907,94 @@ function normalizeCatalogRadius(kind: UniverseBody["kind"], customRadius?: numbe
     return 4.1e7;
 }
 
+function morphologyForGalaxy(body: UniverseBody): GalaxyMorphology {
+    const sourceText = `${body.name} ${bodyDescriptionsDynamic.get(body.name) ?? ""}`.toLowerCase();
+    if (sourceText.includes("magellan") || sourceText.includes("irregular") || sourceText.includes("tak beraturan")) {
+        return "irregular";
+    }
+    if (sourceText.includes("ngc 1300") || sourceText.includes("berpalang") || sourceText.includes("barred") || sourceText.includes("bar ")) {
+        return "barred-spiral";
+    }
+    if (sourceText.includes("m87") || sourceText.includes("ellipt") || sourceText.includes("elips")) {
+        return "elliptical";
+    }
+    return "spiral";
+}
+
+function normalizeCatalogKind(
+    name: string,
+    kind: UniverseBody["kind"],
+    description?: string,
+): UniverseBody["kind"] {
+    const text = `${name} ${description ?? ""}`.toLowerCase();
+
+    if (text.includes("matahari") || text.includes("sun")) {
+        return "star";
+    }
+    if (text.includes("black hole") || text.includes("black-hole") || text.includes("bh") || text.includes("sagittarius a*") || text.includes("m87*")) {
+        return "black-hole";
+    }
+    if (text.includes("galaxy") || text.includes("m31") || text.includes("m33") || text.includes("ngc") || text.includes("andromeda") || text.includes("bima sakti") || text.includes("milky way")) {
+        return "galaxy";
+    }
+    if (text.includes("cluster") || text.includes("grup lokal") || text.includes("laniakea")) {
+        return "cluster";
+    }
+    if (text.includes("nebula") || text.includes("snr")) {
+        return "nebula";
+    }
+    if (text.includes("comet") || text.includes("komet")) {
+        return "comet";
+    }
+    if (text.includes("meteor") || text.includes("asteroid") || text.includes("meteoroid")) {
+        return "meteor";
+    }
+    if (text.includes("planet") || text.includes("exoplanet") || /\bp-\d+\b/.test(text)) {
+        return "planet";
+    }
+    if (text.includes("moon") || text.includes("bulan") || text.includes("satellite")) {
+        return "moon";
+    }
+
+    return kind;
+}
+
+function preferredFocusDistance(body: UniverseBody): number {
+    if (body.kind === "cluster") {
+        return 760;
+    }
+    if (body.kind === "galaxy") {
+        return 620;
+    }
+    if (body.kind === "nebula") {
+        return 420;
+    }
+    if (body.kind === "black-hole") {
+        return 140;
+    }
+    if (body.kind === "star") {
+        return body.name === "Matahari" ? 72 : 96;
+    }
+    if (isSolarSystemBody(body)) {
+        return 34;
+    }
+    return 180;
+}
+
 function catalogEntryToBody(entry: ExternalCatalogEntry): UniverseBody {
+    const normalizedKind = normalizeCatalogKind(entry.name, entry.kind, entry.description);
     const vector = raDecDistanceToVector(entry.raDeg, entry.decDeg, entry.distancePc);
     const inferredParent = entry.parentName
-        ?? (entry.kind === "galaxy" || entry.kind === "cluster"
+        ?? (normalizedKind === "galaxy" || normalizedKind === "cluster"
             ? "Laniakea"
-            : entry.kind === "star" || entry.kind === "planet" || entry.kind === "moon" || entry.kind === "comet" || entry.kind === "meteor" || entry.kind === "black-hole" || entry.kind === "nebula"
+            : normalizedKind === "star" || normalizedKind === "planet" || normalizedKind === "moon" || normalizedKind === "comet" || normalizedKind === "meteor" || normalizedKind === "black-hole" || normalizedKind === "nebula"
                 ? "Bima Sakti"
                 : "Grup Lokal");
     return {
         name: entry.name,
-        kind: entry.kind,
-        massKg: normalizeCatalogMass(entry.kind, entry.massKg),
-        radiusMeters: normalizeCatalogRadius(entry.kind, entry.radiusMeters),
+        kind: normalizedKind,
+        massKg: normalizeCatalogMass(normalizedKind, entry.massKg),
+        radiusMeters: normalizeCatalogRadius(normalizedKind, entry.radiusMeters),
         colorHex: entry.colorHex ?? "#98b8ef",
         position: { x: vector.x, y: vector.y, z: vector.z },
         velocity: { x: 0, y: 0, z: 0 },
@@ -1027,6 +1104,13 @@ function registerDynamicOrbit(
         ascendingNodeRad: degToRad(seededRange(seedLabel, 12, 0, 360)),
         argumentPeriapsisRad: degToRad(seededRange(seedLabel, 13, 0, 360)),
     });
+}
+
+function estimateOrbitalPeriodDays(semiMajorMeters: number, parentMassKg: number): number {
+    const a = Math.max(semiMajorMeters, 1);
+    const mu = constants.gravitationalConstant * Math.max(parentMassKg, constants.solarMassKg * 0.1);
+    const periodSec = 2 * Math.PI * Math.sqrt((a * a * a) / Math.max(mu, 1));
+    return clamp(periodSec / 86400, 8, 2.0e12);
 }
 
 function addSyntheticGalaxySystems(): void {
@@ -1308,11 +1392,31 @@ function applyCatalogEntries(entries: ExternalCatalogEntry[], sourceName: string
             continue;
         }
 
-        pushCatalogBody(catalogEntryToBody(entry), {
+        const createdBody = catalogEntryToBody(entry);
+        pushCatalogBody(createdBody, {
             sources: [sourceName],
             description: entry.description,
             imageUrl: entry.imageUrl,
         });
+
+        const parent = createdBody.parentName ? findExistingBodyByName(createdBody.parentName) : null;
+        if (parent && parent.name !== createdBody.name) {
+            const relDx = createdBody.position.x - parent.position.x;
+            const relDy = createdBody.position.y - parent.position.y;
+            const relDz = createdBody.position.z - parent.position.z;
+            const semiMajorMeters = Math.max(Math.hypot(relDx, relDy, relDz), constants.auMeters * 0.02);
+            const periodDays = estimateOrbitalPeriodDays(semiMajorMeters, parent.massKg);
+            registerDynamicOrbit(
+                createdBody.name,
+                parent.name,
+                semiMajorMeters,
+                periodDays,
+                seededRange(createdBody.name, 41, 0, 26),
+                seededRange(createdBody.name, 42, 0.001, 0.42),
+                `${createdBody.name}:${sourceName}:dyn`,
+            );
+        }
+
         freshCount += 1;
     }
 
@@ -1507,11 +1611,15 @@ function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[]
 
 async function ingestExternalCatalogs(): Promise<IngestRunSummary> {
     const startedAt = performance.now();
+    setSplashProgress(30, "Mengambil payload katalog NASA/ESA/JAXA/NED...");
     const payload = await fetchAgencyCatalogFile();
+    setSplashProgress(38, payload ? "Payload katalog diterima, memvalidasi struktur data..." : "Payload tidak tersedia, menyiapkan fallback ilmiah...");
     const statuses = payload ? ingestFromAgencyCatalogFile(payload) : ingestFallbackCatalogs();
     const online = statuses.filter((entry) => entry.mode === "online").length;
     const fallback = statuses.filter((entry) => entry.mode === "fallback").length;
     const failed = statuses.filter((entry) => entry.mode === "failed").length;
+
+    setSplashProgress(48, `Sinkronisasi sumber selesai (online=${online} fallback=${fallback} failed=${failed}).`);
 
     addLocalEvent(`Ingest selesai: online=${online} fallback=${fallback} failed=${failed}.`);
 
@@ -1521,6 +1629,7 @@ async function ingestExternalCatalogs(): Promise<IngestRunSummary> {
     }
 
     addSyntheticGalaxySystems();
+    setSplashProgress(60, `Membangun sistem galaksi dinamis (${syntheticGalaxyBodyNames.size} objek sintetis).`);
 
     return {
         statuses,
@@ -2139,7 +2248,28 @@ function rebuildOrbitGuides(force = false): void {
         }
         : null;
 
-    const guides = engine.getOrbitGuides(viewState.showContext)
+    const dynamicGuides: UniverseOrbitGuide[] = Array.from(dynamicCatalogOrbits.values())
+        .map((orbit): UniverseOrbitGuide | null => {
+            const body = guideBodyIndex.get(orbit.bodyName) ?? bodyByNameAny(orbit.bodyName);
+            if (!body || !body.alive) {
+                return null;
+            }
+            return {
+                bodyName: orbit.bodyName,
+                parentName: orbit.parentName,
+                kind: body.kind,
+                isHypothesis: body.isHypothesis,
+                semiMajorMeters: orbit.semiMajorMeters,
+                orbitalPeriodSeconds: (2 * Math.PI) / Math.max(Math.abs(orbit.omegaRadPerSec), 1e-15),
+                eccentricity: orbit.eccentricity,
+                inclinationRad: orbit.inclinationRad,
+                ascendingNodeRad: orbit.ascendingNodeRad,
+                argumentPeriapsisRad: orbit.argumentPeriapsisRad,
+            };
+        })
+        .filter((guide): guide is UniverseOrbitGuide => guide !== null);
+
+    const guides = [...engine.getOrbitGuides(viewState.showContext), ...dynamicGuides]
         .filter((guide) => guide.kind !== "other")
         .filter((guide) => {
             if (structureRoot) {
@@ -2380,19 +2510,16 @@ function textureForBody(body: UniverseBody): THREE.Texture | null {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     };
 
-    if (body.kind === "star") {
-        fillRadial("#fff0bb", base);
-    } else if (body.kind === "galaxy") {
-        fillRadial("#d8e2ff", "#364d8f");
-        ctx.strokeStyle = "rgba(191, 210, 255, 0.45)";
-        ctx.lineWidth = 5;
-        for (let arm = 0; arm < 3; arm += 1) {
+    const drawSpiralArms = (armCount: number, color: string, stretchY: number): void => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 4;
+        for (let arm = 0; arm < armCount; arm += 1) {
             ctx.beginPath();
             for (let t = 0; t <= 320; t += 1) {
-                const angle = arm * ((Math.PI * 2) / 3) + t * 0.11;
-                const radius = 12 + t * 0.42;
+                const angle = arm * ((Math.PI * 2) / armCount) + t * 0.11;
+                const radius = 10 + t * 0.44;
                 const x = 128 + Math.cos(angle) * radius;
-                const y = 128 + Math.sin(angle) * radius * 0.74;
+                const y = 128 + Math.sin(angle) * radius * stretchY;
                 if (t === 0) {
                     ctx.moveTo(x, y);
                 } else {
@@ -2400,6 +2527,53 @@ function textureForBody(body: UniverseBody): THREE.Texture | null {
                 }
             }
             ctx.stroke();
+        }
+    };
+
+    if (body.kind === "star") {
+        fillRadial("#fff0bb", base);
+    } else if (body.kind === "galaxy") {
+        const morphology = morphologyForGalaxy(body);
+        if (morphology === "elliptical") {
+            fillRadial("#dce7ff", "#586ea8");
+            ctx.fillStyle = "rgba(225, 236, 255, 0.25)";
+            for (let i = 0; i < 8; i += 1) {
+                ctx.beginPath();
+                ctx.ellipse(
+                    128,
+                    128,
+                    38 + i * 12,
+                    28 + i * 8,
+                    (i * 11 * Math.PI) / 180,
+                    0,
+                    Math.PI * 2,
+                );
+                ctx.fill();
+            }
+        } else if (morphology === "irregular") {
+            fillRadial("#cfe2ff", "#415c96");
+            ctx.fillStyle = "rgba(206, 229, 255, 0.42)";
+            for (let i = 0; i < 24; i += 1) {
+                ctx.beginPath();
+                ctx.ellipse(
+                    seededRange(body.name, 510 + i, 26, 230),
+                    seededRange(body.name, 610 + i, 24, 232),
+                    seededRange(body.name, 710 + i, 6, 24),
+                    seededRange(body.name, 810 + i, 4, 18),
+                    seededRange(body.name, 910 + i, 0, Math.PI),
+                    0,
+                    Math.PI * 2,
+                );
+                ctx.fill();
+            }
+        } else if (morphology === "barred-spiral") {
+            fillRadial("#dce8ff", "#304b86");
+            ctx.fillStyle = "rgba(226, 237, 255, 0.62)";
+            ctx.fillRect(62, 120, 132, 16);
+            drawSpiralArms(2, "rgba(196, 220, 255, 0.58)", 0.62);
+        } else {
+            fillRadial("#d8e2ff", "#364d8f");
+            drawSpiralArms(3, "rgba(191, 210, 255, 0.45)", 0.72);
         }
     } else if (body.kind === "black-hole") {
         fillRadial("#1b2147", "#02040b");
@@ -2627,8 +2801,21 @@ function updateNodes(dtMs: number): void {
         node.mesh.position.copy(position);
         const isStructureShell = node.mesh.userData.structureShell === true;
         if (isStructureShell) {
-            const flattenY = body.kind === "galaxy" ? 0.34 : body.kind === "cluster" ? 0.56 : 0.7;
-            const spread = body.kind === "galaxy" ? 1.92 : body.kind === "cluster" ? 1.58 : 1.35;
+            let flattenY = body.kind === "galaxy" ? 0.34 : body.kind === "cluster" ? 0.56 : 0.7;
+            let spread = body.kind === "galaxy" ? 1.92 : body.kind === "cluster" ? 1.58 : 1.35;
+            if (body.kind === "galaxy") {
+                const morphology = morphologyForGalaxy(body);
+                if (morphology === "elliptical") {
+                    flattenY = 0.76;
+                    spread = 1.44;
+                } else if (morphology === "barred-spiral") {
+                    flattenY = 0.28;
+                    spread = 2.08;
+                } else if (morphology === "irregular") {
+                    flattenY = 0.58;
+                    spread = 1.72;
+                }
+            }
             node.mesh.scale.set(radius * spread, radius * flattenY, radius * spread);
         } else {
             node.mesh.scale.setScalar(radius);
@@ -2829,11 +3016,7 @@ function cycleFocus(): void {
 
     const current = targets.findIndex((body) => body.name === uiState.focusName);
     const next = targets[(current + 1 + targets.length) % targets.length];
-    const preferredDistance = next.kind === "galaxy" || next.kind === "cluster"
-        ? 320
-        : next.kind === "star"
-            ? 66
-            : 32;
+    const preferredDistance = preferredFocusDistance(next);
     setFocusBody(next, { pinInfo: false, preferredDistance, durationMs: 640 });
 }
 
@@ -2878,16 +3061,7 @@ function setFocusBody(
     const targetNode = bodyNodes.get(bodyKey(body));
     const fallbackAnchor = isSolarSystemBody(body) ? solarRenderAnchorFromBodies(engine.getMajorBodies()) : null;
     const target = targetNode ? targetNode.mesh.position.clone() : renderPositionForBody(body, fallbackAnchor, null, null, null);
-    const preferredDistance = options?.preferredDistance
-        ?? (body.kind === "galaxy" || body.kind === "cluster"
-            ? 320
-            : body.kind === "nebula"
-                ? 260
-                : body.name === "Matahari"
-                    ? 66
-                    : isSolarSystemBody(body)
-                        ? 34
-                        : 180);
+    const preferredDistance = options?.preferredDistance ?? preferredFocusDistance(body);
     focusSuspendUntilMs = performance.now() + Math.max(900, (options?.durationMs ?? 920) + 200);
 
     const offset = camera.position.clone().sub(controls.target);
@@ -3113,11 +3287,7 @@ function focusBodyBySearchTerm(term: string): boolean {
         return false;
     }
 
-    const preferredDistance = target.kind === "galaxy" || target.kind === "cluster"
-        ? 320
-        : target.kind === "star"
-            ? 66
-            : 32;
+    const preferredDistance = preferredFocusDistance(target);
     setFocusBody(target, { pinInfo: true, preferredDistance, durationMs: 820 });
     return true;
 }
@@ -3147,11 +3317,7 @@ function updateSearchResults(): void {
         const sourceHint = bodySourceText(body.name).split(" | ").slice(0, 2).join("+");
         button.textContent = `${body.name} [${body.kind}] <${sourceHint}>`;
         button.addEventListener("click", () => {
-            const preferredDistance = body.kind === "galaxy" || body.kind === "cluster"
-                ? 320
-                : body.kind === "star"
-                    ? 66
-                    : 32;
+            const preferredDistance = preferredFocusDistance(body);
             setFocusBody(body, { pinInfo: true, preferredDistance, durationMs: 820 });
         });
         item.appendChild(button);
@@ -3166,6 +3332,7 @@ function updateSearchResults(): void {
 
 function updateHudPanel(): void {
     const snap = engine.getStateSnapshot();
+    const totalRenderObjects = collectBodies().length;
 
     const earth = bodyByName("Bumi");
     const moon = bodyByName("Bulan");
@@ -3207,6 +3374,7 @@ function updateHudPanel(): void {
         `Ast=${asteroidCount} Kuiper=${kuiperCount} Komet=${cometCount} Meteor=${meteorCount}`,
         `BH=${snap.counts.blackHole} Galaxy=${snap.counts.galaxy} Nebula=${snap.counts.nebula} Hypothesis=${hypothesisCount}`,
         `Katalog eksternal=${nasaCatalogEntries} (${nasaCatalogStatus}) | major=${snap.counts.majorBodies} context=${snap.counts.contextBodies}`,
+        `Render3D=${totalRenderObjects} | sintetis-galaksi=${syntheticGalaxyBodyNames.size} | orbit-dinamis=${dynamicCatalogOrbits.size}`,
         `Forecast: ${forecastLine}`,
     ].join("\n");
 }
@@ -3247,6 +3415,30 @@ function formatDistanceKm(distanceKm: number): string {
 
 function bodyByNameAny(name: string): UniverseBody | null {
     return bodyByName(name) ?? findExistingBodyByName(name);
+}
+
+function structureAnchorForBodies(bodyA: UniverseBody | null, bodyB: UniverseBody | null): SolarRenderAnchor | null {
+    const index = new Map<string, UniverseBody>();
+    engine.getMajorBodies().forEach((body) => index.set(body.name, body));
+    engine.getContextBodies().forEach((body) => index.set(body.name, body));
+    nasaCatalogBodies.forEach((body) => index.set(body.name, body));
+
+    const rootA = focusedStructureRoot(bodyA, index);
+    const rootB = focusedStructureRoot(bodyB, index);
+    const root = rootA && rootB
+        ? rootA.name === rootB.name
+            ? rootA
+            : rootA
+        : rootA ?? rootB;
+
+    if (!root) {
+        return null;
+    }
+
+    return {
+        physicalPosition: root.position,
+        renderPosition: toRenderPosition(root.position),
+    };
 }
 
 function relativeSpeedMps(bodyA: UniverseBody | null, bodyB: UniverseBody | null): number {
@@ -3343,8 +3535,9 @@ function focusForecastByKey(key: string): void {
     const relSpeed = relativeSpeedMps(bodyA, bodyB);
     const solarLocal = !!((bodyA && isSolarSystemBody(bodyA)) || (bodyB && isSolarSystemBody(bodyB)));
     const solarAnchor = solarLocal ? solarRenderAnchorFromBodies(engine.getMajorBodies()) : null;
+    const structureAnchor = solarLocal ? null : structureAnchorForBodies(bodyA, bodyB);
     focusSuspendUntilMs = performance.now() + 1500;
-    beginCameraFlight(renderPositionForWorld(worldLocation, solarLocal, solarAnchor));
+    beginCameraFlight(renderPositionForWorld(worldLocation, solarLocal, solarAnchor, structureAnchor));
     spawnEventPulse({
         id: -1,
         kind: forecast.kind,
@@ -3424,7 +3617,8 @@ function spawnEventPulse(event: UniverseSimulationEvent): void {
 
     const solarLocal = !!((bodyA && isSolarSystemBody(bodyA)) || (bodyB && isSolarSystemBody(bodyB)));
     const solarAnchor = solarLocal ? solarRenderAnchorFromBodies(engine.getMajorBodies()) : null;
-    const position = renderPositionForWorld(worldPosition, solarLocal, solarAnchor);
+    const structureAnchor = solarLocal ? null : structureAnchorForBodies(bodyA, bodyB);
+    const position = renderPositionForWorld(worldPosition, solarLocal, solarAnchor, structureAnchor);
     const profile = eventVisualProfile(event.kind);
 
     const coreMaterial = new THREE.MeshBasicMaterial({
@@ -3557,9 +3751,10 @@ function focusEventById(eventId: number): void {
 
     const solarLocal = !!((primaryBody && isSolarSystemBody(primaryBody)) || (secondaryBody && isSolarSystemBody(secondaryBody)));
     const solarAnchor = solarLocal ? solarRenderAnchorFromBodies(engine.getMajorBodies()) : null;
+    const structureAnchor = solarLocal ? null : structureAnchorForBodies(primaryBody, secondaryBody);
 
     focusSuspendUntilMs = performance.now() + 1500;
-    beginCameraFlight(renderPositionForWorld(worldLocation, solarLocal, solarAnchor));
+    beginCameraFlight(renderPositionForWorld(worldLocation, solarLocal, solarAnchor, structureAnchor));
     spawnEventPulse(event);
     updateInfoPanel();
 }
@@ -3883,11 +4078,7 @@ function bindUiHandlers(): void {
             const hoveredBody = bodyNodes.get(uiState.hoverKey)?.body;
             if (hoveredBody) {
                 const selectedBody = normalizeClickedFocusBody(hoveredBody);
-                const preferredDistance = selectedBody.kind === "galaxy" || selectedBody.kind === "cluster"
-                    ? 320
-                    : selectedBody.kind === "star"
-                        ? 66
-                        : 32;
+                const preferredDistance = preferredFocusDistance(selectedBody);
                 setFocusBody(selectedBody, { pinInfo: true, preferredDistance, durationMs: 760 });
             } else {
                 uiState.selectedKey = uiState.hoverKey;
@@ -4096,12 +4287,14 @@ function animate(now: number): void {
 async function bootstrapApp(): Promise<void> {
     const bootStart = performance.now();
 
-    setSplashProgress(10, "Menyalakan mesin fisika...");
+    setSplashProgress(8, "Menyalakan mesin fisika dan menyiapkan status loader...");
     bindUiHandlers();
 
-    setSplashProgress(18, "Menyusun scene dan kontrol kamera...");
+    setSplashProgress(14, "Menyusun scene 3D dasar (kamera, cahaya, kanvas)...");
     setCanvasSize();
+    setSplashProgress(18, "Mengunci target awal kamera ke Bumi...");
     resetCameraToEarthView();
+    setSplashProgress(22, "Sinkronisasi panel UI, pencarian, dan telemetry HUD...");
     updateActionButtons();
     updatePanelVisibility();
     updateSearchResults();
@@ -4109,16 +4302,20 @@ async function bootstrapApp(): Promise<void> {
     updateEventsPanel();
     updateInfoPanel();
 
-    setSplashProgress(34, "Mengambil data eksternal NASA/ESA/JAXA/NED...");
+    setSplashProgress(26, "Audit taksonomi objek (bintang/planet/galaksi/cluster)...");
+
+    setSplashProgress(32, "Mengambil data eksternal NASA/ESA/JAXA/NED...");
     const ingest = await ingestExternalCatalogs();
     const modeStats = ingestModeBreakdown(ingest.statuses);
 
     setSplashProgress(
-        68,
+        66,
         `Ingest selesai: online=${modeStats.online} fallback=${modeStats.fallback} failed=${modeStats.failed} | ${(ingest.durationMs / 1000).toFixed(2)}s`,
     );
 
+    setSplashProgress(72, "Menyusun orbit guide 3D berdasarkan struktur fokus...");
     rebuildOrbitGuides(true);
+    setSplashProgress(78, "Menyusun indeks klik objek dan panel pencarian...");
     updateSearchResults();
     updateHudPanel();
     updateInfoPanel();
@@ -4129,14 +4326,15 @@ async function bootstrapApp(): Promise<void> {
         ? new Date(ingest.generatedAt).toLocaleString()
         : "n/a";
 
-    setSplashProgress(86, `Menyiapkan render ${objectCount} objek 3D...`);
+    setSplashProgress(84, `Menyiapkan render ${objectCount} objek 3D (engine + katalog + sintetis)...`);
     await waitMs(120);
 
+    setSplashProgress(92, "Mengaktifkan loop simulasi (rotasi/revolusi/event AI)...");
     window.requestAnimationFrame(animate);
     startCatalogAutoRefresh();
 
     const loadSec = (performance.now() - bootStart) / 1000;
-    await closeSplash(`Simulasi siap | load=${loadSec.toFixed(2)}s | katalog=${generatedStamp}`);
+    await closeSplash(`Simulasi siap | load=${loadSec.toFixed(2)}s | katalog=${generatedStamp} | auto-sync=${(AUTO_REFRESH_MS / 1000).toFixed(0)}s`);
 }
 
 void bootstrapApp();
