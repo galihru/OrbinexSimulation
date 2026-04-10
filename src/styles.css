@@ -216,6 +216,7 @@ input:focus-visible {
 
 .hud-panel,
 .search-panel,
+.hierarchy-panel,
 .info-panel,
 .events-panel,
 .help-panel {
@@ -278,9 +279,15 @@ input:focus-visible {
 }
 
 .hierarchy-panel {
+    position: relative;
+    inset: auto;
+    width: 100%;
     padding: 0.56rem 0.62rem;
     max-height: none;
     overflow: visible;
+    display: grid;
+    gap: 0.18rem;
+    z-index: 1;
 }
 
 .hierarchy-panel h2 {

@@ -574,10 +574,10 @@ const starfield = (() => {
     geo.setAttribute("position", new THREE.BufferAttribute(points, 3));
     const mat = new THREE.PointsMaterial({
         color: 0xbad5ff,
-        size: 1.2,
+        size: 0.82,
         sizeAttenuation: true,
         transparent: true,
-        opacity: 0.95,
+        opacity: 0.44,
     });
     const cloud = new THREE.Points(geo, mat);
     scene.add(cloud);
@@ -2570,29 +2570,96 @@ function shouldDisplayBodyAtZoom(
             return false;
         }
 
-        if (zoomSpan < 120) {
+        const structureBody = body.kind === "galaxy" || body.kind === "cluster" || body.kind === "nebula";
+        const focusSolar = !!(focusBody && isSolarSystemBody(focusBody));
+
+        if (focusSolar) {
+            if (solarBody) {
+                if (body.kind === "star") {
+                    return distanceFromFocus < (zoomSpan < 700 ? 1800 : 5600);
+                }
+                if (body.kind === "planet" || body.kind === "moon") {
+                    const cap = zoomSpan < 220 ? 360 : zoomSpan < 700 ? 1200 : zoomSpan < 1400 ? 3300 : 6200;
+                    return distanceFromFocus < cap;
+                }
+                if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
+                    const cap = zoomSpan < 220 ? 250 : zoomSpan < 700 ? 760 : zoomSpan < 1400 ? 2200 : 4600;
+                    return distanceFromFocus < cap;
+                }
+                return distanceFromFocus < (zoomSpan < 1400 ? 5000 : 12000);
+            }
+
+            if (structureBody || branch.ancestor) {
+                if (zoomSpan < 1250) {
+                    return false;
+                }
+                if (zoomSpan < 2100) {
+                    return body.name === structureRoot.name && body.kind === "galaxy";
+                }
+                if (body.kind === "cluster") {
+                    return zoomSpan >= 2400;
+                }
+                if (body.kind === "nebula") {
+                    return zoomSpan >= 3000;
+                }
+                return true;
+            }
+
+            if (body.kind === "star" || body.kind === "black-hole") {
+                if (zoomSpan < 760) {
+                    return false;
+                }
+                if (zoomSpan < 1500) {
+                    return distanceFromFocus < 2200;
+                }
+                return distanceFromFocus < 9000;
+            }
+
+            if (body.kind === "planet" || body.kind === "moon") {
+                const cap = zoomSpan < 260 ? 460 : zoomSpan < 700 ? 1300 : zoomSpan < 1500 ? 3300 : 6800;
+                return distanceFromFocus < cap;
+            }
+
+            if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
+                const cap = zoomSpan < 260 ? 290 : zoomSpan < 700 ? 860 : zoomSpan < 1500 ? 2300 : 5200;
+                return distanceFromFocus < cap;
+            }
+
+            return distanceFromFocus < (zoomSpan < 1500 ? 6200 : 14000);
+        }
+
+        if (zoomSpan < 160) {
             if (branch.ancestor) {
                 return body.kind === "cluster" || body.kind === "galaxy";
             }
+            if (structureBody && body.name !== structureRoot.name) {
+                return false;
+            }
             if (body.kind === "planet" || body.kind === "moon") {
-                return branch.descendant && distanceFromFocus < 320;
+                return branch.descendant && distanceFromFocus < 420;
             }
             if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
-                return branch.descendant && distanceFromFocus < 220;
+                return branch.descendant && distanceFromFocus < 260;
+            }
+            if (body.kind === "star" || body.kind === "black-hole") {
+                return branch.descendant && distanceFromFocus < 760;
+            }
+            return branch.descendant;
+        }
+
+        if (zoomSpan < 620) {
+            if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
+                return branch.descendant && distanceFromFocus < 760;
+            }
+            if (body.kind === "planet" || body.kind === "moon") {
+                return branch.descendant && distanceFromFocus < 1300;
             }
             return true;
         }
 
-        if (zoomSpan < 520) {
-            if (bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
-                return branch.descendant && distanceFromFocus < 680;
-            }
-            return true;
-        }
-
-        if (zoomSpan < 2000) {
+        if (zoomSpan < 2200) {
             if (body.kind === "planet" || body.kind === "moon" || bodyLooksRocky(body) || bodyLooksComet(body) || body.kind === "meteor") {
-                return branch.descendant && distanceFromFocus < 5200;
+                return branch.descendant && distanceFromFocus < 5600;
             }
             return true;
         }
@@ -3419,6 +3486,7 @@ function updateNodes(dtMs: number): void {
     const focusPosition = focusBody
         ? renderPositionForBody(focusBody, solarAnchor, structureAnchor, structureRoot, bodyIndex)
         : controls.target.clone();
+    const focusIsSolar = !!(focusBody && isSolarSystemBody(focusBody));
 
     for (const body of bodies) {
         const key = bodyKey(body);
@@ -3506,7 +3574,30 @@ function updateNodes(dtMs: number): void {
         if (body.kind === "galaxy" || body.kind === "cluster" || body.kind === "nebula") {
             meshMaterial.transparent = true;
             meshMaterial.depthWrite = false;
-            meshMaterial.opacity = body.kind === "galaxy" ? 0.42 : body.kind === "cluster" ? 0.34 : 0.28;
+            let structureOpacity = body.kind === "galaxy" ? 0.42 : body.kind === "cluster" ? 0.34 : 0.28;
+            if (focusIsSolar) {
+                if (body.kind === "galaxy") {
+                    structureOpacity *= clamp((zoomSpan - 1050) / 920, 0, 1);
+                } else if (body.kind === "cluster") {
+                    structureOpacity *= clamp((zoomSpan - 2000) / 1000, 0, 1);
+                } else {
+                    structureOpacity *= clamp((zoomSpan - 2500) / 1200, 0, 1);
+                }
+            }
+            meshMaterial.opacity = structureOpacity;
+            if (structureOpacity < 0.012) {
+                node.mesh.visible = false;
+                if (node.ring) {
+                    node.ring.visible = false;
+                }
+                if (node.label) {
+                    node.label.visible = false;
+                }
+                if (node.trail) {
+                    node.trail.visible = false;
+                }
+                continue;
+            }
         } else {
             meshMaterial.transparent = false;
             meshMaterial.depthWrite = true;
@@ -4620,7 +4711,7 @@ function nearestBodyKeyFromPointer(): string | null {
     let bestKey: string | null = null;
     let bestScore = Number.POSITIVE_INFINITY;
     const zoomSpan = cameraZoomSpan();
-    const maxNdcDistance = zoomSpan < 120 ? 0.095 : zoomSpan < 500 ? 0.072 : 0.052;
+    const maxNdcDistance = zoomSpan < 120 ? 0.14 : zoomSpan < 500 ? 0.11 : 0.085;
 
     for (const node of candidates) {
         const projected = node.mesh.position.clone().project(camera);
@@ -4631,14 +4722,18 @@ function nearestBodyKeyFromPointer(): string | null {
         const dx = projected.x - pointer.x;
         const dy = projected.y - pointer.y;
         const ndcDistance = Math.hypot(dx, dy);
-        if (ndcDistance > maxNdcDistance) {
+        const distanceCamera = Math.max(camera.position.distanceTo(node.mesh.position), 1);
+        const worldRadius = Math.max(node.mesh.scale.length() / Math.sqrt(3), 0.04);
+        const projectedRadiusNdc = clamp((worldRadius / distanceCamera) * 6.2, 0.012, 0.11);
+        const allowedNdc = Math.max(maxNdcDistance, projectedRadiusNdc * 2.4);
+        if (ndcDistance > allowedNdc) {
             continue;
         }
 
         const shellPenalty = node.mesh.userData.structureShell === true
             ? (zoomSpan < 220 ? 0.03 : 0.012)
             : 0;
-        const score = ndcDistance + (projected.z + 1) * 0.002 + shellPenalty;
+        const score = (ndcDistance / Math.max(allowedNdc, 1e-6)) + (projected.z + 1) * 0.002 + shellPenalty;
         if (score < bestScore) {
             bestScore = score;
             bestKey = node.key;
@@ -4653,6 +4748,7 @@ function updateHoverByRaycast(): void {
         if (!uiState.infoPinned) {
             uiState.hoverKey = null;
         }
+        canvas.style.cursor = "default";
         return;
     }
 
@@ -4674,6 +4770,7 @@ function updateHoverByRaycast(): void {
     if (!uiState.infoPinned) {
         uiState.hoverKey = key;
     }
+    canvas.style.cursor = key ? "pointer" : "default";
 }
 
 function bindUiHandlers(): void {
