@@ -277,6 +277,49 @@ input:focus-visible {
     display: none;
 }
 
+.hierarchy-panel {
+    padding: 0.56rem 0.62rem;
+    max-height: none;
+    overflow: visible;
+}
+
+.hierarchy-panel h2 {
+    margin: 0;
+    font-family: "Space Grotesk", sans-serif;
+    font-size: 0.82rem;
+}
+
+.hierarchy-row {
+    margin-top: 0.36rem;
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) 24px;
+    align-items: center;
+    gap: 0.42rem;
+}
+
+.hierarchy-row label,
+.hierarchy-panel p {
+    font-size: 0.69rem;
+    color: #9fbae2;
+}
+
+.hierarchy-row input[type="range"] {
+    width: 100%;
+}
+
+.hierarchy-row span {
+    text-align: right;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.72rem;
+    color: #d5e8ff;
+}
+
+.hierarchy-panel button {
+    margin-top: 0.4rem;
+    width: 100%;
+    font-size: 0.68rem;
+}
+
 .search-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -306,6 +349,59 @@ input:focus-visible {
     padding-left: 1.18rem;
     display: grid;
     gap: 0.28rem;
+}
+
+.search-panel,
+.search-results,
+.info-panel,
+.events-list {
+    scrollbar-width: none;
+    scrollbar-color: rgba(126, 174, 255, 0.74) transparent;
+}
+
+.search-panel:hover,
+.search-results:hover,
+.info-panel:hover,
+.events-list:hover {
+    scrollbar-width: thin;
+}
+
+.search-panel::-webkit-scrollbar,
+.search-results::-webkit-scrollbar,
+.info-panel::-webkit-scrollbar,
+.events-list::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+.search-panel:hover::-webkit-scrollbar,
+.search-results:hover::-webkit-scrollbar,
+.info-panel:hover::-webkit-scrollbar,
+.events-list:hover::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.search-panel::-webkit-scrollbar-thumb,
+.search-results::-webkit-scrollbar-thumb,
+.info-panel::-webkit-scrollbar-thumb,
+.events-list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(126, 174, 255, 0);
+}
+
+.search-panel:hover::-webkit-scrollbar-thumb,
+.search-results:hover::-webkit-scrollbar-thumb,
+.info-panel:hover::-webkit-scrollbar-thumb,
+.events-list:hover::-webkit-scrollbar-thumb {
+    background: rgba(126, 174, 255, 0.66);
+}
+
+.search-panel::-webkit-scrollbar-track,
+.search-results::-webkit-scrollbar-track,
+.info-panel::-webkit-scrollbar-track,
+.events-list::-webkit-scrollbar-track {
+    background: transparent;
 }
 
 .search-results button {
@@ -358,6 +454,7 @@ input:focus-visible {
 }
 
 .info-source,
+.info-quality,
 .info-parent {
     margin: 0.16rem 0 0;
     font-size: 0.68rem;

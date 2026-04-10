@@ -22,6 +22,9 @@ type ViewState = {
     showLabels: boolean;
     showAsteroids: boolean;
     showComets: boolean;
+    scientificDataOnly: boolean;
+    hierarchyMin: number;
+    hierarchyMax: number;
 };
 
 type UiState = {
@@ -126,6 +129,7 @@ type EventPulse = {
 type SolarRenderAnchor = {
     physicalPosition: { x: number; y: number; z: number };
     renderPosition: THREE.Vector3;
+    distanceScale?: number;
 };
 
 type DynamicCatalogOrbitState = {
@@ -246,39 +250,40 @@ const BOLTZMANN = 1.380649e-23;
 const app = byId<HTMLElement>("app");
 app.innerHTML = `
   <main id="sim-main" class="sim-root" aria-label="Orbinex full canvas simulation">
-    <canvas id="universe-canvas" aria-label="Kanvas simulasi semesta tiga dimensi"></canvas>
+        <canvas id="universe-canvas" aria-label="Kanvas simulasi semesta tiga dimensi"></canvas>
 
-    <section id="splash" class="splash is-visible" role="dialog" aria-modal="true" aria-label="Memuat OrbinexSimulation">
+        <section id="splash" class="splash is-visible" role="dialog" aria-modal="true" aria-label="Memuat OrbinexSimulation">
             <img src="${logoUrl}" alt="Logo Orbinex" width="128" height="128" />
-      <p class="splash-kicker">ORBINEXSIMULATION</p>
-      <h1>Universe Sandbox Scientific 3D</h1>
-      <p id="splash-status">Menyalakan mesin fisika...</p>
-      <progress id="splash-progress" max="100" value="8" aria-label="Kemajuan memuat simulasi"></progress>
+            <p class="splash-kicker">ORBINEXSIMULATION</p>
+            <h1>Universe Sandbox Scientific 3D</h1>
+            <p id="splash-status">Menyalakan mesin fisika...</p>
+            <progress id="splash-progress" max="100" value="8" aria-label="Kemajuan memuat simulasi"></progress>
             <span id="splash-percent" class="splash-percent">8%</span>
-    </section>
+        </section>
 
-    <header class="top-command" aria-label="Quick controls">
-      <div class="brand-mark">
-        <strong>Orbinex</strong>
-        <span>Web Universe Sandbox</span>
-      </div>
-      <div class="button-row">
-        <button id="btn-run" type="button">JEDA</button>
-        <button id="btn-focus" type="button">FOKUS+</button>
-        <button id="btn-trail" type="button">JEJAK</button>
-                <button id="btn-guides" type="button">LINTASAN</button>
-        <button id="btn-label" type="button">LABEL</button>
-        <button id="btn-info" type="button">INFO</button>
-        <button id="btn-search" type="button">CARI</button>
-        <button id="btn-ref" type="button">REF</button>
-        <button id="btn-help" type="button">BANTU</button>
-        <button id="btn-language" type="button">BAHASA: ID</button>
-      </div>
-    </header>
+        <header class="top-command" aria-label="Quick controls">
+            <div class="brand-mark">
+                <strong>Orbinex</strong>
+                <span>Web Universe Sandbox</span>
+            </div>
+            <div class="button-row">
+                <button id="btn-run" type="button">JEDA</button>
+                <button id="btn-focus" type="button">FOKUS+</button>
+                <button id="btn-trail" type="button">JEJAK</button>
+                        <button id="btn-guides" type="button">LINTASAN</button>
+                <button id="btn-label" type="button">LABEL</button>
+                <button id="btn-info" type="button">INFO</button>
+                <button id="btn-search" type="button">CARI</button>
+                        <button id="btn-science" type="button">SCI:OFF</button>
+                <button id="btn-ref" type="button">REF</button>
+                <button id="btn-help" type="button">BANTU</button>
+                <button id="btn-language" type="button">BAHASA: ID</button>
+            </div>
+        </header>
 
-    <aside class="hud-panel" aria-live="polite">
-      <pre id="hud-text">Memuat telemetry...</pre>
-    </aside>
+        <aside class="hud-panel" aria-live="polite">
+        <pre id="hud-text">Memuat telemetry...</pre>
+        </aside>
 
         <aside id="right-stack" class="right-stack" aria-label="Stack panel kanan">
             <section id="search-panel" class="search-panel" aria-label="Panel pencarian objek">
@@ -292,16 +297,33 @@ app.innerHTML = `
                 <ol id="search-results" class="search-results"></ol>
             </section>
 
+            <section id="hierarchy-panel" class="hierarchy-panel" aria-label="Panel filter hirarki kosmik">
+                <h2>Filter Hirarki 1-13</h2>
+                <div class="hierarchy-row">
+                    <label for="hierarchy-min">Min</label>
+                    <input id="hierarchy-min" type="range" min="1" max="13" step="1" value="1" />
+                    <span id="hierarchy-min-value">1</span>
+                </div>
+                <div class="hierarchy-row">
+                    <label for="hierarchy-max">Max</label>
+                    <input id="hierarchy-max" type="range" min="1" max="13" step="1" value="13" />
+                    <span id="hierarchy-max-value">13</span>
+                </div>
+                <p id="hierarchy-note">Menampilkan level 1 sampai 13.</p>
+                <button id="hierarchy-reset" type="button">RESET HIRARKI</button>
+            </section>
+
             <section id="info-panel" class="info-panel" aria-live="polite" aria-label="Panel detail objek">
-                            <div class="info-head">
-                            <canvas id="info-preview" class="info-image" aria-label="Pratinjau 3D objek"></canvas>
-                                    <div>
-                                            <h2 id="info-name">Tidak ada objek dipilih</h2>
-                                            <p id="info-kind">-</p>
-                                            <p id="info-source" class="info-source">Sumber: Orbinex Engine</p>
-                                            <p id="info-parent" class="info-parent">Parent: -</p>
-                                    </div>
-                            </div>
+                <div class="info-head">
+                    <canvas id="info-preview" class="info-image" aria-label="Pratinjau 3D objek"></canvas>
+                    <div>
+                        <h2 id="info-name">Tidak ada objek dipilih</h2>
+                        <p id="info-kind">-</p>
+                        <p id="info-source" class="info-source">Sumber: Orbinex Engine</p>
+                        <p id="info-quality" class="info-quality">Kualitas referensi: internal model</p>
+                        <p id="info-parent" class="info-parent">Parent: -</p>
+                    </div>
+                </div>
                 <dl>
                     <div><dt>Massa</dt><dd id="info-mass">-</dd></div>
                     <div><dt>Radius</dt><dd id="info-radius">-</dd></div>
@@ -335,17 +357,17 @@ app.innerHTML = `
             </section>
         </aside>
 
-    <section id="help-panel" class="help-panel" aria-label="Bantuan kontrol">
-      <h2>Hint kontrol</h2>
-      <ul>
-        <li>Drag untuk orbit kamera, wheel untuk zoom.</li>
-        <li>TAB atau tombol FOKUS+ untuk ganti objek fokus.</li>
-        <li>SPACE untuk pause/jalan.</li>
-        <li>T untuk jejak, L untuk label, C untuk konteks, / untuk cari.</li>
-                <li>R untuk reset kamera kembali mengorbit Bumi.</li>
-        <li>Klik objek untuk pin panel detail.</li>
-      </ul>
-    </section>
+        <section id="help-panel" class="help-panel" aria-label="Bantuan kontrol">
+        <h2>Hint kontrol</h2>
+        <ul>
+            <li>Drag untuk orbit kamera, wheel untuk zoom.</li>
+            <li>TAB atau tombol FOKUS+ untuk ganti objek fokus.</li>
+            <li>SPACE untuk pause/jalan.</li>
+            <li>T untuk jejak, L untuk label, C untuk konteks, / untuk cari.</li>
+                    <li>R untuk reset kamera kembali mengorbit Bumi.</li>
+            <li>Klik objek untuk pin panel detail.</li>
+        </ul>
+        </section>
 
         <p id="bottom-hint" class="bottom-hint">Ringkas: drag/arrow orbit kamera | wheel zoom | TAB fokus | / cari | R reset bumi | klik objek pin panel</p>
   </main>
@@ -368,12 +390,20 @@ const searchSuggestions = byId<HTMLDataListElement>("search-suggestions");
 const searchResults = byId<HTMLOListElement>("search-results");
 const searchGo = byId<HTMLButtonElement>("search-go");
 const searchClear = byId<HTMLButtonElement>("search-clear");
+const hierarchyPanel = byId<HTMLElement>("hierarchy-panel");
+const hierarchyMinInput = byId<HTMLInputElement>("hierarchy-min");
+const hierarchyMaxInput = byId<HTMLInputElement>("hierarchy-max");
+const hierarchyMinValue = byId<HTMLElement>("hierarchy-min-value");
+const hierarchyMaxValue = byId<HTMLElement>("hierarchy-max-value");
+const hierarchyNote = byId<HTMLElement>("hierarchy-note");
+const hierarchyResetButton = byId<HTMLButtonElement>("hierarchy-reset");
 
 const infoPanel = byId<HTMLElement>("info-panel");
 const infoPreviewCanvas = byId<HTMLCanvasElement>("info-preview");
 const infoName = byId<HTMLElement>("info-name");
 const infoKind = byId<HTMLElement>("info-kind");
 const infoSource = byId<HTMLElement>("info-source");
+const infoQuality = byId<HTMLElement>("info-quality");
 const infoParent = byId<HTMLElement>("info-parent");
 const infoMass = byId<HTMLElement>("info-mass");
 const infoRadius = byId<HTMLElement>("info-radius");
@@ -403,6 +433,7 @@ const guidesButton = byId<HTMLButtonElement>("btn-guides");
 const labelButton = byId<HTMLButtonElement>("btn-label");
 const infoButton = byId<HTMLButtonElement>("btn-info");
 const searchButton = byId<HTMLButtonElement>("btn-search");
+const scienceButton = byId<HTMLButtonElement>("btn-science");
 const refButton = byId<HTMLButtonElement>("btn-ref");
 const helpButton = byId<HTMLButtonElement>("btn-help");
 const languageButton = byId<HTMLButtonElement>("btn-language");
@@ -424,6 +455,8 @@ const i18n = {
         infoOff: "INFO:OFF",
         searchOn: "CARI",
         searchOff: "CARI:OFF",
+        scienceOn: "SCI:ON",
+        scienceOff: "SCI:OFF",
         helpOn: "BANTU",
         helpOff: "BANTU:OFF",
         lang: "BAHASA: ID",
@@ -444,6 +477,8 @@ const i18n = {
         infoOff: "INFO:OFF",
         searchOn: "SEARCH",
         searchOff: "SEARCH:OFF",
+        scienceOn: "SCI:ON",
+        scienceOff: "SCI:OFF",
         helpOn: "HELP",
         helpOff: "HELP:OFF",
         lang: "LANG: EN",
@@ -472,6 +507,9 @@ const viewState: ViewState = {
     showLabels: true,
     showAsteroids: true,
     showComets: true,
+    scientificDataOnly: false,
+    hierarchyMin: 1,
+    hierarchyMax: 13,
 };
 
 const uiState: UiState = {
@@ -572,6 +610,7 @@ const bodyImagesDynamic = new Map<string, string>();
 const ingestStatuses = new Map<string, IngestStatus>();
 const eventById = new Map<number, UniverseSimulationEvent>();
 const seenEventIds = new Set<number>();
+const dismissedEventIds = new Set<number>();
 const forecastByKey = new Map<string, UniverseForecast>();
 const eventPulses: EventPulse[] = [];
 const dynamicCatalogOrbits = new Map<string, DynamicCatalogOrbitState>();
@@ -635,12 +674,145 @@ function mergeBodySources(name: string, sources: string[]): void {
     bodySourcesByName.set(name, set);
 }
 
+const sourceQualityScore: Record<string, number> = {
+    "Orbinex Engine": 1,
+    "External Catalog": 3,
+    "Synthetic Galaxy Model": 1,
+    "Scientific Hierarchy Model": 2,
+    NASA: 5,
+    ESA: 5,
+    JAXA: 5,
+    NED: 5,
+    SIMBAD: 4,
+    MPC: 4,
+};
+
+function sourceQualityLabel(source: string): string {
+    const score = sourceQualityScore[source] ?? 2;
+    if (score >= 5) {
+        return "Agency catalog / jurnal terkurasi";
+    }
+    if (score === 4) {
+        return "Basis data astronomi terverifikasi";
+    }
+    if (score === 3) {
+        return "Katalog sekunder";
+    }
+    if (score === 2) {
+        return "Model ilmiah terarah";
+    }
+    return "Model simulasi";
+}
+
+function bodyReferenceQuality(name: string): string {
+    const sources = Array.from(bodySourcesByName.get(name) ?? []);
+    if (sources.length === 0) {
+        return "Model simulasi";
+    }
+
+    const top = sources
+        .map((source) => ({ source, score: sourceQualityScore[source] ?? 2 }))
+        .sort((a, b) => b.score - a.score)[0];
+    return `${sourceQualityLabel(top.source)} (${top.source})`;
+}
+
 function bodySourceText(name: string): string {
     const set = bodySourcesByName.get(name);
     if (!set || set.size === 0) {
         return "Orbinex Engine";
     }
     return Array.from(set).join(" | ");
+}
+
+function updateHierarchyFilterUi(): void {
+    hierarchyMinInput.value = `${viewState.hierarchyMin}`;
+    hierarchyMaxInput.value = `${viewState.hierarchyMax}`;
+    hierarchyMinValue.textContent = `${viewState.hierarchyMin}`;
+    hierarchyMaxValue.textContent = `${viewState.hierarchyMax}`;
+    hierarchyNote.textContent = `Menampilkan level ${viewState.hierarchyMin} sampai ${viewState.hierarchyMax}.`;
+}
+
+function ensureFocusWithinVisibleBodies(): void {
+    const focusedBody = bodyByNameAny(uiState.focusName);
+    if (focusedBody && shouldRenderBody(focusedBody)) {
+        return;
+    }
+
+    const fallback = focusCandidates()[0] ?? bodyByNameAny("Bumi");
+    if (!fallback) {
+        return;
+    }
+
+    if (fallback.name === "Bumi") {
+        resetCameraToEarthView();
+        return;
+    }
+
+    const preferredDistance = preferredFocusDistance(fallback);
+    setFocusBody(fallback, { pinInfo: true, preferredDistance, durationMs: 560 });
+}
+
+function applyScientificDataOnly(enabled: boolean): void {
+    viewState.scientificDataOnly = enabled;
+    if (enabled) {
+        clearSyntheticGalaxyBodies();
+        addLocalEvent("Mode Scientific Data Only aktif: objek sintetis disembunyikan.");
+    } else {
+        addSyntheticGalaxySystems();
+        addLocalEvent(`Mode Scientific Data Only nonaktif: model sintetis aktif (${syntheticGalaxyBodyNames.size} objek).`);
+    }
+
+    if (uiState.selectedKey) {
+        const selectedBody = bodyNodes.get(uiState.selectedKey)?.body;
+        if (selectedBody && !shouldRenderBody(selectedBody)) {
+            uiState.selectedKey = null;
+            uiState.infoPinned = false;
+        }
+    }
+    if (uiState.hoverKey) {
+        const hoveredBody = bodyNodes.get(uiState.hoverKey)?.body;
+        if (hoveredBody && !shouldRenderBody(hoveredBody)) {
+            uiState.hoverKey = null;
+        }
+    }
+
+    ensureFocusWithinVisibleBodies();
+    updateActionButtons();
+    updateHierarchyFilterUi();
+
+    rebuildOrbitGuides(true);
+    updateSearchResults();
+    updateHudPanel();
+    updateInfoPanel();
+    updateEventsPanel();
+}
+
+function applyHierarchyWindow(nextMin: number, nextMax: number): void {
+    const min = clamp(Math.round(nextMin), 1, 13);
+    const max = clamp(Math.round(nextMax), 1, 13);
+    viewState.hierarchyMin = Math.min(min, max);
+    viewState.hierarchyMax = Math.max(min, max);
+
+    if (uiState.selectedKey) {
+        const selectedBody = bodyNodes.get(uiState.selectedKey)?.body;
+        if (selectedBody && !shouldRenderBody(selectedBody)) {
+            uiState.selectedKey = null;
+            uiState.infoPinned = false;
+        }
+    }
+    if (uiState.hoverKey) {
+        const hoveredBody = bodyNodes.get(uiState.hoverKey)?.body;
+        if (hoveredBody && !shouldRenderBody(hoveredBody)) {
+            uiState.hoverKey = null;
+        }
+    }
+
+    ensureFocusWithinVisibleBodies();
+    updateHierarchyFilterUi();
+    rebuildOrbitGuides(true);
+    updateSearchResults();
+    updateHudPanel();
+    updateInfoPanel();
 }
 
 function setIngestStatus(source: string, mode: IngestStatus["mode"], count: number, note: string): void {
@@ -832,6 +1004,78 @@ const nedFallbackEntries: ExternalCatalogEntry[] = [
         colorHex: "#9db7cf",
         description: "Galaksi radio aktif populer di basis data ekstragalaksi NED.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Centaurus_A.jpg/640px-Centaurus_A.jpg",
+    },
+];
+
+const simbadFallbackEntries: ExternalCatalogEntry[] = [
+    {
+        name: "Sirius B",
+        kind: "star",
+        raDeg: 101.287,
+        decDeg: -16.716,
+        distancePc: 2.64,
+        colorHex: "#cddfff",
+        parentName: "Sirius A",
+        description: "Katalog bintang SIMBAD untuk sistem Sirius.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Sirius_A_and_B_Hubble_photo.jpg/640px-Sirius_A_and_B_Hubble_photo.jpg",
+    },
+    {
+        name: "Barnard's Star",
+        kind: "star",
+        raDeg: 269.452,
+        decDeg: 4.693,
+        distancePc: 1.83,
+        colorHex: "#ffb98d",
+        parentName: "Bima Sakti",
+        description: "Bintang katai merah dengan proper motion besar dari katalog SIMBAD.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/RedDwarfNASA.jpg/640px-RedDwarfNASA.jpg",
+    },
+    {
+        name: "VY Canis Majoris",
+        kind: "star",
+        raDeg: 110.743,
+        decDeg: -25.767,
+        distancePc: 1170,
+        colorHex: "#ff9f8a",
+        parentName: "Bima Sakti",
+        description: "Supergiant merah dari SIMBAD, sering dipakai sebagai referensi ukuran bintang.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/VY_Canis_Majoris.jpg/640px-VY_Canis_Majoris.jpg",
+    },
+];
+
+const mpcFallbackEntries: ExternalCatalogEntry[] = [
+    {
+        name: "(99942) Apophis",
+        kind: "meteor",
+        raDeg: 250.1,
+        decDeg: -8.2,
+        distancePc: 0.000006,
+        colorHex: "#d3c1a6",
+        parentName: "Matahari",
+        description: "Near-Earth asteroid dari arsip Minor Planet Center (MPC).",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/99942_Apophis_asteroid.jpg/640px-99942_Apophis_asteroid.jpg",
+    },
+    {
+        name: "(101955) Bennu",
+        kind: "meteor",
+        raDeg: 85.3,
+        decDeg: 8.1,
+        distancePc: 0.000004,
+        colorHex: "#bcae95",
+        parentName: "Matahari",
+        description: "Asteroid target misi OSIRIS-REx dari katalog MPC.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Bennu_in_natural_color.jpg/640px-Bennu_in_natural_color.jpg",
+    },
+    {
+        name: "(1) Ceres",
+        kind: "dwarf",
+        raDeg: 291.4,
+        decDeg: -23.5,
+        distancePc: 0.000014,
+        colorHex: "#b9c7d8",
+        parentName: "Matahari",
+        description: "Planet kerdil sabuk asteroid utama dari data MPC/IAU.",
+        imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/76/Ceres_-_RC3_-_Haulani_Crater_%2822381131691%29.jpg/640px-Ceres_-_RC3_-_Haulani_Crater_%2822381131691%29.jpg",
     },
 ];
 
@@ -1066,6 +1310,11 @@ function hierarchyLabelForBody(body: UniverseBody): string {
         13: "13. Observable Universe",
     };
     return labels[rank] ?? "5. Sistem gravitasi lokal";
+}
+
+function bodyWithinHierarchyWindow(body: UniverseBody): boolean {
+    const rank = hierarchyRankForBody(body);
+    return rank >= viewState.hierarchyMin && rank <= viewState.hierarchyMax;
 }
 
 function orbitGuideForBody(bodyName: string): UniverseOrbitGuide | undefined {
@@ -1605,8 +1854,8 @@ function updateDynamicCatalogBodies(dtMs: number): void {
 function addLocalEvent(message: string): void {
     const stamp = engine.getStateSnapshot().yearsElapsed.toFixed(3);
     localEvents.unshift(`[ingest] waktu=${stamp} tahun | ${message}`);
-    if (localEvents.length > 40) {
-        localEvents.splice(40);
+    if (localEvents.length > 16) {
+        localEvents.splice(16);
     }
 }
 
@@ -1843,6 +2092,30 @@ function ingestFallbackCatalogs(): IngestStatus[] {
     addLocalEvent(`NED ingest fallback aktif: +${nedAdded} objek katalog.`);
     statuses.push(ned);
 
+    setSplashProgress(56, "Fallback: memproses SIMBAD...");
+    const simbadAdded = applyCatalogEntries(simbadFallbackEntries, "SIMBAD");
+    const simbad: IngestStatus = {
+        source: "SIMBAD",
+        mode: "fallback",
+        count: simbadAdded,
+        note: "SIMBAD fallback dataset active",
+    };
+    setIngestStatus(simbad.source, simbad.mode, simbad.count, simbad.note);
+    addLocalEvent(`SIMBAD ingest fallback aktif: +${simbadAdded} objek katalog.`);
+    statuses.push(simbad);
+
+    setSplashProgress(60, "Fallback: memproses MPC...");
+    const mpcAdded = applyCatalogEntries(mpcFallbackEntries, "MPC");
+    const mpc: IngestStatus = {
+        source: "MPC",
+        mode: "fallback",
+        count: mpcAdded,
+        note: "MPC fallback dataset active",
+    };
+    setIngestStatus(mpc.source, mpc.mode, mpc.count, mpc.note);
+    addLocalEvent(`MPC ingest fallback aktif: +${mpcAdded} objek katalog.`);
+    statuses.push(mpc);
+
     return statuses;
 }
 
@@ -1868,10 +2141,12 @@ function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[]
         ESA: esaFallbackEntries,
         JAXA: jaxaFallbackEntries,
         NED: nedFallbackEntries,
+        SIMBAD: simbadFallbackEntries,
+        MPC: mpcFallbackEntries,
     };
 
-    const sourceProgress: Record<string, number> = { ESA: 44, JAXA: 48, NED: 52 };
-    for (const sourceName of ["ESA", "JAXA", "NED"]) {
+    const sourceProgress: Record<string, number> = { ESA: 44, JAXA: 48, NED: 52, SIMBAD: 56, MPC: 60 };
+    for (const sourceName of ["ESA", "JAXA", "NED", "SIMBAD", "MPC"]) {
         setSplashProgress(sourceProgress[sourceName], `Sinkronisasi ${sourceName} catalog...`);
         const sourceFile = agencyEntries[sourceName];
         const sourceRows = sourceFile?.entries;
@@ -1899,7 +2174,7 @@ function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[]
 
 async function ingestExternalCatalogs(): Promise<IngestRunSummary> {
     const startedAt = performance.now();
-    setSplashProgress(30, "Mengambil payload katalog NASA/ESA/JAXA/NED...");
+    setSplashProgress(30, "Mengambil payload katalog NASA/ESA/JAXA/NED/SIMBAD/MPC...");
     const payload = await fetchAgencyCatalogFile();
     setSplashProgress(38, payload ? "Payload katalog diterima, memvalidasi struktur data..." : "Payload tidak tersedia, menyiapkan fallback ilmiah...");
     const statuses = payload ? ingestFromAgencyCatalogFile(payload) : ingestFallbackCatalogs();
@@ -1907,7 +2182,7 @@ async function ingestExternalCatalogs(): Promise<IngestRunSummary> {
     const fallback = statuses.filter((entry) => entry.mode === "fallback").length;
     const failed = statuses.filter((entry) => entry.mode === "failed").length;
 
-    setSplashProgress(48, `Sinkronisasi sumber selesai (online=${online} fallback=${fallback} failed=${failed}).`);
+    setSplashProgress(62, `Sinkronisasi sumber selesai (online=${online} fallback=${fallback} failed=${failed}).`);
 
     addLocalEvent(`Ingest selesai: online=${online} fallback=${fallback} failed=${failed}.`);
 
@@ -1916,8 +2191,13 @@ async function ingestExternalCatalogs(): Promise<IngestRunSummary> {
         latestCatalogGeneratedAt = generatedAt;
     }
 
-    addSyntheticGalaxySystems();
-    setSplashProgress(60, `Membangun sistem galaksi dinamis (${syntheticGalaxyBodyNames.size} objek sintetis).`);
+    if (viewState.scientificDataOnly) {
+        clearSyntheticGalaxyBodies();
+        setSplashProgress(60, "Mode Scientific Data Only aktif: hanya data observasional/katalog.");
+    } else {
+        addSyntheticGalaxySystems();
+        setSplashProgress(60, `Membangun sistem galaksi dinamis (${syntheticGalaxyBodyNames.size} objek sintetis).`);
+    }
 
     return {
         statuses,
@@ -1968,6 +2248,7 @@ function toRenderPositionRelative(
     position: { x: number; y: number; z: number },
     origin: { x: number; y: number; z: number },
     originRender: THREE.Vector3,
+    distanceScale = 1,
 ): THREE.Vector3 {
     const dx = position.x - origin.x;
     const dy = position.y - origin.y;
@@ -1977,7 +2258,7 @@ function toRenderPositionRelative(
         return originRender.clone();
     }
 
-    const scaledDistance = compressedDistanceMeters(distance);
+    const scaledDistance = compressedDistanceMeters(distance) * clamp(distanceScale, 0.08, 1.2);
     const factor = scaledDistance / distance;
     return new THREE.Vector3(
         originRender.x + dx * factor,
@@ -1995,7 +2276,21 @@ function solarRenderAnchorFromBodies(bodies: UniverseBody[]): SolarRenderAnchor 
     return {
         physicalPosition: sun.position,
         renderPosition: toRenderPosition(sun.position),
+        distanceScale: 1,
     };
+}
+
+function structureDistanceScale(structureRoot: UniverseBody): number {
+    if (structureRoot.kind === "galaxy") {
+        return 0.22;
+    }
+    if (structureRoot.kind === "cluster") {
+        return 0.3;
+    }
+    if (structureRoot.kind === "nebula") {
+        return 0.38;
+    }
+    return 0.45;
 }
 
 function renderPositionForBody(
@@ -2006,13 +2301,23 @@ function renderPositionForBody(
     bodyIndex: Map<string, UniverseBody> | null,
 ): THREE.Vector3 {
     if (solarAnchor && isSolarSystemBody(body)) {
-        return toRenderPositionRelative(body.position, solarAnchor.physicalPosition, solarAnchor.renderPosition);
+        return toRenderPositionRelative(
+            body.position,
+            solarAnchor.physicalPosition,
+            solarAnchor.renderPosition,
+            solarAnchor.distanceScale ?? 1,
+        );
     }
 
     if (structureAnchor && structureRoot && bodyIndex) {
         const relation = bodyInFocusedBranch(body, structureRoot, bodyIndex);
         if (relation.descendant || body.name === structureRoot.name) {
-            return toRenderPositionRelative(body.position, structureAnchor.physicalPosition, structureAnchor.renderPosition);
+            return toRenderPositionRelative(
+                body.position,
+                structureAnchor.physicalPosition,
+                structureAnchor.renderPosition,
+                structureAnchor.distanceScale ?? 1,
+            );
         }
     }
 
@@ -2026,11 +2331,21 @@ function renderPositionForWorld(
     structureAnchor: SolarRenderAnchor | null = null,
 ): THREE.Vector3 {
     if (isSolarLocal && solarAnchor) {
-        return toRenderPositionRelative(worldPosition, solarAnchor.physicalPosition, solarAnchor.renderPosition);
+        return toRenderPositionRelative(
+            worldPosition,
+            solarAnchor.physicalPosition,
+            solarAnchor.renderPosition,
+            solarAnchor.distanceScale ?? 1,
+        );
     }
 
     if (structureAnchor) {
-        return toRenderPositionRelative(worldPosition, structureAnchor.physicalPosition, structureAnchor.renderPosition);
+        return toRenderPositionRelative(
+            worldPosition,
+            structureAnchor.physicalPosition,
+            structureAnchor.renderPosition,
+            structureAnchor.distanceScale ?? 1,
+        );
     }
 
     return toRenderPosition(worldPosition);
@@ -2553,6 +2868,7 @@ function rebuildOrbitGuides(force = false): void {
         ? {
             physicalPosition: structureRoot.position,
             renderPosition: toRenderPosition(structureRoot.position),
+            distanceScale: structureDistanceScale(structureRoot),
         }
         : null;
 
@@ -2579,6 +2895,10 @@ function rebuildOrbitGuides(force = false): void {
 
     const guides = [...engine.getOrbitGuides(viewState.showContext), ...dynamicGuides]
         .filter((guide) => guide.kind !== "other")
+        .filter((guide) => {
+            const guideBody = guideBodyIndex.get(guide.bodyName) ?? bodyByNameAny(guide.bodyName);
+            return !!guideBody && shouldRenderBody(guideBody);
+        })
         .filter((guide) => {
             if (structureRoot) {
                 const guideBody = guideBodyIndex.get(guide.bodyName) ?? bodyByNameAny(guide.bodyName);
@@ -2678,6 +2998,14 @@ function shouldRenderBody(body: UniverseBody): boolean {
     }
 
     if (!viewState.showComets && bodyLooksComet(body)) {
+        return false;
+    }
+
+    if (viewState.scientificDataOnly && syntheticGalaxyBodyNames.has(body.name)) {
+        return false;
+    }
+
+    if (!bodyWithinHierarchyWindow(body)) {
         return false;
     }
 
@@ -3085,6 +3413,7 @@ function updateNodes(dtMs: number): void {
         ? {
             physicalPosition: structureRoot.position,
             renderPosition: toRenderPosition(structureRoot.position),
+            distanceScale: structureDistanceScale(structureRoot),
         }
         : null;
     const focusPosition = focusBody
@@ -3313,7 +3642,7 @@ function focusCandidates(): UniverseBody[] {
     const major = engine.getMajorBodies();
     const context = viewState.showContext ? engine.getContextBodies() : [];
     const nasaBodies = viewState.showContext ? nasaCatalogBodies : [];
-    return [...major, ...context, ...nasaBodies].filter((body) => body.alive && (viewState.showHypothesis || !body.isHypothesis));
+    return [...major, ...context, ...nasaBodies].filter((body) => body.alive && shouldRenderBody(body));
 }
 
 function cycleFocus(): void {
@@ -3543,6 +3872,7 @@ function updateInfoPanel(): void {
     infoName.textContent = body.name;
     infoKind.textContent = `${body.kind}${body.isHypothesis ? " | hypothesis" : " | observed"}`;
     infoSource.textContent = `Sumber: ${bodySourceText(body.name)}`;
+    infoQuality.textContent = `Kualitas referensi: ${bodyReferenceQuality(body.name)}`;
     infoParent.textContent = `Parent: ${body.parentName ?? "-"}`;
     infoMass.textContent = formatMass(body.massKg);
     infoRadius.textContent = formatRadius(body.radiusMeters);
@@ -3614,7 +3944,7 @@ function updateSearchResults(): void {
     filteredTargets.slice(0, 120).forEach((body) => {
         const option = document.createElement("option");
         option.value = body.name;
-        option.label = `${body.kind} | ${bodySourceText(body.name)}`;
+        option.label = `L${hierarchyRankForBody(body)} ${body.kind} | ${bodySourceText(body.name)}`;
         searchSuggestions.appendChild(option);
     });
 
@@ -3624,7 +3954,7 @@ function updateSearchResults(): void {
         const button = document.createElement("button");
         button.type = "button";
         const sourceHint = bodySourceText(body.name).split(" | ").slice(0, 2).join("+");
-        button.textContent = `${body.name} [${body.kind}] <${sourceHint}>`;
+        button.textContent = `${body.name} [L${hierarchyRankForBody(body)}|${body.kind}] <${sourceHint}>`;
         button.addEventListener("click", () => {
             const preferredDistance = preferredFocusDistance(body);
             setFocusBody(body, { pinInfo: true, preferredDistance, durationMs: 820 });
@@ -3641,7 +3971,7 @@ function updateSearchResults(): void {
     const filamentCount = targets.filter((body) => hierarchyRankForBody(body) === 11).length;
     const voidCount = targets.filter((body) => hierarchyRankForBody(body) === 12).length;
     const hypothesisCount = targets.filter((body) => body.isHypothesis).length;
-    searchMeta.textContent = `Indeks:${targets.length} | BH:${blackHoleCount} Gal:${galaxyCount} Group:${groupCount} Cluster:${clusterCount} Super:${superclusterCount} Fil:${filamentCount} Void:${voidCount} Hyp:${hypothesisCount} | Eksternal:${nasaCatalogEntries} ${nasaCatalogStatus}`;
+    searchMeta.textContent = `Mode:${viewState.scientificDataOnly ? "DataOnly" : "Hybrid"} | L${viewState.hierarchyMin}-${viewState.hierarchyMax} | Indeks:${targets.length} | BH:${blackHoleCount} Gal:${galaxyCount} Group:${groupCount} Cluster:${clusterCount} Super:${superclusterCount} Fil:${filamentCount} Void:${voidCount} Hyp:${hypothesisCount} | Eksternal:${nasaCatalogEntries} ${nasaCatalogStatus}`;
 }
 
 function updateHudPanel(): void {
@@ -3684,6 +4014,7 @@ function updateHudPanel(): void {
         "Orbinex",
         `c=${constants.speedOfLightMps.toFixed(1)} m/s | waktu=${snap.yearsElapsed.toFixed(4)} tahun | kecepatan x${snap.timeScale.toFixed(1)}`,
         `fokus=${uiState.focusName} | ${uiState.running ? "RUN" : "PAUSE"} | label=${viewState.showLabels ? "on" : "off"}`,
+        `mode=${viewState.scientificDataOnly ? "ScientificDataOnly" : "Scientific+Synthetic"} | hierarki=L${viewState.hierarchyMin}-L${viewState.hierarchyMax}`,
         `delay Bumi-Matahari=${earthSunDelay.toFixed(2)} s | Bumi-Bulan=${earthMoonDelay.toFixed(2)} s`,
         `Ast=${asteroidCount} Kuiper=${kuiperCount} Komet=${cometCount} Meteor=${meteorCount}`,
         `BH=${snap.counts.blackHole} Galaxy=${snap.counts.galaxy} Nebula=${snap.counts.nebula} Hypothesis=${hypothesisCount}`,
@@ -3752,6 +4083,7 @@ function structureAnchorForBodies(bodyA: UniverseBody | null, bodyB: UniverseBod
     return {
         physicalPosition: root.position,
         renderPosition: toRenderPosition(root.position),
+        distanceScale: structureDistanceScale(root),
     };
 }
 
@@ -3820,6 +4152,23 @@ function impactNarrative(kind: string, energyJ: number, confidence: number): str
         return `Skala lokal-regional; confidence ${confPct}%.`;
     }
     return `Gangguan gravitasi/gelombang kejut potensial; confidence ${confPct}%.`;
+}
+
+function isMajorEventKind(kind: string): boolean {
+    return kind.includes("impact")
+        || kind.includes("accretion")
+        || kind.includes("supernova")
+        || kind.includes("collapse")
+        || kind.includes("white-dwarf")
+        || kind.includes("collision");
+}
+
+function compactPanelMessage(message: string, limit = 84): string {
+    const clean = message.replace(/\s+/g, " ").trim();
+    if (clean.length <= limit) {
+        return clean;
+    }
+    return `${clean.slice(0, Math.max(0, limit - 1)).trimEnd()}...`;
 }
 
 function focusForecastByKey(key: string): void {
@@ -4070,12 +4419,38 @@ function focusEventById(eventId: number): void {
     focusSuspendUntilMs = performance.now() + 1500;
     beginCameraFlight(renderPositionForWorld(worldLocation, solarLocal, solarAnchor, structureAnchor));
     spawnEventPulse(event);
+    if (isMajorEventKind(event.kind)) {
+        dismissedEventIds.add(event.id);
+        addLocalEvent(`Event mayor ditandai selesai: ${event.kind} (${event.id}).`);
+    }
     updateInfoPanel();
+    updateEventsPanel();
 }
 
 function updateEventsPanel(): void {
-    const events = engine.getEvents(18);
-    const forecasts = engine.getForecasts(8);
+    const recentEvents = engine.getEvents(24).filter((event) => !dismissedEventIds.has(event.id));
+    const forecasts = engine.getForecasts(8)
+        .filter((forecast, index) => forecast.confidence >= 0.52 || index < 3)
+        .slice(0, 4);
+    const events: UniverseSimulationEvent[] = [];
+    let minorCount = 0;
+    for (const event of recentEvents) {
+        const major = isMajorEventKind(event.kind);
+        if (!major && minorCount >= 4) {
+            continue;
+        }
+        events.push(event);
+        if (!major) {
+            minorCount += 1;
+        }
+        if (events.length >= 10) {
+            break;
+        }
+    }
+    if (events.length === 0 && recentEvents.length > 0) {
+        events.push(...recentEvents.slice(0, 6));
+    }
+
     const simYears = engine.getStateSnapshot().yearsElapsed;
 
     eventById.clear();
@@ -4083,10 +4458,10 @@ function updateEventsPanel(): void {
     events.forEach((event) => eventById.set(event.id, event));
 
     if (!engineEventsSynced) {
-        events.forEach((event) => seenEventIds.add(event.id));
+        recentEvents.forEach((event) => seenEventIds.add(event.id));
         engineEventsSynced = true;
     } else {
-        for (const event of events) {
+        for (const event of recentEvents) {
             if (!seenEventIds.has(event.id)) {
                 seenEventIds.add(event.id);
                 spawnEventPulse(event);
@@ -4096,7 +4471,7 @@ function updateEventsPanel(): void {
 
     eventsList.innerHTML = "";
 
-    localEvents.slice(0, 4).forEach((line) => {
+    localEvents.slice(0, 3).forEach((line) => {
         const item = document.createElement("li");
         item.className = "event-item event-item-local";
         item.textContent = line;
@@ -4108,8 +4483,9 @@ function updateEventsPanel(): void {
         const bodyB = bodyByNameAny(event.bodyB);
         const relSpeed = event.relSpeedMps > 0 ? event.relSpeedMps : relativeSpeedMps(bodyA, bodyB);
         const energyJ = estimateEncounterEnergyJ(bodyA, bodyB, relSpeed);
-        const effectRadiusKm = estimateEffectRadiusKm(energyJ, event.kind, bodyA, bodyB);
         const confidence = event.kind.includes("close-pass") ? 0.7 : 0.82;
+        const impact = impactNarrative(event.kind, energyJ, confidence);
+        const note = compactPanelMessage(event.message, 82);
 
         const item = document.createElement("li");
         item.className = "event-item";
@@ -4118,15 +4494,15 @@ function updateEventsPanel(): void {
         button.type = "button";
         button.className = "event-button";
         button.dataset.targetKey = `event:${event.id}`;
-        button.title = "Klik untuk fokus ke koordinat kejadian";
+        button.title = isMajorEventKind(event.kind)
+            ? "Klik untuk fokus dan sembunyikan event mayor ini dari panel."
+            : "Klik untuk fokus ke koordinat kejadian.";
 
         const distanceAu = Math.hypot(event.location.x, event.location.y, event.location.z) / constants.auMeters;
         const anchor = [event.bodyA, event.bodyB].filter((token) => token.trim().length > 0).join(" -> ");
         const anchorText = anchor.length > 0 ? ` | ${anchor}` : "";
         button.textContent = `[event:${event.kind}] t=${event.timeYears.toFixed(3)} th${anchorText}${Number.isFinite(distanceAu) ? ` | r=${distanceAu.toFixed(3)} AU` : ""}`
-            + `\nv_rel=${(relSpeed / 1000).toFixed(2)} km/s | zona efek~${formatDistanceKm(effectRadiusKm)}`
-            + `\nDampak: ${impactNarrative(event.kind, energyJ, confidence)}`
-            + `\n${event.message}`;
+            + ` | v_rel=${(relSpeed / 1000).toFixed(2)} km/s | ${impact} | ${note}`;
 
         item.appendChild(button);
         eventsList.appendChild(item);
@@ -4135,7 +4511,7 @@ function updateEventsPanel(): void {
     if (forecasts.length > 0) {
         const predictionHeader = document.createElement("li");
         predictionHeader.className = "event-item event-item-local";
-        predictionHeader.textContent = `Prediksi AI dinamis @ t=${simYears.toFixed(3)} tahun (berbasis orbit, kecepatan relatif, dan energi tumbukan).`;
+        predictionHeader.textContent = `Prediksi AI @ t=${simYears.toFixed(3)} tahun (ringkas).`;
         eventsList.appendChild(predictionHeader);
     }
 
@@ -4147,11 +4523,10 @@ function updateEventsPanel(): void {
         const closingAu = currentDistanceAu === null
             ? null
             : Math.max(0, currentDistanceAu - (relSpeed * forecast.etaYears * YEAR_SECONDS) / constants.auMeters);
-        const energyJ = estimateEncounterEnergyJ(bodyA, bodyB, relSpeed);
-        const effectRadiusKm = estimateEffectRadiusKm(energyJ, forecast.kind, bodyA, bodyB);
         const etaText = formatEtaYears(forecast.etaYears);
         const currentDistanceText = currentDistanceAu === null ? "n/a" : `${currentDistanceAu.toFixed(3)} AU`;
         const predictedDistanceText = closingAu === null ? "n/a" : `${closingAu.toFixed(3)} AU`;
+        const note = compactPanelMessage(forecast.message, 78);
 
         const key = `forecast:${index}`;
         forecastByKey.set(key, forecast);
@@ -4165,11 +4540,11 @@ function updateEventsPanel(): void {
         button.dataset.targetKey = key;
         button.title = "Klik untuk fokus ke area prediksi";
         button.textContent = `[prediksi:${forecast.kind}] ${forecast.bodyA} -> ${forecast.bodyB}`
-            + `\nETA=${etaText} | confidence=${(forecast.confidence * 100).toFixed(1)}%`
+            + ` | ETA=${etaText}`
+            + ` | conf=${(forecast.confidence * 100).toFixed(1)}%`
             + ` | v_rel=${(relSpeed / 1000).toFixed(2)} km/s`
-            + `\njarak kini=${currentDistanceText} | jarak prediksi=${predictedDistanceText}`
-            + `\nzona efek~${formatDistanceKm(effectRadiusKm)} | Dampak: ${impactNarrative(forecast.kind, energyJ, forecast.confidence)}`
-            + `\n${forecast.message}`;
+            + ` | d=${currentDistanceText}->${predictedDistanceText}`
+            + ` | ${note}`;
 
         item.appendChild(button);
         eventsList.appendChild(item);
@@ -4192,6 +4567,7 @@ function updateActionButtons(): void {
     labelButton.textContent = viewState.showLabels ? t.labelOn : t.labelOff;
     infoButton.textContent = uiState.showInfo ? t.infoOn : t.infoOff;
     searchButton.textContent = uiState.showSearch ? t.searchOn : t.searchOff;
+    scienceButton.textContent = viewState.scientificDataOnly ? t.scienceOn : t.scienceOff;
     helpButton.textContent = uiState.showHelp ? t.helpOn : t.helpOff;
     languageButton.textContent = t.lang;
     bottomHint.textContent = t.bottomHint;
@@ -4206,7 +4582,7 @@ function updatePanelVisibility(): void {
     }
 }
 
-function currentMeshTargets(): THREE.Object3D[] {
+function currentNodeTargets(): BodyNode[] {
     const zoomSpan = cameraZoomSpan();
     const nodeBodies = Array.from(bodyNodes.values()).map((node) => node.body);
     const bodyIndex = new Map<string, UniverseBody>(nodeBodies.map((body) => [body.name, body]));
@@ -4228,8 +4604,48 @@ function currentMeshTargets(): THREE.Object3D[] {
             return isSolarSystemBody(node.body)
                 || node.body.name === uiState.focusName
                 || uiState.selectedKey === node.key;
-        })
-        .map((node) => node.mesh);
+        });
+}
+
+function currentMeshTargets(): THREE.Object3D[] {
+    return currentNodeTargets().map((node) => node.mesh);
+}
+
+function nearestBodyKeyFromPointer(): string | null {
+    const candidates = currentNodeTargets();
+    if (candidates.length === 0) {
+        return null;
+    }
+
+    let bestKey: string | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    const zoomSpan = cameraZoomSpan();
+    const maxNdcDistance = zoomSpan < 120 ? 0.095 : zoomSpan < 500 ? 0.072 : 0.052;
+
+    for (const node of candidates) {
+        const projected = node.mesh.position.clone().project(camera);
+        if (projected.z < -1 || projected.z > 1) {
+            continue;
+        }
+
+        const dx = projected.x - pointer.x;
+        const dy = projected.y - pointer.y;
+        const ndcDistance = Math.hypot(dx, dy);
+        if (ndcDistance > maxNdcDistance) {
+            continue;
+        }
+
+        const shellPenalty = node.mesh.userData.structureShell === true
+            ? (zoomSpan < 220 ? 0.03 : 0.012)
+            : 0;
+        const score = ndcDistance + (projected.z + 1) * 0.002 + shellPenalty;
+        if (score < bestScore) {
+            bestScore = score;
+            bestKey = node.key;
+        }
+    }
+
+    return bestKey;
 }
 
 function updateHoverByRaycast(): void {
@@ -4241,9 +4657,19 @@ function updateHoverByRaycast(): void {
     }
 
     raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObjects(currentMeshTargets(), false)[0];
-    const object = hit?.object as THREE.Mesh | undefined;
-    const key = typeof object?.userData.bodyKey === "string" ? object.userData.bodyKey as string : null;
+    const hits = raycaster.intersectObjects(currentMeshTargets(), false);
+    const preferredHit = hits.find((entry) => {
+        const hitObject = entry.object as THREE.Mesh;
+        const bodyKeyRaw = hitObject.userData.bodyKey;
+        if (typeof bodyKeyRaw !== "string") {
+            return false;
+        }
+        const node = bodyNodes.get(bodyKeyRaw);
+        return !!node && node.mesh.userData.structureShell !== true;
+    }) ?? hits[0];
+    const object = preferredHit?.object as THREE.Mesh | undefined;
+    const raycastKey = typeof object?.userData.bodyKey === "string" ? object.userData.bodyKey as string : null;
+    const key = raycastKey ?? nearestBodyKeyFromPointer();
 
     if (!uiState.infoPinned) {
         uiState.hoverKey = key;
@@ -4290,6 +4716,10 @@ function bindUiHandlers(): void {
         if (uiState.showSearch) {
             searchInput.focus();
         }
+    });
+
+    scienceButton.addEventListener("click", () => {
+        applyScientificDataOnly(!viewState.scientificDataOnly);
     });
 
     helpButton.addEventListener("click", () => {
@@ -4367,6 +4797,20 @@ function bindUiHandlers(): void {
         searchInput.value = "";
         updateSearchResults();
         searchInput.focus();
+    });
+
+    hierarchyMinInput.addEventListener("input", () => {
+        const min = Number.parseInt(hierarchyMinInput.value, 10);
+        applyHierarchyWindow(Number.isFinite(min) ? min : viewState.hierarchyMin, viewState.hierarchyMax);
+    });
+
+    hierarchyMaxInput.addEventListener("input", () => {
+        const max = Number.parseInt(hierarchyMaxInput.value, 10);
+        applyHierarchyWindow(viewState.hierarchyMin, Number.isFinite(max) ? max : viewState.hierarchyMax);
+    });
+
+    hierarchyResetButton.addEventListener("click", () => {
+        applyHierarchyWindow(1, 13);
     });
 
     canvas.addEventListener("pointermove", (event) => {
@@ -4447,6 +4891,12 @@ function bindUiHandlers(): void {
             return;
         }
 
+        if (key === "x") {
+            event.preventDefault();
+            scienceButton.click();
+            return;
+        }
+
         if (key === "/") {
             event.preventDefault();
             if (!uiState.showSearch) {
@@ -4507,7 +4957,11 @@ async function refreshCatalogIfUpdated(): Promise<void> {
     const modeStats = ingestModeBreakdown(statuses);
 
     latestCatalogGeneratedAt = generatedAt;
-    addSyntheticGalaxySystems();
+    if (viewState.scientificDataOnly) {
+        clearSyntheticGalaxyBodies();
+    } else {
+        addSyntheticGalaxySystems();
+    }
     addLocalEvent(
         `Auto-sync katalog ${new Date(generatedAt).toLocaleString()}: +${delta} objek | online=${modeStats.online} fallback=${modeStats.fallback} failed=${modeStats.failed}.`,
     );
@@ -4609,6 +5063,7 @@ async function bootstrapApp(): Promise<void> {
     setSplashProgress(18, "Mengunci target awal kamera ke Bumi...");
     resetCameraToEarthView();
     setSplashProgress(22, "Sinkronisasi panel UI, pencarian, dan telemetry HUD...");
+    updateHierarchyFilterUi();
     updateActionButtons();
     updatePanelVisibility();
     updateSearchResults();
@@ -4618,7 +5073,7 @@ async function bootstrapApp(): Promise<void> {
 
     setSplashProgress(26, "Audit taksonomi objek (bintang/planet/galaksi/cluster)...");
 
-    setSplashProgress(32, "Mengambil data eksternal NASA/ESA/JAXA/NED...");
+    setSplashProgress(32, "Mengambil data eksternal NASA/ESA/JAXA/NED/SIMBAD/MPC...");
     const ingest = await ingestExternalCatalogs();
     const modeStats = ingestModeBreakdown(ingest.statuses);
 
