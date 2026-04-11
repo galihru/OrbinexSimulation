@@ -121,19 +121,17 @@ T = 2\pi\sqrt{\frac{a^3}{\mu}}
 $$
 
 $$
-\eta_{\mathrm{years}} = \operatorname{clamp}\left(\frac{d / v_{\mathrm{rel}}}{\mathrm{YEAR\_SECONDS}}, 10^{-7}, 5000\right)
+\eta_{\mathrm{years}} = \mathrm{clamp}\left(\frac{d / v_{\mathrm{rel}}}{\mathrm{YEAR\_SECONDS}}, 10^{-7}, 5000\right)
 $$
 
 $$
-\operatorname{confidence} = \operatorname{clamp}\left(0.45 + \frac{0.5}{1 + d/\mathrm{AU}}, 0.45, 0.98\right)
+\mathrm{confidence} = \mathrm{clamp}\left(0.45 + \frac{0.5}{1 + d/\mathrm{AU}}, 0.45, 0.98\right)
 $$
 
 $$
-r_{\mathrm{visual}} = \operatorname{clamp}\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot s, 0.03, 0.68\right)
+r_{\mathrm{visual}} = \mathrm{clamp}\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot s, 0.03, 0.68\right)
 $$
 
-r_visual = clamp((0.08 + log10(max(radius_m, 1)) * 0.04) * scale, 0.03, 0.68)
-```
 
 ```mermaid
 graph TD
@@ -306,14 +304,7 @@ console.log(sim.buildQuickReport(1.496e11));
 | Forecast section | Early warning for close-pass and potential-collision scenarios |
 | AR mode | Marker-linked object rendering with runtime permission summary |
 
-## 10. Runtime Flow (Text Graph)
-
-```text
-Input controls -> Physics update -> Orbit propagation -> Event detection
-              -> Forecast scoring -> Desktop/AR rendering -> Report generation
-```
-
-## 11. Deployment
+## 10. Deployment
 
 GitHub Pages deployment is handled by [deploy-pages.yml](.github/workflows/deploy-pages.yml).
 
@@ -321,9 +312,9 @@ GitHub Pages deployment is handled by [deploy-pages.yml](.github/workflows/deplo
 2. Ensure Pages source is set to GitHub Actions.
 3. Wait for workflow completion in the Actions tab.
 
-## 12. License
+## 11 . License
 
 MIT
 
-## 13. Author
+## 12. Author
 Galih Ridho Utomo (姜瑞)

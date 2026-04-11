@@ -246,15 +246,15 @@ T = 2\pi\sqrt{\frac{a^3}{\mu}}
 $$
 
 $$
-\eta_{\mathrm{years}} = \operatorname{clamp}\left(\frac{d / v_{\mathrm{rel}}}{\mathrm{YEAR\_SECONDS}}, 10^{-7}, 5000\right)
+\eta_{\mathrm{years}} = \mathrm{clamp}\left(\frac{d / v_{\mathrm{rel}}}{\mathrm{YEAR\_SECONDS}}, 10^{-7}, 5000\right)
 $$
 
 $$
-\operatorname{confidence} = \operatorname{clamp}\left(0.45 + \frac{0.5}{1 + d/\mathrm{AU}}, 0.45, 0.98\right)
+\mathrm{confidence} = \mathrm{clamp}\left(0.45 + \frac{0.5}{1 + d/\mathrm{AU}}, 0.45, 0.98\right)
 $$
 
 $$
-r_{\mathrm{visual}} = \operatorname{clamp}\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot \mathrm{radiusScale}, 0.03, 0.68\right)
+r_{\mathrm{visual}} = \mathrm{clamp}\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot \mathrm{radiusScale}, 0.03, 0.68\right)
 $$
 
 Plain-text fallback:
