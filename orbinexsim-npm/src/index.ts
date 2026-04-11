@@ -34,12 +34,8 @@ export interface LaunchArOptions extends PermissionRequestOptions {
 
 const DEFAULT_BASE_URL = "https://galihru.github.io/OrbinexSimulation/";
 
-function toPermissionResult(value: boolean): PermissionResult {
-    return value ? "granted" : "denied";
-}
-
 async function requestCameraPermission(): Promise<PermissionResult> {
-    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+    if (!window.isSecureContext || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
         return "unsupported";
     }
 
@@ -58,7 +54,7 @@ async function requestCameraPermission(): Promise<PermissionResult> {
 }
 
 async function requestMicrophonePermission(): Promise<PermissionResult> {
-    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+    if (!window.isSecureContext || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
         return "unsupported";
     }
 
@@ -90,6 +86,10 @@ async function requestGeolocationPermission(): Promise<PermissionResult> {
 }
 
 async function requestMotionSensorPermission(): Promise<PermissionResult> {
+    if (!window.isSecureContext) {
+        return "unsupported";
+    }
+
     const motionApi = window.DeviceMotionEvent as unknown as {
         requestPermission?: () => Promise<"granted" | "denied">;
     };

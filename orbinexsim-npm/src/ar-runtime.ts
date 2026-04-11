@@ -240,6 +240,10 @@ async function requestGeolocationPermission(): Promise<PermissionResult> {
 }
 
 async function requestMotionSensorPermission(): Promise<PermissionResult> {
+    if (!window.isSecureContext) {
+        return "unsupported";
+    }
+
     const motionApi = window.DeviceMotionEvent as unknown as {
         requestPermission?: () => Promise<"granted" | "denied">;
     };
