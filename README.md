@@ -121,15 +121,15 @@ T = 2\pi\sqrt{\frac{a^3}{\mu}}
 $$
 
 $$
-\eta_{\text{years}} = \operatorname{clamp}\left(\frac{d / v_{\text{rel}}}{\text{YEAR\_SECONDS}},\ 10^{-7},\ 5000\right)
+\eta_{\text{years}} = \mathrm{clamp}\!\left(\frac{d / v_{\text{rel}}}{\text{YEAR\_SECONDS}},\ 10^{-7},\ 5000\right)
 $$
 
 $$
-\text{confidence} = \operatorname{clamp}\left(0.45 + \frac{0.5}{1 + d/\text{AU}},\ 0.45,\ 0.98\right)
+\mathrm{confidence} = \mathrm{clamp}\!\left(0.45 + \frac{0.5}{1 + d/\text{AU}},\ 0.45,\ 0.98\right)
 $$
 
 $$
-r_{\text{visual}} = \operatorname{clamp}\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot s,\ 0.03,\ 0.68\right)
+r_{\text{visual}} = \mathrm{clamp}\!\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot s,\ 0.03,\ 0.68\right)
 $$
 
 Plain-text fallback (for markdown engines without math rendering):
@@ -147,13 +147,13 @@ r_visual = clamp((0.08 + log10(max(radius_m, 1)) * 0.04) * scale, 0.03, 0.68)
 
 ```mermaid
 graph TD
-  A[mu = G * M] --> B[v = sqrt(mu / r)]
-  A --> C[T = 2 * pi * sqrt(a^3 / mu)]
-  B --> D[Velocity estimate]
-  C --> E[Period estimate]
-  F[eta = distance / relative_speed] --> G[ETA forecast]
-  H[confidence clamp] --> G
-  I[log-scaled radius mapping] --> J[Stable AR object visibility]
+  A["mu = G * M"] --> B["v = sqrt(mu / r)"]
+  A --> C["T = 2 * pi * sqrt(a^3 / mu)"]
+  B --> D["Velocity estimate"]
+  C --> E["Period estimate"]
+  F["eta = distance / relative_speed"] --> G["ETA forecast"]
+  H["confidence clamp"] --> G
+  I["log-scaled radius mapping"] --> J["Stable AR object visibility"]
 ```
 
 | Equation | Implementation anchor | Practical role |

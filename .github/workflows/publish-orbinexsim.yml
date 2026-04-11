@@ -16,7 +16,12 @@ on:
     branches:
       - main
     paths:
-      - "orbinexsim-npm/**"
+      - "orbinexsim-npm/src/**"
+      - "orbinexsim-npm/package.json"
+      - "orbinexsim-npm/package-lock.json"
+      - "orbinexsim-npm/tsconfig.json"
+      - "orbinexsim-npm/README.md"
+      - ".github/workflows/publish-orbinexsim.yml"
 
 concurrency:
   group: publish-orbinexsim
@@ -43,24 +48,29 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
-      - name: Validate npm automation token
+      - name: Evaluate publish eligibility
+        id: eligibility
         env:
           NPM_AUTOMATION_TOKEN: ${{ secrets.NPM_AUTOMATION_TOKEN }}
         run: |
           if [ -z "$NPM_AUTOMATION_TOKEN" ]; then
-            echo "Missing secret: NPM_AUTOMATION_TOKEN"
-            echo "Create npm granular token with publish permission and bypass 2FA, then save as this secret."
-            exit 1
+            echo "can_publish=false" >> "$GITHUB_OUTPUT"
+            echo "NPM_AUTOMATION_TOKEN is not configured; publish steps will be skipped."
+          else
+            echo "can_publish=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install dependencies
+        if: steps.eligibility.outputs.can_publish == 'true'
         run: npm ci
 
       - name: Build package
+        if: steps.eligibility.outputs.can_publish == 'true'
         run: npm run build
 
       - name: Bump package version
         id: version
+        if: steps.eligibility.outputs.can_publish == 'true'
         run: |
           BUMP_TYPE="${{ github.event.inputs.bump }}"
           if [ -z "$BUMP_TYPE" ]; then
@@ -71,11 +81,13 @@ jobs:
           echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm
+        if: steps.eligibility.outputs.can_publish == 'true'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTOMATION_TOKEN }}
 
       - name: Commit version bump and push tag
+        if: steps.eligibility.outputs.can_publish == 'true'
         run: |
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
           git config user.name "github-actions[bot]"
@@ -88,3 +100,7 @@ jobs:
             git tag "orbinexsim-v${NEW_VERSION}"
             git push origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
           fi
+
+      - name: Skip note when token is missing
+        if: steps.eligibility.outputs.can_publish != 'true'
+        run: echo "Skipping npm publish because NPM_AUTOMATION_TOKEN is not configured."
