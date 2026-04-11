@@ -33,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
     defaults:
       run:
         working-directory: orbinexsim-npm
@@ -80,11 +81,53 @@ jobs:
           NEW_VERSION=$(node -p "require('./package.json').version")
           echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Publish to npm
+      - name: Check existing versions on registries
+        id: registry_check
         if: steps.eligibility.outputs.can_publish == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+          if npm view "@galihru/orbinexsim@${NEW_VERSION}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+            echo "npm_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if npm view "@galihru/orbinexsim@${NEW_VERSION}" version --registry=https://npm.pkg.github.com >/dev/null 2>&1; then
+            echo "gh_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "gh_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        if: steps.eligibility.outputs.can_publish == 'true' && steps.registry_check.outputs.npm_exists != 'true'
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTOMATION_TOKEN }}
+
+      - name: Setup Node.js for GitHub Packages
+        if: steps.eligibility.outputs.can_publish == 'true' && steps.registry_check.outputs.gh_exists != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+          scope: '@galihru'
+
+      - name: Publish to GitHub Packages
+        if: steps.eligibility.outputs.can_publish == 'true' && steps.registry_check.outputs.gh_exists != 'true'
+        run: npm publish --registry=https://npm.pkg.github.com
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skip npm publish when version already exists
+        if: steps.eligibility.outputs.can_publish == 'true' && steps.registry_check.outputs.npm_exists == 'true'
+        run: echo "Skipping npmjs publish because this version already exists."
+
+      - name: Skip GitHub Packages publish when version already exists
+        if: steps.eligibility.outputs.can_publish == 'true' && steps.registry_check.outputs.gh_exists == 'true'
+        run: echo "Skipping GitHub Packages publish because this version already exists."
 
       - name: Commit version bump and push tag
         if: steps.eligibility.outputs.can_publish == 'true'
