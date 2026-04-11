@@ -15,13 +15,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "orbinexsim-npm/src/**"
-      - "orbinexsim-npm/package.json"
-      - "orbinexsim-npm/package-lock.json"
-      - "orbinexsim-npm/tsconfig.json"
-      - "orbinexsim-npm/README.md"
-      - ".github/workflows/publish-orbinexsim.yml"
 
 concurrency:
   group: publish-orbinexsim
