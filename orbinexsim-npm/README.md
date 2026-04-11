@@ -36,6 +36,7 @@ High-level scientific wrapper for embedding OrbinexSimulation desktop and AR run
 | Hierarchy filtering module | ![Hierarchy filter panel](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/hierarchy-filter-panel.png) |
 | AR marker reference | ![Hiro marker](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/ar-marker-hiro.png) |
 | AR QR activation bridge | ![AR QR card](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/ar-qr-code.png) |
+| Handheld in-situ AR runtime after marker lock | ![Handheld AR runtime](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/ar-mobile-latest-result.png) |
 
 Figure interpretation notes:
 
@@ -44,6 +45,7 @@ Figure interpretation notes:
 3. Table 1, Column 2, Row 4 isolates object-level scientific descriptors used in the detail panel API flow.
 4. Table 1, Column 2, Row 5 to Row 7 capture retrieval, event chronology, and hierarchy filtering controls.
 5. Table 1, Column 2, Row 8 and Row 9 capture AR marker anchoring and QR-based mobile activation.
+6. Table 1, Column 2, Row 10 captures handheld mobile evidence where object and label overlays remain stable after marker detection.
 
 ## 4. Installation and Environment Requirements
 
@@ -69,7 +71,38 @@ yarn add @galihru/orbinexsim
 bun add @galihru/orbinexsim
 ```
 
-### 4.3 Deterministic Local Build of This Package
+### 4.3 Sequential Path (Install Module First)
+
+Use this ordered sequence to avoid ambiguity:
+
+1. Install the published wrapper module in your target project.
+
+```bash
+npm install @galihru/orbinexsim
+```
+
+2. Validate installation and resolve lockfile.
+
+```bash
+npm ls @galihru/orbinexsim
+```
+
+3. Integrate and run your app runtime entry.
+
+```bash
+npm run dev
+```
+
+4. If you need source-level package customization, clone this repository and build the local wrapper.
+
+```bash
+git clone https://github.com/galihru/OrbinexSimulation.git
+cd OrbinexSimulation/orbinexsim-npm
+npm ci
+npm run build
+```
+
+### 4.4 Deterministic Local Build of This Package
 
 ```bash
 npm ci
@@ -217,7 +250,7 @@ $$
 $$
 
 $$
-	ext{confidence} = \operatorname{clamp}\left(0.45 + \frac{0.5}{1 + d/\text{AU}},\ 0.45,\ 0.98\right)
+\text{confidence} = \operatorname{clamp}\left(0.45 + \frac{0.5}{1 + d/\text{AU}},\ 0.45,\ 0.98\right)
 $$
 
 $$

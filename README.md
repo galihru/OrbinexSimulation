@@ -65,11 +65,13 @@ Interpretation for Table 2:
 | --- | --- |
 | Mobile AR activation card (cross-device bridge) | ![AR marker QR card](docs/images/ar-qr-code.png) |
 | Marker reference target for Hiro-based AR detection | ![Hiro marker reference](docs/images/ar-marker-hiro.png) |
+| In-situ handheld AR runtime after marker lock | ![Handheld mobile AR runtime](docs/images/ar-mobile-latest-result.png) |
 
 Interpretation for Table 3:
 
 1. Table 3, Column 2, Row 1 shows the QR-mediated handoff used to transfer the active object context to mobile AR runtime.
 2. Table 3, Column 2, Row 2 shows the canonical marker used by the AR pipeline for stable object anchoring.
+3. Table 3, Column 2, Row 3 shows a real mobile capture where marker lock, label rendering, and object placement are preserved in handheld conditions without synthetic plane occlusion.
 
 ## 4. Architecture and Workflow Graph (Mermaid)
 
@@ -123,7 +125,7 @@ $$
 $$
 
 $$
-	ext{confidence} = \operatorname{clamp}\left(0.45 + \frac{0.5}{1 + d/\text{AU}},\ 0.45,\ 0.98\right)
+\text{confidence} = \operatorname{clamp}\left(0.45 + \frac{0.5}{1 + d/\text{AU}},\ 0.45,\ 0.98\right)
 $$
 
 $$
@@ -183,7 +185,49 @@ graph TD
 | Git | latest stable | Required for clone, pull, and CI-compatible workflows |
 | Browser | Chromium/Edge/Firefox latest | AR mode requires secure-context camera support |
 
-### 7.2 Fresh Installation (Deterministic)
+### 7.2 Sequential Path (Install Module First)
+
+Use this ordered sequence when you want the fastest path from package install to full runtime validation:
+
+1. Install the published module in your consumer project.
+
+```bash
+npm install @galihru/orbinexsim
+```
+
+2. Clone this repository if you need direct source-level runtime customization.
+
+```bash
+git clone https://github.com/galihru/OrbinexSimulation.git
+cd OrbinexSimulation
+```
+
+3. Install repository dependencies deterministically.
+
+```bash
+npm ci
+```
+
+4. Start the development runtime and validate desktop/AR entry points.
+
+```bash
+npm run dev
+```
+
+5. Build production artifacts once runtime behavior is validated.
+
+```bash
+npm run build
+```
+
+6. Build and optionally publish the wrapper package.
+
+```bash
+npm -C orbinexsim-npm run build
+npm -C orbinexsim-npm pack
+```
+
+### 7.3 Fresh Installation (Deterministic)
 
 ```bash
 git clone https://github.com/galihru/OrbinexSimulation.git
@@ -193,7 +237,7 @@ npm ci
 
 Use `npm install` only when intentionally updating dependency resolution or lockfile state.
 
-### 7.3 Development Runtime
+### 7.4 Development Runtime
 
 ```bash
 npm run dev
@@ -211,7 +255,7 @@ Catalog synchronization can be triggered explicitly:
 npm run catalog:update
 ```
 
-### 7.4 Production Build and Artifact Validation
+### 7.5 Production Build and Artifact Validation
 
 ```bash
 npm run build
@@ -231,7 +275,7 @@ npm run preview -- --host 0.0.0.0 --port 4173
 
 The distributable output is generated in `dist/`.
 
-### 7.5 npm Wrapper Package Build and Publish Path
+### 7.6 npm Wrapper Package Build and Publish Path
 
 ```bash
 npm -C orbinexsim-npm ci
