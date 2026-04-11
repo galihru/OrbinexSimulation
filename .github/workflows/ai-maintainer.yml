@@ -167,22 +167,11 @@ jobs:
           set +e
 
           MAX_FILES=6
-          TASK_LOWER=$(printf '%s' "$AI_TASK" | tr '[:upper:]' '[:lower:]')
           mapfile -t FILE_LIST < <(
             git ls-files orbinexsim-npm/src \
               | grep -E '^orbinexsim-npm/src/.*\.(ts|tsx|js|jsx|mjs|cjs)$' \
               | head -n "$MAX_FILES"
           )
-
-          if [[ "$TASK_LOWER" == *"package"* || "$TASK_LOWER" == *"build"* || "$TASK_LOWER" == *"tsconfig"* || "$TASK_LOWER" == *"publish"* || "$TASK_LOWER" == *"npm"* ]]; then
-            if git ls-files --error-unmatch orbinexsim-npm/package.json >/dev/null 2>&1; then
-              FILE_LIST+=("orbinexsim-npm/package.json")
-            fi
-            if git ls-files --error-unmatch orbinexsim-npm/tsconfig.json >/dev/null 2>&1; then
-              FILE_LIST+=("orbinexsim-npm/tsconfig.json")
-            fi
-            mapfile -t FILE_LIST < <(printf '%s\n' "${FILE_LIST[@]}" | awk 'NF && !seen[$0]++')
-          fi
 
           if [ "${#FILE_LIST[@]}" -eq 0 ]; then
             echo "No npm module files selected for Aider context."
