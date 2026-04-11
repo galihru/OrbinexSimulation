@@ -166,19 +166,27 @@ jobs:
         run: |
           set +e
 
-          aider \
+          mapfile -t FILE_LIST < <(git ls-files)
+          if [ "${#FILE_LIST[@]}" -eq 0 ]; then
+            echo "No tracked files found for Aider context."
+            exit 1
+          fi
+
+          timeout 480 aider \
             --yes \
             --no-auto-commits \
             --model "ollama/${OLLAMA_MODEL}" \
-            --message "$AI_TASK"
+            --message "$AI_TASK" \
+            "${FILE_LIST[@]}"
           STATUS=$?
 
           if [ "$STATUS" -ne 0 ]; then
-            aider \
+            timeout 480 aider \
               --yes \
               --no-auto-commits \
               --model "ollama_chat/${OLLAMA_MODEL}" \
-              --message "$AI_TASK"
+              --message "$AI_TASK" \
+              "${FILE_LIST[@]}"
             STATUS=$?
           fi
 
