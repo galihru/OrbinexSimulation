@@ -172,15 +172,17 @@ jobs:
           git checkout -b "$BRANCH_NAME" "origin/$BASE_BRANCH"
           echo "name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Run Aider with Ollama
+      - name: Run Aider with Smart Fallback
+        id: run_ai
         env:
           AI_TASK: ${{ steps.task.outputs.task }}
           AI_PROVIDER: ${{ steps.provider.outputs.name }}
-          OLLAMA_MODEL: ${{ steps.ollama.outputs.model }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
           OLLAMA_API_BASE: http://127.0.0.1:11434
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
         run: |
           set +e
 
@@ -196,18 +198,66 @@ jobs:
             exit 1
           fi
 
-          SCOPED_TASK=$(cat <<EOF
-          $AI_TASK
+          SCOPED_TASK="$AI_TASK
 
           Hard constraints:
           - Only modify files under orbinexsim-npm.
           - Focus on program/code changes only.
-          - Do not edit documentation, license, or workflow files.
-          EOF
-          )
+          - If needed, you may create new supporting source files under orbinexsim-npm/src and wire imports.
+          - Do not edit documentation, license, or workflow files."
 
           echo "Selected ${#FILE_LIST[@]} npm module files for Aider context:"
           printf ' - %s\n' "${FILE_LIST[@]}"
+
+          run_aider() {
+            local model="$1"
+            local timeout_sec="$2"
+            local log_file="$3"
+
+            timeout "$timeout_sec" aider \
+              --yes \
+              --no-auto-commits \
+              --no-gitignore \
+              --encoding utf-8 \
+              --map-tokens 512 \
+              --model "$model" \
+              --message "$SCOPED_TASK" \
+              "${FILE_LIST[@]}" 2>&1 | tee "$log_file"
+
+            return ${PIPESTATUS[0]}
+          }
+
+          ensure_ollama() {
+            if ! command -v ollama >/dev/null 2>&1; then
+              curl -fsSL https://ollama.com/install.sh | sh
+            fi
+
+            if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+              OLLAMA_HOST=127.0.0.1:11434 ollama serve > /tmp/ollama.log 2>&1 &
+              for i in {1..30}; do
+                if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+                  break
+                fi
+                sleep 1
+              done
+            fi
+
+            local model="$OLLAMA_MODEL"
+            if [ -z "$model" ]; then
+              model="qwen2.5-coder:1.5b"
+            fi
+
+            if ! ollama pull "$model"; then
+              model="llama3.2:1b"
+              ollama pull "$model"
+            fi
+
+            OLLAMA_MODEL="$model"
+          }
+
+          STATUS=1
+          USED_PROVIDER=""
+          RESPONDER_NAME="AI Orbinex"
 
           if [ "$AI_PROVIDER" = "gemini" ]; then
             if [ -z "$GEMINI_API_KEY" ] && [ -n "$GOOGLE_API_KEY" ]; then
@@ -219,46 +269,63 @@ jobs:
               MODEL_NAME="gemini-2.0-flash"
             fi
 
-            timeout 420 aider \
-              --yes \
-              --no-auto-commits \
-              --no-gitignore \
-              --encoding utf-8 \
-              --map-tokens 512 \
-              --model "gemini/${MODEL_NAME}" \
-              --message "$SCOPED_TASK" \
-              "${FILE_LIST[@]}"
-            STATUS=$?
-          else
-            timeout 480 aider \
-              --yes \
-              --no-auto-commits \
-              --no-gitignore \
-              --encoding utf-8 \
-              --map-tokens 512 \
-              --model "ollama/${OLLAMA_MODEL}" \
-              --message "$SCOPED_TASK" \
-              "${FILE_LIST[@]}"
+            run_aider "gemini/${MODEL_NAME}" 180 /tmp/aider-gemini-primary.log
             STATUS=$?
 
+            if [ "$STATUS" -eq 0 ]; then
+              USED_PROVIDER="gemini/${MODEL_NAME}"
+              RESPONDER_NAME="AI Orbinex based Gemini (${MODEL_NAME})"
+            fi
+
             if [ "$STATUS" -ne 0 ]; then
-              timeout 480 aider \
-                --yes \
-                --no-auto-commits \
-                --no-gitignore \
-                --encoding utf-8 \
-                --map-tokens 512 \
-                --model "ollama_chat/${OLLAMA_MODEL}" \
-                --message "$SCOPED_TASK" \
-                "${FILE_LIST[@]}"
-              STATUS=$?
+              FALLBACK_MODEL="$GEMINI_FALLBACK_MODEL"
+              if [ -z "$FALLBACK_MODEL" ]; then
+                FALLBACK_MODEL="gemini-1.5-flash"
+              fi
+
+              if [ "$FALLBACK_MODEL" != "$MODEL_NAME" ]; then
+                run_aider "gemini/${FALLBACK_MODEL}" 180 /tmp/aider-gemini-fallback.log
+                STATUS=$?
+
+                if [ "$STATUS" -eq 0 ]; then
+                  USED_PROVIDER="gemini/${FALLBACK_MODEL}"
+                  RESPONDER_NAME="AI Orbinex based Gemini (${FALLBACK_MODEL})"
+                fi
+              fi
             fi
           fi
+
+          if [ "$STATUS" -ne 0 ]; then
+            ensure_ollama
+
+            run_aider "ollama/${OLLAMA_MODEL}" 480 /tmp/aider-ollama.log
+            STATUS=$?
+
+            if [ "$STATUS" -eq 0 ]; then
+              USED_PROVIDER="ollama/${OLLAMA_MODEL}"
+              RESPONDER_NAME="AI Orbinex based Ollama (${OLLAMA_MODEL})"
+            fi
+          else
+            true
+          fi
+
+          if [ "$STATUS" -ne 0 ]; then
+            run_aider "ollama_chat/${OLLAMA_MODEL}" 480 /tmp/aider-ollama-chat.log
+            STATUS=$?
+
+            if [ "$STATUS" -eq 0 ]; then
+              USED_PROVIDER="ollama_chat/${OLLAMA_MODEL}"
+              RESPONDER_NAME="AI Orbinex based Ollama (${OLLAMA_MODEL})"
+            fi
+          fi
+
+          echo "used_provider=$USED_PROVIDER" >> "$GITHUB_OUTPUT"
+          echo "responder_name=$RESPONDER_NAME" >> "$GITHUB_OUTPUT"
 
           set -e
 
           if [ "$STATUS" -ne 0 ]; then
-            echo "Aider failed with Ollama model ${OLLAMA_MODEL}."
+            echo "Aider failed after trying Gemini/Ollama fallbacks."
             exit "$STATUS"
           fi
 
@@ -293,17 +360,29 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_RESPONDER: ${{ steps.run_ai.outputs.responder_name }}
+          AI_PROVIDER_USED: ${{ steps.run_ai.outputs.used_provider }}
         run: |
           ISSUE_NO="${{ steps.task.outputs.issue_number }}"
           BASE_BRANCH="${{ steps.task.outputs.base_branch }}"
           BRANCH_NAME="${{ steps.branch.outputs.name }}"
 
+          RESPONDER="$AI_RESPONDER"
+          if [ -z "$RESPONDER" ]; then
+            RESPONDER="AI Orbinex"
+          fi
+
+          PROVIDER_NOTE=""
+          if [ -n "$AI_PROVIDER_USED" ]; then
+            PROVIDER_NOTE="\n\nProvider: $AI_PROVIDER_USED"
+          fi
+
           if [ -n "$ISSUE_NO" ]; then
             PR_TITLE="AI Update for issue #$ISSUE_NO"
-            PR_BODY="Automated AI update generated from issue #$ISSUE_NO.\n\nPlease review carefully before merging."
+            PR_BODY="$RESPONDER generated automated update for issue #$ISSUE_NO.\n\nPlease review carefully before merging.$PROVIDER_NOTE"
           else
             PR_TITLE="AI Automated Repository Update"
-            PR_BODY="Automated AI update generated from workflow dispatch.\n\nPlease review carefully before merging."
+            PR_BODY="$RESPONDER generated automated update from workflow dispatch.\n\nPlease review carefully before merging.$PROVIDER_NOTE"
           fi
 
           gh pr create \
@@ -317,15 +396,30 @@ jobs:
         if: steps.changes.outputs.changed == 'true' && steps.task.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_RESPONDER: ${{ steps.run_ai.outputs.responder_name }}
         run: |
           ISSUE_NO="${{ steps.task.outputs.issue_number }}"
           BRANCH_NAME="${{ steps.branch.outputs.name }}"
           PR_URL=$(gh pr view "$BRANCH_NAME" --repo "${{ github.repository }}" --json url --jq '.url')
-          gh issue comment "$ISSUE_NO" --repo "${{ github.repository }}" --body "AI finished and opened a PR: $PR_URL"
+          RESPONDER="$AI_RESPONDER"
+          if [ -z "$RESPONDER" ]; then
+            RESPONDER="AI Orbinex"
+          fi
+          gh issue comment "$ISSUE_NO" --repo "${{ github.repository }}" --body "[$RESPONDER] finished and opened a PR: $PR_URL"
 
       - name: Comment when no changes were produced
         if: steps.changes.outputs.changed != 'true' && steps.task.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_RESPONDER: ${{ steps.run_ai.outputs.responder_name }}
+          AI_PROVIDER_USED: ${{ steps.run_ai.outputs.used_provider }}
         run: |
-          gh issue comment "${{ steps.task.outputs.issue_number }}" --repo "${{ github.repository }}" --body "AI run completed but no file changes were generated for this task."
+          RESPONDER="$AI_RESPONDER"
+          if [ -z "$RESPONDER" ]; then
+            RESPONDER="AI Orbinex"
+          fi
+          EXTRA=""
+          if [ -n "$AI_PROVIDER_USED" ]; then
+            EXTRA=" (provider: $AI_PROVIDER_USED)"
+          fi
+          gh issue comment "${{ steps.task.outputs.issue_number }}" --repo "${{ github.repository }}" --body "[$RESPONDER] run completed$EXTRA but no file changes were generated for this task."
