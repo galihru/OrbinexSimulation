@@ -123,17 +123,102 @@ jobs:
             core.setOutput("base_branch", baseBranch);
             core.setOutput("retry_count", retryCount);
 
+      - name: Enforce daily run limit
+        id: daily_limit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          python - << 'PY'
+          import datetime
+          import json
+          import os
+          import urllib.request
+
+          repo = os.environ["REPO"]
+          token = os.environ["GH_TOKEN"]
+          current_run_id = int(os.environ["CURRENT_RUN_ID"])
+
+          url = f"https://api.github.com/repos/{repo}/actions/workflows/ai-maintainer.yml/runs?per_page=50"
+          req = urllib.request.Request(
+              url,
+              headers={
+                  "Authorization": f"Bearer {token}",
+                  "Accept": "application/vnd.github+json",
+              },
+              method="GET",
+          )
+
+          with urllib.request.urlopen(req, timeout=30) as resp:
+              payload = json.loads(resp.read().decode("utf-8"))
+
+          threshold = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=24)
+          blocked_by = ""
+
+          for run in payload.get("workflow_runs", []):
+              run_id = int(run.get("id", 0))
+              if run_id == current_run_id:
+                  continue
+
+              created_raw = run.get("created_at")
+              if not created_raw:
+                  continue
+
+              created_at = datetime.datetime.fromisoformat(created_raw.replace("Z", "+00:00"))
+              if created_at < threshold:
+                  continue
+
+              if run.get("status") in {"queued", "in_progress", "completed"}:
+                  blocked_by = run.get("html_url", "")
+                  break
+
+          output_path = os.environ["GITHUB_OUTPUT"]
+          with open(output_path, "a", encoding="utf-8") as out:
+              if blocked_by:
+                  out.write("allowed=false\n")
+                  out.write(f"blocked_by={blocked_by}\n")
+              else:
+                  out.write("allowed=true\n")
+                  out.write("blocked_by=\n")
+          PY
+
+      - name: Notify daily-limit skip
+        if: steps.daily_limit.outputs.allowed != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NO: ${{ steps.task.outputs.issue_number }}
+          BLOCKED_BY: ${{ steps.daily_limit.outputs.blocked_by }}
+        run: |
+          echo "Daily limit active: this workflow runs at most once per 24h."
+
+          if [ -n "$ISSUE_NO" ]; then
+            MSG="[AI Orbinex based Gemini] skipped: daily limit active (1 run per 24h)."
+            if [ -n "$BLOCKED_BY" ]; then
+              MSG="$MSG Previous run: $BLOCKED_BY"
+            fi
+
+            gh issue comment "$ISSUE_NO" --repo "${{ github.repository }}" --body "$MSG"
+          fi
+
+      - name: Stop when daily limit reached
+        if: steps.daily_limit.outputs.allowed != 'true'
+        run: exit 0
+
       - name: Setup Python
+        if: steps.daily_limit.outputs.allowed == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
+        if: steps.daily_limit.outputs.allowed == 'true'
         run: |
           python -m pip install --upgrade pip
           python -m pip install aider-chat
 
       - name: Select AI provider
+        if: steps.daily_limit.outputs.allowed == 'true'
         id: provider
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -146,12 +231,12 @@ jobs:
           fi
 
       - name: Install Ollama
-        if: steps.provider.outputs.name == 'ollama'
+        if: steps.daily_limit.outputs.allowed == 'true' && steps.provider.outputs.name == 'ollama'
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
 
       - name: Start Ollama and pull model
-        if: steps.provider.outputs.name == 'ollama'
+        if: steps.daily_limit.outputs.allowed == 'true' && steps.provider.outputs.name == 'ollama'
         id: ollama
         run: |
           OLLAMA_HOST=127.0.0.1:11434 ollama serve > /tmp/ollama.log 2>&1 &
@@ -176,6 +261,7 @@ jobs:
           echo "model=$MODEL" >> "$GITHUB_OUTPUT"
 
       - name: Create working branch
+        if: steps.daily_limit.outputs.allowed == 'true'
         id: branch
         run: |
           BASE_BRANCH="${{ steps.task.outputs.base_branch }}"
@@ -185,6 +271,7 @@ jobs:
           echo "name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Run Aider with Smart Fallback
+        if: steps.daily_limit.outputs.allowed == 'true'
         id: run_ai
         continue-on-error: true
         env:
@@ -358,48 +445,12 @@ jobs:
             exit "$STATUS"
           fi
 
-      - name: Auto retry when AI run failed
-        if: steps.run_ai.outcome == 'failure' && steps.task.outputs.issue_number != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          AI_RESPONDER: ${{ steps.run_ai.outputs.responder_name }}
-        run: |
-          RETRY_COUNT="${{ steps.task.outputs.retry_count }}"
-          if [ -z "$RETRY_COUNT" ]; then
-            RETRY_COUNT="0"
-          fi
-
-          RESPONDER="$AI_RESPONDER"
-          if [ -z "$RESPONDER" ]; then
-            RESPONDER="AI Orbinex based Gemini"
-          fi
-
-          if [ "$RETRY_COUNT" -lt 2 ]; then
-            NEXT=$((RETRY_COUNT + 1))
-
-            gh workflow run ai-maintainer.yml \
-              --repo "${{ github.repository }}" \
-              --ref "${{ steps.task.outputs.base_branch }}" \
-              -f task="${{ steps.task.outputs.task_dispatch }}" \
-              -f issue_number="${{ steps.task.outputs.issue_number }}" \
-              -f base_branch="${{ steps.task.outputs.base_branch }}" \
-              -f retry_count="$NEXT"
-
-            gh issue comment "${{ steps.task.outputs.issue_number }}" \
-              --repo "${{ github.repository }}" \
-              --body "[$RESPONDER] run failed (quota/rate-limit or execution error). Auto-retry queued ($NEXT/2)."
-          else
-            gh issue comment "${{ steps.task.outputs.issue_number }}" \
-              --repo "${{ github.repository }}" \
-              --body "[$RESPONDER] run failed after auto-retries. Please review quota/billing or switch model settings."
-          fi
-
-      - name: Fail workflow after retry handling
-        if: steps.run_ai.outcome == 'failure'
+      - name: Fail workflow when AI step failed
+        if: steps.daily_limit.outputs.allowed == 'true' && steps.run_ai.outcome == 'failure'
         run: exit 1
 
       - name: Check for changes
-        if: steps.run_ai.outcome != 'failure'
+        if: steps.daily_limit.outputs.allowed == 'true' && steps.run_ai.outcome == 'success'
         id: changes
         run: |
           if git diff --quiet; then
@@ -409,7 +460,7 @@ jobs:
           fi
 
       - name: Commit changes
-        if: steps.run_ai.outcome != 'failure' && steps.changes.outputs.changed == 'true'
+        if: steps.daily_limit.outputs.allowed == 'true' && steps.run_ai.outcome == 'success' && steps.changes.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -423,11 +474,11 @@ jobs:
           fi
 
       - name: Push branch
-        if: steps.run_ai.outcome != 'failure' && steps.changes.outputs.changed == 'true'
+        if: steps.daily_limit.outputs.allowed == 'true' && steps.run_ai.outcome == 'success' && steps.changes.outputs.changed == 'true'
         run: git push origin "${{ steps.branch.outputs.name }}"
 
       - name: Open pull request
-        if: steps.run_ai.outcome != 'failure' && steps.changes.outputs.changed == 'true'
+        if: steps.daily_limit.outputs.allowed == 'true' && steps.run_ai.outcome == 'success' && steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AI_RESPONDER: ${{ steps.run_ai.outputs.responder_name }}
@@ -463,7 +514,7 @@ jobs:
             --body "$PR_BODY"
 
       - name: Comment on issue with PR link
-        if: steps.run_ai.outcome != 'failure' && steps.changes.outputs.changed == 'true' && steps.task.outputs.issue_number != ''
+        if: steps.daily_limit.outputs.allowed == 'true' && steps.run_ai.outcome == 'success' && steps.changes.outputs.changed == 'true' && steps.task.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AI_RESPONDER: ${{ steps.run_ai.outputs.responder_name }}
@@ -478,7 +529,7 @@ jobs:
           gh issue comment "$ISSUE_NO" --repo "${{ github.repository }}" --body "[$RESPONDER] finished and opened a PR: $PR_URL"
 
       - name: Comment when no changes were produced
-        if: steps.run_ai.outcome != 'failure' && steps.changes.outputs.changed != 'true' && steps.task.outputs.issue_number != ''
+        if: steps.daily_limit.outputs.allowed == 'true' && steps.run_ai.outcome == 'success' && steps.changes.outputs.changed != 'true' && steps.task.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AI_RESPONDER: ${{ steps.run_ai.outputs.responder_name }}
