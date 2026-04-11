@@ -121,11 +121,25 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install aider-chat
 
+      - name: Select AI provider
+        id: provider
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          if [ -n "$GEMINI_API_KEY" ] || [ -n "$GOOGLE_API_KEY" ]; then
+            echo "name=gemini" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=ollama" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install Ollama
+        if: steps.provider.outputs.name == 'ollama'
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
 
       - name: Start Ollama and pull model
+        if: steps.provider.outputs.name == 'ollama'
         id: ollama
         run: |
           OLLAMA_HOST=127.0.0.1:11434 ollama serve > /tmp/ollama.log 2>&1 &
@@ -161,8 +175,12 @@ jobs:
       - name: Run Aider with Ollama
         env:
           AI_TASK: ${{ steps.task.outputs.task }}
+          AI_PROVIDER: ${{ steps.provider.outputs.name }}
           OLLAMA_MODEL: ${{ steps.ollama.outputs.model }}
           OLLAMA_API_BASE: http://127.0.0.1:11434
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
         run: |
           set +e
 
@@ -191,28 +209,50 @@ EOF
           echo "Selected ${#FILE_LIST[@]} npm module files for Aider context:"
           printf ' - %s\n' "${FILE_LIST[@]}"
 
-          timeout 480 aider \
-            --yes \
-            --no-auto-commits \
-            --no-gitignore \
-            --encoding utf-8 \
-            --map-tokens 512 \
-            --model "ollama/${OLLAMA_MODEL}" \
-            --message "$SCOPED_TASK" \
-            "${FILE_LIST[@]}"
-          STATUS=$?
+          if [ "$AI_PROVIDER" = "gemini" ]; then
+            if [ -z "$GEMINI_API_KEY" ] && [ -n "$GOOGLE_API_KEY" ]; then
+              export GEMINI_API_KEY="$GOOGLE_API_KEY"
+            fi
 
-          if [ "$STATUS" -ne 0 ]; then
+            MODEL_NAME="$GEMINI_MODEL"
+            if [ -z "$MODEL_NAME" ]; then
+              MODEL_NAME="gemini-2.0-flash"
+            fi
+
+            timeout 420 aider \
+              --yes \
+              --no-auto-commits \
+              --no-gitignore \
+              --encoding utf-8 \
+              --map-tokens 512 \
+              --model "gemini/${MODEL_NAME}" \
+              --message "$SCOPED_TASK" \
+              "${FILE_LIST[@]}"
+            STATUS=$?
+          else
             timeout 480 aider \
               --yes \
               --no-auto-commits \
               --no-gitignore \
               --encoding utf-8 \
               --map-tokens 512 \
-              --model "ollama_chat/${OLLAMA_MODEL}" \
+              --model "ollama/${OLLAMA_MODEL}" \
               --message "$SCOPED_TASK" \
               "${FILE_LIST[@]}"
             STATUS=$?
+
+            if [ "$STATUS" -ne 0 ]; then
+              timeout 480 aider \
+                --yes \
+                --no-auto-commits \
+                --no-gitignore \
+                --encoding utf-8 \
+                --map-tokens 512 \
+                --model "ollama_chat/${OLLAMA_MODEL}" \
+                --message "$SCOPED_TASK" \
+                "${FILE_LIST[@]}"
+              STATUS=$?
+            fi
           fi
 
           set -e
