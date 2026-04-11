@@ -197,14 +197,14 @@ jobs:
           fi
 
           SCOPED_TASK=$(cat <<EOF
-$AI_TASK
+          $AI_TASK
 
-Hard constraints:
-- Only modify files under orbinexsim-npm.
-- Focus on program/code changes only.
-- Do not edit documentation, license, or workflow files.
-EOF
-)
+          Hard constraints:
+          - Only modify files under orbinexsim-npm.
+          - Focus on program/code changes only.
+          - Do not edit documentation, license, or workflow files.
+          EOF
+          )
 
           echo "Selected ${#FILE_LIST[@]} npm module files for Aider context:"
           printf ' - %s\n' "${FILE_LIST[@]}"
