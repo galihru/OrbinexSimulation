@@ -166,14 +166,21 @@ jobs:
         run: |
           set +e
 
-          MAX_FILES=12
+          MAX_FILES=10
+          TASK_LOWER=$(printf '%s' "$AI_TASK" | tr '[:upper:]' '[:lower:]')
           mapfile -t FILE_LIST < <(
             git ls-files orbinexsim-npm \
               | grep -Ev '^orbinexsim-npm/(node_modules|dist)/' \
               | grep -Ev '^orbinexsim-npm/package-lock\.json$' \
-              | grep -E '^orbinexsim-npm/(src/.*\.(ts|tsx|js|jsx|mjs|cjs|json|md|txt|yml|yaml)|README\.md|package\.json|tsconfig\.json|\.gitignore|LICENSE)$' \
+              | grep -E '^orbinexsim-npm/(src/.*\.(ts|tsx|js|jsx|mjs|cjs)|package\.json|tsconfig\.json)$' \
               | head -n "$MAX_FILES"
           )
+
+          if [[ "$TASK_LOWER" == *"readme"* || "$TASK_LOWER" == *"docs"* || "$TASK_LOWER" == *"dokumentasi"* ]]; then
+            if git ls-files --error-unmatch orbinexsim-npm/README.md >/dev/null 2>&1; then
+              FILE_LIST+=("orbinexsim-npm/README.md")
+            fi
+          fi
 
           if [ "${#FILE_LIST[@]}" -eq 0 ]; then
             echo "No npm module files selected for Aider context."
