@@ -23,7 +23,21 @@ High-level scientific wrapper for embedding OrbinexSimulation desktop and AR run
 | Wrapper package | [@galihru/orbinexsim](https://www.npmjs.com/package/@galihru/orbinexsim) |
 | Core physics package | [@galihru/orbinex](https://www.npmjs.com/package/@galihru/orbinex) |
 
-## 3. Installation
+## 3. Visual Runtime Evidence
+
+| Function area | Screenshot |
+| --- | --- |
+| Startup render stage | ![Startup render](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/startup-render.png) |
+| Main runtime overview | ![Runtime overview](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/desktop-runtime-overview.png) |
+| Focused runtime state | ![Runtime focused](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/desktop-runtime-focused.png) |
+| Object scientific card | ![Object card](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/object-information-card.png) |
+| Search and event modules | ![Search panel](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/search-panel.png) |
+
+| AR evidence |
+| --- |
+| ![Hiro marker](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/ar-marker-hiro.png) |
+
+## 4. Installation
 
 ```bash
 npm install @galihru/orbinexsim
@@ -37,7 +51,7 @@ yarn add @galihru/orbinexsim
 bun add @galihru/orbinexsim
 ```
 
-## 4. Quick Start
+## 5. Quick Start
 
 ```ts
 import { createOrbinexSim } from "@galihru/orbinexsim";
@@ -57,7 +71,7 @@ await sim.launchAr({ camera: true, motionSensors: true });
 console.log(sim.buildQuickReport(1.496e11));
 ```
 
-## 5. AR Runtime Integration Example
+## 6. AR Runtime Integration Example
 
 ```ts
 import {
@@ -112,7 +126,7 @@ console.log({ hint, objectName, permissions });
 stopMarkerTracking();
 ```
 
-## 6. API Surface
+## 7. API Surface
 
 ### Main API
 
@@ -145,7 +159,7 @@ stopMarkerTracking();
 | `createPrimitiveModelFromCatalogEntry` | Generates marker-attached primitive model geometry |
 | `requestRuntimePermissions` | Runtime permission helper without creating iframe instance |
 
-## 7. Scientific Formulations Used by the Module
+## 8. Scientific Formulations Used by the Module
 
 For reliable rendering on both GitHub and npm, formulas are shown in plain text.
 
@@ -166,11 +180,35 @@ r_visual = clamp((0.08 + log10(max(radius_m, 1)) * 0.04) * radiusScale, 0.03, 0.
 | `eta ~= distance/speed` + confidence clamp | Forecast summaries | Stable early-warning ranking |
 | Logarithmic visual radius mapping | AR primitive synthesis | Prevents extreme size collapse in marker view |
 
-## 8. Runtime Graph and Architecture
+## 9. Runtime Graph and Architecture (Mermaid)
 
-![System architecture](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/figures/system-architecture.svg)
+```mermaid
+flowchart LR
+  A[Consumer App] --> B[createOrbinexSim]
+  B --> C[Hosted Viewer]
+  C --> D[Desktop Runtime]
+  C --> E[AR Runtime]
+  D --> F[Event and Forecast Stream]
+  E --> F
+  F --> G[Scientific Decision Support]
+```
 
-![Simulation pipeline](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/figures/simulation-pipeline.svg)
+```mermaid
+sequenceDiagram
+  participant APP as Consumer
+  participant SIM as OrbinexSim API
+  participant VIEW as Hosted Runtime
+  participant LOG as Event/Forecast Feed
+
+  APP->>SIM: createOrbinexSim(target, options)
+  SIM->>VIEW: Initialize desktop or AR mode
+  APP->>SIM: launchAr / setModel / requestAccess
+  SIM->>VIEW: Propagate runtime update
+  VIEW->>LOG: Emit state, event, and forecast outputs
+  LOG-->>APP: Structured simulation summary
+```
+
+Mermaid blocks render as diagrams on GitHub. On npm, the same blocks remain readable as deterministic graph text.
 
 ```text
 Consumer app -> createOrbinexSim -> hosted viewer
@@ -179,7 +217,7 @@ Consumer app -> createOrbinexSim -> hosted viewer
                                   -> event/forecast summaries
 ```
 
-## 9. Browser and Permission Notes
+## 10. Browser and Permission Notes
 
 | Capability | Requirement |
 | --- | --- |
@@ -192,13 +230,13 @@ Default hosted base URL:
 
 - [https://galihru.github.io/OrbinexSimulation/](https://galihru.github.io/OrbinexSimulation/)
 
-## 10. Build and Publish
+## 11. Build and Publish
 
 ```bash
 npm run build
 npm publish --access public
 ```
 
-## 11. License
+## 12. License
 
 MIT

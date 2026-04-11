@@ -25,13 +25,56 @@ This repository delivers the following capabilities:
 | Wrapper package | [@galihru/orbinexsim](https://www.npmjs.com/package/@galihru/orbinexsim) | High-level integration API |
 | Physics core package | [@galihru/orbinex](https://www.npmjs.com/package/@galihru/orbinex) | Orbital constants and sampling |
 
-## 3. Architecture and Workflow
+## 3. Empirical Runtime Screenshots
 
-![System architecture](docs/figures/system-architecture.svg)
+The following figures are direct runtime outputs, aligned with the functional sections described in this document.
 
-![Processing pipeline](docs/figures/simulation-pipeline.svg)
+| Startup and runtime state | UI instrumentation |
+| --- | --- |
+| ![Startup render pipeline](docs/images/startup-render.png) | ![Object information card](docs/images/object-information-card.png) |
+| ![Desktop runtime overview](docs/images/desktop-runtime-overview.png) | ![Desktop runtime focused state](docs/images/desktop-runtime-focused.png) |
 
-## 4. Scientific Formulation
+| Search and control modules | Event and hierarchy modules |
+| --- | --- |
+| ![Search and object list panel](docs/images/search-panel.png) | ![Event log panel](docs/images/event-log-panel.png) |
+| ![Hierarchy filter panel](docs/images/hierarchy-filter-panel.png) | ![AR marker QR card](docs/images/ar-qr-code.png) |
+
+| AR marker reference |
+| --- |
+| ![Hiro marker reference](docs/images/ar-marker-hiro.png) |
+
+## 4. Architecture and Workflow Graph (Mermaid)
+
+```mermaid
+flowchart LR
+  A[User Controls and Commands] --> B[Simulation Core Loop]
+  B --> C[Orbital Propagation]
+  C --> D[Event and Collision Detection]
+  D --> E[Forecast and Confidence Scoring]
+  E --> F[Desktop 3D Rendering]
+  E --> G[AR Marker Runtime]
+  E --> H[Scientific Reports and Logs]
+  H --> I[Decision Support Recommendations]
+```
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant UI as Interface Layer
+  participant ENG as Orbinex Engine
+  participant RND as Renderer/AR
+  participant LOG as Event Log
+
+  U->>UI: Change focus, filters, or simulation mode
+  UI->>ENG: Submit runtime command
+  ENG->>ENG: Update orbit states and small-body dynamics
+  ENG->>LOG: Emit event and forecast summaries
+  ENG->>RND: Publish updated body states
+  RND-->>UI: Frame and panel updates
+  UI-->>U: Scientific visual feedback
+```
+
+## 5. Scientific Formulation
 
 The formulas below are written in plain-text notation for full compatibility on both GitHub and npm renderers.
 
@@ -46,7 +89,16 @@ confidence = clamp(0.45 + 0.5 / (1 + distance / AU), 0.45, 0.98)
 r_visual = clamp((0.08 + log10(max(radius_m, 1)) * 0.04) * scale, 0.03, 0.68)
 ```
 
-![Orbital formulations](docs/figures/orbital-formulations.svg)
+```mermaid
+graph TD
+  A[mu = G * M] --> B[v = sqrt(mu / r)]
+  A --> C[T = 2 * pi * sqrt(a^3 / mu)]
+  B --> D[Velocity estimate]
+  C --> E[Period estimate]
+  F[eta = distance / relative_speed] --> G[ETA forecast]
+  H[confidence clamp] --> G
+  I[log-scaled radius mapping] --> J[Stable AR object visibility]
+```
 
 | Equation | Implementation anchor | Practical role |
 | --- | --- | --- |
@@ -56,7 +108,7 @@ r_visual = clamp((0.08 + log10(max(radius_m, 1)) * 0.04) * scale, 0.03, 0.68)
 | `eta ~= distance / speed` | [src/orbinex-compat.ts](src/orbinex-compat.ts) | Event forecast timing |
 | Log-scaled AR radius mapping | [orbinexsim-npm/src/ar-runtime.ts](orbinexsim-npm/src/ar-runtime.ts) | Stable object visibility in AR |
 
-## 5. Dependency Matrix
+## 6. Dependency Matrix
 
 | Module | Category | Used in | Why it is used |
 | --- | --- | --- | --- |
@@ -66,7 +118,7 @@ r_visual = clamp((0.08 + log10(max(radius_m, 1)) * 0.04) * scale, 0.03, 0.68)
 | [qrcode](https://www.npmjs.com/package/qrcode) | Utility | Web application | AR deep-link QR generation |
 | [vite](https://www.npmjs.com/package/vite) | Tooling | Build system | Development server and production bundling |
 
-## 6. Installation and Local Execution
+## 7. Installation and Local Execution
 
 ```bash
 npm install
@@ -80,7 +132,7 @@ npm run build
 npm run preview
 ```
 
-## 7. Using the Wrapper Module in External Projects
+## 8. Using the Wrapper Module in External Projects
 
 ```ts
 import { createOrbinexSim } from "@galihru/orbinexsim";
@@ -98,7 +150,7 @@ await sim.launchAr({ camera: true, motionSensors: true });
 console.log(sim.buildQuickReport(1.496e11));
 ```
 
-## 8. Expected Output Characteristics
+## 9. Expected Output Characteristics
 
 | Output channel | Typical result |
 | --- | --- |
@@ -107,14 +159,14 @@ console.log(sim.buildQuickReport(1.496e11));
 | Forecast section | Early warning for close-pass and potential-collision scenarios |
 | AR mode | Marker-linked object rendering with runtime permission summary |
 
-## 9. Runtime Flow (Text Graph)
+## 10. Runtime Flow (Text Graph)
 
 ```text
 Input controls -> Physics update -> Orbit propagation -> Event detection
               -> Forecast scoring -> Desktop/AR rendering -> Report generation
 ```
 
-## 10. Deployment
+## 11. Deployment
 
 GitHub Pages deployment is handled by [deploy-pages.yml](.github/workflows/deploy-pages.yml).
 
@@ -122,6 +174,6 @@ GitHub Pages deployment is handled by [deploy-pages.yml](.github/workflows/deplo
 2. Ensure Pages source is set to GitHub Actions.
 3. Wait for workflow completion in the Actions tab.
 
-## 11. License
+## 12. License
 
 MIT
