@@ -170,8 +170,7 @@ jobs:
             --yes \
             --no-auto-commits \
             --model "ollama/${OLLAMA_MODEL}" \
-            --message "$AI_TASK" \
-            .
+            --message "$AI_TASK"
           STATUS=$?
 
           if [ "$STATUS" -ne 0 ]; then
@@ -179,8 +178,7 @@ jobs:
               --yes \
               --no-auto-commits \
               --model "ollama_chat/${OLLAMA_MODEL}" \
-              --message "$AI_TASK" \
-              .
+              --message "$AI_TASK"
             STATUS=$?
           fi
 
