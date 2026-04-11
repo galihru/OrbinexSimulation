@@ -29,6 +29,11 @@ Create this secret:
 
 ## 4. How to use AI Maintainer
 
+### Option 0: fully automatic from issue label
+
+Add label `ai-task` to an issue.
+The workflow will start automatically and try to open a PR.
+
 ### Option A: from issue comments
 
 In any issue (not PR), write:
