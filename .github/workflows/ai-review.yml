@@ -1,4 +1,4 @@
-name: AI PR Review (Gemini)
+name: AI PR Review (Ollama)
 
 on:
   pull_request:
@@ -14,51 +14,58 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check API key availability
-        id: key
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          if [ -z "$GEMINI_API_KEY" ]; then
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "GEMINI_API_KEY is missing. Skipping AI review."
-          else
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Checkout
-        if: steps.key.outputs.enabled == 'true'
         uses: actions/checkout@v4
 
       - name: Setup Python
-        if: steps.key.outputs.enabled == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        if: steps.key.outputs.enabled == 'true'
+      - name: Install Ollama
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install google-generativeai
+          curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama and pull model
+        id: ollama
+        run: |
+          OLLAMA_HOST=127.0.0.1:11434 ollama serve > /tmp/ollama.log 2>&1 &
+
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+
+          MODEL="${{ vars.OLLAMA_MODEL }}"
+          if [ -z "$MODEL" ]; then
+            MODEL="qwen2.5-coder:1.5b"
+          fi
+
+          if ! ollama pull "$MODEL"; then
+            MODEL="llama3.2:1b"
+            ollama pull "$MODEL"
+          fi
+
+          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
 
       - name: Fetch PR metadata and diff
-        if: steps.key.outputs.enabled == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }} --jq '.title + "\n\n" + (.body // "")' > pr_meta.txt
           gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }} > pr.diff
 
-      - name: Generate review with Gemini
-        if: steps.key.outputs.enabled == 'true'
+      - name: Generate review with Ollama
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OLLAMA_MODEL: ${{ steps.ollama.outputs.model }}
         run: |
           python - << 'PY'
+          import json
           import os
           import textwrap
-          import google.generativeai as genai
+          import urllib.request
 
           with open("pr_meta.txt", "r", encoding="utf-8") as f:
               meta = f.read()
@@ -86,18 +93,30 @@ jobs:
           {diff}
           """)
 
-          genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-          model = genai.GenerativeModel("gemini-2.0-flash")
-          response = model.generate_content(prompt)
-          content = (response.text or "No review output generated.").strip()
+          payload = {
+              "model": os.environ["OLLAMA_MODEL"],
+              "prompt": prompt,
+              "stream": False,
+          }
+
+          req = urllib.request.Request(
+              "http://127.0.0.1:11434/api/generate",
+              data=json.dumps(payload).encode("utf-8"),
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+
+          with urllib.request.urlopen(req, timeout=600) as resp:
+              body = json.loads(resp.read().decode("utf-8"))
+
+          content = (body.get("response") or "No review output generated.").strip()
 
           with open("ai-review-comment.md", "w", encoding="utf-8") as f:
-              f.write("## AI Review (Gemini)\n\n")
+              f.write("## AI Review (Ollama)\n\n")
               f.write(content)
           PY
 
       - name: Post review comment
-        if: steps.key.outputs.enabled == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

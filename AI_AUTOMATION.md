@@ -1,70 +1,73 @@
-# AI Automation Setup (Free)
+# AI Automation (Ollama, No API Key)
 
-This repository includes free AI workflows using Gemini API:
+This repository uses local-model AI automation in GitHub Actions via Ollama.
+No cloud API key is required for the AI workflows.
 
-- PR review bot: `.github/workflows/ai-review.yml`
-- AI maintainer bot: `.github/workflows/ai-maintainer.yml`
+## Workflows
 
-## 1. What you get
+- `.github/workflows/ai-review.yml`
+  - Trigger: every non-draft pull request.
+  - Action: posts an AI review comment on the PR.
 
-- Automatic AI review comments on each pull request.
-- Automatic AI implementation from issue comments using `/ai ...`.
-- Manual trigger from Actions tab for ad-hoc AI tasks.
+- `.github/workflows/ai-maintainer.yml`
+  - Trigger:
+    - manual run via `workflow_dispatch`
+    - issue comment starting with `/ai`
+    - issue labeled `ai-task`
+  - Action: runs Aider with Ollama, creates a branch, commits changes, and opens a PR.
 
-## 2. Required secrets
+## Model Configuration
 
-Open repository settings:
+Default model:
+- `qwen2.5-coder:1.5b`
 
-- Settings -> Secrets and variables -> Actions -> New repository secret
+Fallback model if pull fails:
+- `llama3.2:1b`
 
-Create this secret:
+Optional override:
+- Add repository variable `OLLAMA_MODEL` in GitHub Settings -> Secrets and variables -> Actions -> Variables.
 
-- `GEMINI_API_KEY`: your Google AI Studio API key (free tier available)
+Example values:
+- `qwen2.5-coder:1.5b`
+- `llama3.2:3b`
 
-## 3. Recommended repository settings
+## How It Works in GitHub Actions
 
-- Actions permissions: Allow all actions and reusable workflows
-- Workflow permissions: Read and write permissions
-- Allow GitHub Actions to create and approve pull requests: enabled
+Each run does the following:
+1. Installs Ollama.
+2. Starts Ollama server.
+3. Pulls the configured model.
+4. Runs review or maintainer flow.
 
-## 4. How to use AI Maintainer
+This is fully automatic, but first run can be slower because model download happens in CI.
 
-### Option 0: fully automatic from issue label
+## Usage
 
-Add label `ai-task` to an issue.
-The workflow will start automatically and try to open a PR.
+### PR Review
+Open or update a non-draft PR. The workflow auto-comments with AI review feedback.
 
-### Option A: from issue comments
-
-In any issue (not PR), write:
+### Issue to PR Automation
+On any issue, comment:
 
 ```text
-/ai fix the bug in X and add tests
+/ai implement this issue with tests and update docs
 ```
 
-The workflow will:
+or add label:
 
-1. Read your issue + command
-2. Generate code changes using Gemini + Aider
-3. Push a new branch
-4. Open a pull request
-5. Comment back on the issue with PR link
+```text
+ai-task
+```
 
-### Option B: manual run
+The maintainer workflow will generate changes and open a PR.
 
-Open Actions -> AI Maintainer (Gemini + Aider) -> Run workflow, then fill:
+## Optional Performance Upgrade
 
-- `task`
-- optional `issue_number`
-- optional `base_branch`
+For faster and more stable runs, use a self-hosted runner with Ollama pre-installed and model pre-pulled.
+GitHub-hosted runners also work, but they re-download model layers more often.
 
-## 5. How to use AI Review
+## Safety Notes
 
-Open or update a pull request.
-The bot will post AI review feedback as a PR comment.
-
-## 6. Important notes
-
-- AI output is not guaranteed correct. Always review before merge.
-- Keep tasks specific for better result quality.
-- For big refactors, split into smaller issue tasks.
+- AI-generated code still needs human review before merge.
+- Keep branch protection and required review checks enabled.
+- Avoid giving overly broad `/ai` tasks; precise tasks produce better results.

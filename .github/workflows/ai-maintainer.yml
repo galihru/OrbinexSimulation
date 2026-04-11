@@ -1,4 +1,4 @@
-name: AI Maintainer (Gemini + Aider)
+name: AI Maintainer (Ollama + Aider)
 
 on:
   workflow_dispatch:
@@ -26,6 +26,10 @@ permissions:
   pull-requests: write
   issues: write
 
+concurrency:
+  group: ai-maintainer-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
 jobs:
   ai-maintainer:
     if: >
@@ -37,26 +41,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check API key availability
-        id: key
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          if [ -z "$GEMINI_API_KEY" ]; then
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "GEMINI_API_KEY is missing. Skipping AI maintainer run."
-          else
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Checkout
-        if: steps.key.outputs.enabled == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Prepare task context
-        if: steps.key.outputs.enabled == 'true'
         id: task
         uses: actions/github-script@v7
         with:
@@ -121,19 +111,44 @@ jobs:
             core.setOutput("base_branch", baseBranch);
 
       - name: Setup Python
-        if: steps.key.outputs.enabled == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Aider
-        if: steps.key.outputs.enabled == 'true'
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install aider-chat
 
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama and pull model
+        id: ollama
+        run: |
+          OLLAMA_HOST=127.0.0.1:11434 ollama serve > /tmp/ollama.log 2>&1 &
+
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+
+          MODEL="${{ vars.OLLAMA_MODEL }}"
+          if [ -z "$MODEL" ]; then
+            MODEL="qwen2.5-coder:1.5b"
+          fi
+
+          if ! ollama pull "$MODEL"; then
+            MODEL="llama3.2:1b"
+            ollama pull "$MODEL"
+          fi
+
+          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+
       - name: Create working branch
-        if: steps.key.outputs.enabled == 'true'
         id: branch
         run: |
           BASE_BRANCH="${{ steps.task.outputs.base_branch }}"
@@ -142,21 +157,40 @@ jobs:
           git checkout -b "$BRANCH_NAME" "origin/$BASE_BRANCH"
           echo "name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Run Aider with Gemini
-        if: steps.key.outputs.enabled == 'true'
+      - name: Run Aider with Ollama
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AI_TASK: ${{ steps.task.outputs.task }}
+          OLLAMA_MODEL: ${{ steps.ollama.outputs.model }}
+          OLLAMA_API_BASE: http://127.0.0.1:11434
         run: |
+          set +e
+
           aider \
             --yes \
             --no-auto-commits \
-            --model gemini/gemini-2.0-flash \
+            --model "ollama/${OLLAMA_MODEL}" \
             --message "$AI_TASK" \
             .
+          STATUS=$?
+
+          if [ "$STATUS" -ne 0 ]; then
+            aider \
+              --yes \
+              --no-auto-commits \
+              --model "ollama_chat/${OLLAMA_MODEL}" \
+              --message "$AI_TASK" \
+              .
+            STATUS=$?
+          fi
+
+          set -e
+
+          if [ "$STATUS" -ne 0 ]; then
+            echo "Aider failed with Ollama model ${OLLAMA_MODEL}."
+            exit "$STATUS"
+          fi
 
       - name: Check for changes
-        if: steps.key.outputs.enabled == 'true'
         id: changes
         run: |
           if git diff --quiet; then
@@ -166,7 +200,7 @@ jobs:
           fi
 
       - name: Commit changes
-        if: steps.key.outputs.enabled == 'true' && steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -180,11 +214,11 @@ jobs:
           fi
 
       - name: Push branch
-        if: steps.key.outputs.enabled == 'true' && steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true'
         run: git push origin "${{ steps.branch.outputs.name }}"
 
       - name: Open pull request
-        if: steps.key.outputs.enabled == 'true' && steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -208,7 +242,7 @@ jobs:
             --body "$PR_BODY"
 
       - name: Comment on issue with PR link
-        if: steps.key.outputs.enabled == 'true' && steps.changes.outputs.changed == 'true' && steps.task.outputs.issue_number != ''
+        if: steps.changes.outputs.changed == 'true' && steps.task.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -218,7 +252,7 @@ jobs:
           gh issue comment "$ISSUE_NO" --repo "${{ github.repository }}" --body "AI finished and opened a PR: $PR_URL"
 
       - name: Comment when no changes were produced
-        if: steps.key.outputs.enabled == 'true' && steps.changes.outputs.changed != 'true' && steps.task.outputs.issue_number != ''
+        if: steps.changes.outputs.changed != 'true' && steps.task.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
