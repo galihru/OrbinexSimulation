@@ -57,9 +57,10 @@ jobs:
             let baseBranch = "main";
 
             if (eventName === "workflow_dispatch") {
-              task = core.getInput("task").trim();
-              issueNumber = (core.getInput("issue_number") || "").trim();
-              baseBranch = (core.getInput("base_branch") || "main").trim();
+              const inputs = context.payload.inputs || {};
+              task = String(inputs.task || "").trim();
+              issueNumber = String(inputs.issue_number || "").trim();
+              baseBranch = String(inputs.base_branch || "main").trim();
             } else if (eventName === "issue_comment") {
               issueNumber = String(context.payload.issue.number);
               baseBranch = context.payload.repository.default_branch || "main";
