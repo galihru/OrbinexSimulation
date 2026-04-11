@@ -104,7 +104,33 @@ sequenceDiagram
 
 ## 5. Scientific Formulation
 
-The formulas below are written in plain-text notation for full compatibility on both GitHub and npm renderers.
+The core equations are provided in LaTeX for scientific readability.
+
+$$
+\mu = G M
+$$
+
+$$
+v = \sqrt{\frac{\mu}{r}}
+$$
+
+$$
+T = 2\pi\sqrt{\frac{a^3}{\mu}}
+$$
+
+$$
+\eta_{\text{years}} = \operatorname{clamp}\left(\frac{d / v_{\text{rel}}}{\text{YEAR\_SECONDS}},\ 10^{-7},\ 5000\right)
+$$
+
+$$
+	ext{confidence} = \operatorname{clamp}\left(0.45 + \frac{0.5}{1 + d/\text{AU}},\ 0.45,\ 0.98\right)
+$$
+
+$$
+r_{\text{visual}} = \operatorname{clamp}\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot s,\ 0.03,\ 0.68\right)
+$$
+
+Plain-text fallback (for markdown engines without math rendering):
 
 ```text
 mu = G * M
@@ -146,18 +172,77 @@ graph TD
 | [qrcode](https://www.npmjs.com/package/qrcode) | Utility | Web application | AR deep-link QR generation |
 | [vite](https://www.npmjs.com/package/vite) | Tooling | Build system | Development server and production bundling |
 
-## 7. Installation and Local Execution
+## 7. Installation, Development, and Production Runbook
+
+### 7.1 Prerequisites
+
+| Requirement | Recommended version | Notes |
+| --- | --- | --- |
+| Node.js | 20.x LTS or newer | Required for Vite 7 and modern ESM toolchain |
+| npm | 10.x or newer | Default package manager in this repository |
+| Git | latest stable | Required for clone, pull, and CI-compatible workflows |
+| Browser | Chromium/Edge/Firefox latest | AR mode requires secure-context camera support |
+
+### 7.2 Fresh Installation (Deterministic)
 
 ```bash
-npm install
+git clone https://github.com/galihru/OrbinexSimulation.git
+cd OrbinexSimulation
+npm ci
+```
+
+Use `npm install` only when intentionally updating dependency resolution or lockfile state.
+
+### 7.3 Development Runtime
+
+```bash
 npm run dev
 ```
 
-Production build and preview:
+Optional host/port override for LAN or device testing:
+
+```bash
+npm run dev -- --host 0.0.0.0 --port 5173
+```
+
+Catalog synchronization can be triggered explicitly:
+
+```bash
+npm run catalog:update
+```
+
+### 7.4 Production Build and Artifact Validation
 
 ```bash
 npm run build
-npm run preview
+```
+
+This command executes the full production chain:
+
+1. `npm run catalog:update`
+2. `vite build`
+3. `node scripts/postbuild-optimize.mjs`
+
+Validate production output locally:
+
+```bash
+npm run preview -- --host 0.0.0.0 --port 4173
+```
+
+The distributable output is generated in `dist/`.
+
+### 7.5 npm Wrapper Package Build and Publish Path
+
+```bash
+npm -C orbinexsim-npm ci
+npm -C orbinexsim-npm run build
+npm -C orbinexsim-npm pack
+```
+
+Publish step (requires npm authentication and proper token/2FA policy):
+
+```bash
+npm -C orbinexsim-npm publish --access public
 ```
 
 ## 8. Using the Wrapper Module in External Projects
@@ -205,3 +290,6 @@ GitHub Pages deployment is handled by [deploy-pages.yml](.github/workflows/deplo
 ## 12. License
 
 MIT
+
+## 13. Author
+Galih Ridho Utomo (姜瑞)

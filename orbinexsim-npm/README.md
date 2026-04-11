@@ -45,7 +45,17 @@ Figure interpretation notes:
 4. Table 1, Column 2, Row 5 to Row 7 capture retrieval, event chronology, and hierarchy filtering controls.
 5. Table 1, Column 2, Row 8 and Row 9 capture AR marker anchoring and QR-based mobile activation.
 
-## 4. Installation
+## 4. Installation and Environment Requirements
+
+### 4.1 Prerequisites
+
+| Requirement | Recommended version | Notes |
+| --- | --- | --- |
+| Node.js | 20.x LTS or newer | Required for ESM/CJS build artifacts |
+| npm | 10.x or newer | Used for install, build, pack, publish |
+| Browser context | HTTPS for runtime permissions | Needed for camera/geolocation/motion APIs |
+
+### 4.2 Install Command
 
 ```bash
 npm install @galihru/orbinexsim
@@ -57,6 +67,25 @@ Equivalent commands:
 pnpm add @galihru/orbinexsim
 yarn add @galihru/orbinexsim
 bun add @galihru/orbinexsim
+```
+
+### 4.3 Deterministic Local Build of This Package
+
+```bash
+npm ci
+npm run build
+```
+
+Pack for pre-publish validation:
+
+```bash
+npm pack
+```
+
+Publish (requires npm auth and policy-compliant token/2FA setup):
+
+```bash
+npm publish --access public
 ```
 
 ## 5. Quick Start
@@ -169,7 +198,33 @@ stopMarkerTracking();
 
 ## 8. Scientific Formulations Used by the Module
 
-For reliable rendering on both GitHub and npm, formulas are shown in plain text.
+LaTeX notation:
+
+$$
+\mu = G M
+$$
+
+$$
+v = \sqrt{\frac{\mu}{r}}
+$$
+
+$$
+T = 2\pi\sqrt{\frac{a^3}{\mu}}
+$$
+
+$$
+\eta_{\text{years}} = \operatorname{clamp}\left(\frac{d / v_{\text{rel}}}{\text{YEAR\_SECONDS}},\ 10^{-7},\ 5000\right)
+$$
+
+$$
+	ext{confidence} = \operatorname{clamp}\left(0.45 + \frac{0.5}{1 + d/\text{AU}},\ 0.45,\ 0.98\right)
+$$
+
+$$
+r_{\text{visual}} = \operatorname{clamp}\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot \text{radiusScale},\ 0.03,\ 0.68\right)
+$$
+
+Plain-text fallback:
 
 ```text
 mu = G * M
@@ -242,6 +297,15 @@ Default hosted base URL:
 
 ```bash
 npm run build
+npm publish --access public
+```
+
+Release-grade sequence:
+
+```bash
+npm ci
+npm run build
+npm pack
 npm publish --access public
 ```
 
