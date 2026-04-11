@@ -18,6 +18,8 @@ on:
         type: string
   issue_comment:
     types: [created]
+  issues:
+    types: [labeled]
 
 permissions:
   contents: write
@@ -29,7 +31,8 @@ jobs:
     if: >
       github.actor != 'github-actions[bot]' && (
         github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'issue_comment' && github.event.issue.pull_request == null && startsWith(github.event.comment.body, '/ai'))
+        (github.event_name == 'issue_comment' && github.event.issue.pull_request == null && startsWith(github.event.comment.body, '/ai')) ||
+        (github.event_name == 'issues' && github.event.label.name == 'ai-task')
       )
     runs-on: ubuntu-latest
 
@@ -67,7 +70,7 @@ jobs:
               task = core.getInput("task").trim();
               issueNumber = (core.getInput("issue_number") || "").trim();
               baseBranch = (core.getInput("base_branch") || "main").trim();
-            } else {
+            } else if (eventName === "issue_comment") {
               issueNumber = String(context.payload.issue.number);
               baseBranch = context.payload.repository.default_branch || "main";
 
@@ -89,6 +92,19 @@ jobs:
 
               task = [
                 commandTask,
+                "",
+                `Issue #${issueNumber}: ${title}`,
+                body,
+              ].join("\n").trim();
+            } else if (eventName === "issues") {
+              issueNumber = String(context.payload.issue.number);
+              baseBranch = context.payload.repository.default_branch || "main";
+
+              const title = context.payload.issue.title || "";
+              const body = context.payload.issue.body || "";
+
+              task = [
+                "Implement this issue with safe, minimal changes. Add tests/docs when needed.",
                 "",
                 `Issue #${issueNumber}: ${title}`,
                 body,
