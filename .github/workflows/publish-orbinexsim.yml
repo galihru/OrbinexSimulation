@@ -18,7 +18,7 @@ on:
 
 concurrency:
   group: publish-orbinexsim
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   publish-npm:
@@ -96,7 +96,21 @@ jobs:
 
       - name: Publish to npm
         if: steps.eligibility.outputs.can_publish == 'true' && steps.registry_check.outputs.npm_exists != 'true'
-        run: npm publish --access public
+        run: |
+          set +e
+          PUBLISH_OUTPUT=$(npm publish --access public 2>&1)
+          PUBLISH_STATUS=$?
+          set -e
+
+          echo "$PUBLISH_OUTPUT"
+
+          if [ "$PUBLISH_STATUS" -ne 0 ]; then
+            if echo "$PUBLISH_OUTPUT" | grep -q "E409\|Cannot publish over existing version\|You cannot publish over the previously published versions"; then
+              echo "npmjs publish skipped because this version already exists."
+            else
+              exit "$PUBLISH_STATUS"
+            fi
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTOMATION_TOKEN }}
 
@@ -110,7 +124,21 @@ jobs:
 
       - name: Publish to GitHub Packages
         if: steps.eligibility.outputs.can_publish == 'true' && steps.registry_check.outputs.gh_exists != 'true'
-        run: npm publish --registry=https://npm.pkg.github.com
+        run: |
+          set +e
+          PUBLISH_OUTPUT=$(npm publish --registry=https://npm.pkg.github.com 2>&1)
+          PUBLISH_STATUS=$?
+          set -e
+
+          echo "$PUBLISH_OUTPUT"
+
+          if [ "$PUBLISH_STATUS" -ne 0 ]; then
+            if echo "$PUBLISH_OUTPUT" | grep -q "E409\|Cannot publish over existing version\|You cannot publish over the previously published versions"; then
+              echo "GitHub Packages publish skipped because this version already exists."
+            else
+              exit "$PUBLISH_STATUS"
+            fi
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -133,8 +161,17 @@ jobs:
             echo "No version changes to commit"
           else
             git commit -m "chore(release): orbinexsim v${NEW_VERSION} [skip ci]"
-            git tag "orbinexsim-v${NEW_VERSION}"
+            git tag "orbinexsim-v${NEW_VERSION}" || true
+
+            set +e
+            git pull --rebase origin "${GITHUB_REF_NAME}"
             git push origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
+            PUSH_STATUS=$?
+            set -e
+
+            if [ "$PUSH_STATUS" -ne 0 ]; then
+              echo "Version bump push skipped due concurrent updates on ${GITHUB_REF_NAME}."
+            fi
           fi
 
       - name: Skip note when token is missing
