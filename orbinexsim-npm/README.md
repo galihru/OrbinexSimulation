@@ -1,14 +1,43 @@
 # @galihru/orbinexsim
 
-OrbinexSim adalah wrapper tingkat tinggi agar kamu bisa pakai Orbinex desktop + AR tanpa menulis ribuan baris kode.
+[![npm version](https://img.shields.io/npm/v/%40galihru%2Forbinexsim?label=npm%20%40galihru%2Forbinexsim)](https://www.npmjs.com/package/@galihru/orbinexsim)
+[![npm downloads](https://img.shields.io/npm/dm/%40galihru%2Forbinexsim?label=downloads)](https://www.npmjs.com/package/@galihru/orbinexsim)
+[![core physics module](https://img.shields.io/npm/v/%40galihru%2Forbinex?label=core%20%40galihru%2Forbinex)](https://www.npmjs.com/package/@galihru/orbinex)
+[![demo](https://img.shields.io/badge/demo-GitHub%20Pages-0A3B7A)](https://galihru.github.io/OrbinexSimulation/)
 
-## Install
+High-level scientific wrapper for embedding OrbinexSimulation desktop and AR runtimes with a compact TypeScript API.
+
+## 1. What This Module Provides
+
+- Fast embedding of the hosted simulation viewer in desktop or AR mode.
+- Runtime permission orchestration for camera, microphone, geolocation, and motion sensors.
+- Orbit sample utilities backed by [@galihru/orbinex](https://www.npmjs.com/package/@galihru/orbinex).
+- AR marker utilities for marker creation, tracking, catalog proxy ingestion, and primitive model synthesis.
+
+## 2. Demonstration and Related Modules
+
+| Resource | Link |
+| --- | --- |
+| Desktop demo | [https://galihru.github.io/OrbinexSimulation/](https://galihru.github.io/OrbinexSimulation/) |
+| AR demo | [https://galihru.github.io/OrbinexSimulation/ar-view.html](https://galihru.github.io/OrbinexSimulation/ar-view.html) |
+| Wrapper package | [@galihru/orbinexsim](https://www.npmjs.com/package/@galihru/orbinexsim) |
+| Core physics package | [@galihru/orbinex](https://www.npmjs.com/package/@galihru/orbinex) |
+
+## 3. Installation
 
 ```bash
-npm i @galihru/orbinexsim
+npm install @galihru/orbinexsim
 ```
 
-## Pemakaian Paling Ringkas
+Equivalent commands:
+
+```bash
+pnpm add @galihru/orbinexsim
+yarn add @galihru/orbinexsim
+bun add @galihru/orbinexsim
+```
+
+## 4. Quick Start
 
 ```ts
 import { createOrbinexSim } from "@galihru/orbinexsim";
@@ -17,22 +46,18 @@ const sim = createOrbinexSim("#app", {
   mode: "desktop",
   model: "Bumi",
   autoRequestAccess: true,
+  width: "100%",
+  height: "72vh"
 });
 
-// pindah ke AR kapan saja
+// Switch runtime mode when needed
 await sim.launchAr({ camera: true, motionSensors: true });
+
+// Scientific quick sample at 1 AU
+console.log(sim.buildQuickReport(1.496e11));
 ```
 
-## API Inti
-
-- `createOrbinexSim(target, options)`
-- `sim.setMode("desktop" | "ar")`
-- `sim.setModel("Bumi")`
-- `sim.launchAr({ camera: true })`
-- `sim.requestAccess({ camera: true, geolocation: true })`
-- `sim.buildQuickReport(radiusMeters)`
-
-## API AR Runtime (Marker + Permission)
+## 5. AR Runtime Integration Example
 
 ```ts
 import {
@@ -82,30 +107,98 @@ const permissions = await requestRuntimePermissions({
   geolocation: true,
   microphone: true,
 });
+
+console.log({ hint, objectName, permissions });
+stopMarkerTracking();
 ```
 
-- `parseArRequestFromSearch(...)`: parse `model`, `altModel`, dan `build`.
-- `createDefaultArMarkers(...)`: generate konfigurasi marker Hiro + Kanji.
-- `ensureArMarkers(...)`: auto create marker jika belum ada di scene.
-- `bindMarkerTracking(...)`: helper scan AR marker (`markerFound`/`markerLost`) + object detection summary.
-- `resolveObjectNameForMarker(...)`: baca object target dari marker.
-- `resolveArMarkerHint(...)`: ambil URL marker + label dari elemen marker.
-- `requestRuntimePermissions(...)`: helper permission runtime tanpa bikin instance iframe.
-- `resolveCatalogProxyUrl(...)`: baca URL proxy catalog dari query string.
-- `loadCatalogFromProxy(...)`: fetch database/catalog object dari proxy link.
-- `createMarkersFromCatalog(...)`: auto map catalog proxy -> marker config.
-- `extractCatalogEntriesFromPayload(...)`: parse payload proxy ke format catalog module.
-- `createPrimitiveModelFromCatalogEntry(...)`: auto create model 3D primitive dari data catalog.
+## 6. API Surface
 
-## Catatan
+### Main API
 
-- Module ini menggunakan `@galihru/orbinex` untuk kalkulasi dasar orbit.
-- Untuk mode AR, browser/user tetap bisa menolak permission kamera/sensor.
-- Default host viewer: `https://galihru.github.io/OrbinexSimulation/`
+| Symbol | Type | Description |
+| --- | --- | --- |
+| `createOrbinexSim(target, options)` | Function | Creates a managed simulation instance and iframe host |
+| `OrbinexSim#setMode(mode)` | Method | Switches desktop or AR runtime |
+| `OrbinexSim#setModel(name)` | Method | Changes active object query |
+| `OrbinexSim#launchAr(options)` | Method | Requests permissions and transitions to AR mode |
+| `OrbinexSim#requestAccess(options)` | Method | Returns a permission summary per capability |
+| `OrbinexSim#createOrbitPreviewSample(radiusMeters)` | Method | Returns orbit sample for selected radius |
+| `OrbinexSim#buildQuickReport(radiusMeters)` | Method | Returns concise report string |
+| `orbitSampleFromAu(au)` | Function | Converts AU to orbit sample around solar mass |
+| `constants` | Object | Shared physical constants |
 
-## Publish
+### AR Runtime API
+
+| Symbol | Description |
+| --- | --- |
+| `parseArRequestFromSearch` | Parses `model`, `altModel`, and `build` query parameters |
+| `createDefaultArMarkers` | Creates default Hiro and Kanji marker configs |
+| `ensureArMarkers` | Ensures marker nodes exist and applies normalized attributes |
+| `bindMarkerTracking` | Subscribes to marker found/lost events with summaries |
+| `resolveObjectNameForMarker` | Resolves marker-linked object with fallback |
+| `resolveArMarkerHint` | Returns marker image/link/label metadata |
+| `resolveCatalogProxyUrl` | Reads external catalog proxy URL from query parameters |
+| `loadCatalogFromProxy` | Loads and normalizes catalog payloads |
+| `createMarkersFromCatalog` | Maps proxy catalog entries to marker configurations |
+| `extractCatalogEntriesFromPayload` | Normalizes arrays or wrapped API payloads |
+| `createPrimitiveModelFromCatalogEntry` | Generates marker-attached primitive model geometry |
+| `requestRuntimePermissions` | Runtime permission helper without creating iframe instance |
+
+## 7. Scientific Formulations Used by the Module
+
+For reliable rendering on both GitHub and npm, formulas are shown in plain text.
+
+```text
+mu = G * M
+v = sqrt(mu / r)
+T = 2 * pi * sqrt(a^3 / mu)
+
+eta_years = clamp((distance / relative_speed) / YEAR_SECONDS, 1e-7, 5000)
+confidence = clamp(0.45 + 0.5 / (1 + distance / AU), 0.45, 0.98)
+
+r_visual = clamp((0.08 + log10(max(radius_m, 1)) * 0.04) * radiusScale, 0.03, 0.68)
+```
+
+| Formula | Used in | Outcome |
+| --- | --- | --- |
+| `mu = G*M`, `v = sqrt(mu/r)`, `T = 2*pi*sqrt(a^3/mu)` | Orbit preview/sample helpers | Physically interpretable speed and period |
+| `eta ~= distance/speed` + confidence clamp | Forecast summaries | Stable early-warning ranking |
+| Logarithmic visual radius mapping | AR primitive synthesis | Prevents extreme size collapse in marker view |
+
+## 8. Runtime Graph and Architecture
+
+![System architecture](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/figures/system-architecture.svg)
+
+![Simulation pipeline](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/figures/simulation-pipeline.svg)
+
+```text
+Consumer app -> createOrbinexSim -> hosted viewer
+                                  -> desktop scene updates
+                                  -> optional AR marker flow
+                                  -> event/forecast summaries
+```
+
+## 9. Browser and Permission Notes
+
+| Capability | Requirement |
+| --- | --- |
+| Camera / microphone | Secure context (HTTPS) and user permission |
+| Geolocation | Secure context and browser location policy |
+| Motion sensors | Platform-specific API permission (notably on iOS) |
+| AR marker runtime | Camera access and marker visibility in scene |
+
+Default hosted base URL:
+
+- [https://galihru.github.io/OrbinexSimulation/](https://galihru.github.io/OrbinexSimulation/)
+
+## 10. Build and Publish
 
 ```bash
 npm run build
 npm publish --access public
 ```
+
+## 11. License
+
+MIT

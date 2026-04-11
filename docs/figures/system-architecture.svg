@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">OrbinexSimulation System Architecture</title>
+  <desc id="desc">Architecture flow from user controls to simulation engine, renderer, AR runtime, and output panels.</desc>
+  <defs>
+    <style>
+      .bg { fill: #061228; }
+      .card { fill: #0c1f3f; stroke: #5a87c9; stroke-width: 2; rx: 16; }
+      .title { fill: #dfefff; font: 700 28px 'Segoe UI', Arial, sans-serif; }
+      .label { fill: #c9ddff; font: 600 19px 'Segoe UI', Arial, sans-serif; }
+      .text { fill: #9fc0ee; font: 500 15px 'Segoe UI', Arial, sans-serif; }
+      .arrow { stroke: #8cb3ee; stroke-width: 2.5; marker-end: url(#arrowHead); }
+      .small { fill: #91b4e8; font: 500 13px 'Segoe UI', Arial, sans-serif; }
+    </style>
+    <marker id="arrowHead" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#8cb3ee" />
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1280" height="760" />
+  <text class="title" x="40" y="56">OrbinexSimulation Architecture</text>
+
+  <rect class="card" x="40" y="100" width="340" height="170" />
+  <text class="label" x="64" y="140">User Interface Layer</text>
+  <text class="text" x="64" y="172">- Search, filters, and object focus</text>
+  <text class="text" x="64" y="198">- Event log and hierarchy controls</text>
+  <text class="text" x="64" y="224">- Runtime commands and diagnostics</text>
+
+  <rect class="card" x="40" y="320" width="340" height="180" />
+  <text class="label" x="64" y="362">Simulation Core</text>
+  <text class="text" x="64" y="394">- N-body style orbital update loop</text>
+  <text class="text" x="64" y="420">- Forecast, collision, and event model</text>
+  <text class="text" x="64" y="446">- Adaptive time scale and confidence</text>
+  <text class="small" x="64" y="474">src/orbinex-compat.ts</text>
+
+  <rect class="card" x="470" y="100" width="360" height="180" />
+  <text class="label" x="494" y="140">Physics Module</text>
+  <text class="text" x="494" y="172">@galihru/orbinex</text>
+  <text class="text" x="494" y="198">- orbitalPeriodFromSemiMajorAxis</text>
+  <text class="text" x="494" y="224">- circularOrbitSpeed</text>
+  <text class="text" x="494" y="250">- createOrbitSample, constants</text>
+
+  <rect class="card" x="470" y="340" width="360" height="200" />
+  <text class="label" x="494" y="380">Visualization and Runtime</text>
+  <text class="text" x="494" y="412">- Three.js renderer and scene updates</text>
+  <text class="text" x="494" y="438">- AR.js marker tracking utilities</text>
+  <text class="text" x="494" y="464">- Permission orchestration helpers</text>
+  <text class="small" x="494" y="494">public/ar-view.html and orbinexsim-npm/src/ar-runtime.ts</text>
+
+  <rect class="card" x="920" y="160" width="320" height="180" />
+  <text class="label" x="944" y="200">Output Products</text>
+  <text class="text" x="944" y="232">- Real-time 3D universe scene</text>
+  <text class="text" x="944" y="258">- Scientific state reports</text>
+  <text class="text" x="944" y="284">- Event stream and recommendations</text>
+
+  <rect class="card" x="920" y="400" width="320" height="180" />
+  <text class="label" x="944" y="440">Distribution</text>
+  <text class="text" x="944" y="472">- GitHub Pages application</text>
+  <text class="text" x="944" y="498">- npm package @galihru/orbinexsim</text>
+  <text class="text" x="944" y="524">- TypeScript ESM/CJS artifacts</text>
+
+  <line class="arrow" x1="380" y1="185" x2="470" y2="185" />
+  <line class="arrow" x1="380" y1="410" x2="470" y2="430" />
+  <line class="arrow" x1="830" y1="200" x2="920" y2="250" />
+  <line class="arrow" x1="830" y1="450" x2="920" y2="490" />
+  <line class="arrow" x1="650" y1="280" x2="650" y2="340" />
+
+  <text class="small" x="44" y="716">Diagram is intentionally markdown-safe and visible on both GitHub and npm via embedded SVG.</text>
+</svg>
