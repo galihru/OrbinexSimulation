@@ -246,15 +246,15 @@ T = 2\pi\sqrt{\frac{a^3}{\mu}}
 $$
 
 $$
-\eta_{\text{years}} = \mathrm{clamp}\!\left(\frac{d / v_{\text{rel}}}{\text{YEAR\_SECONDS}},\ 10^{-7},\ 5000\right)
+\eta_{\mathrm{years}} = \operatorname{clamp}\left(\frac{d / v_{\mathrm{rel}}}{\mathrm{YEAR\_SECONDS}}, 10^{-7}, 5000\right)
 $$
 
 $$
-\mathrm{confidence} = \mathrm{clamp}\!\left(0.45 + \frac{0.5}{1 + d/\text{AU}},\ 0.45,\ 0.98\right)
+\operatorname{confidence} = \operatorname{clamp}\left(0.45 + \frac{0.5}{1 + d/\mathrm{AU}}, 0.45, 0.98\right)
 $$
 
 $$
-r_{\text{visual}} = \mathrm{clamp}\!\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot \text{radiusScale},\ 0.03,\ 0.68\right)
+r_{\mathrm{visual}} = \operatorname{clamp}\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot \mathrm{radiusScale}, 0.03, 0.68\right)
 $$
 
 Plain-text fallback:
@@ -327,6 +327,32 @@ Default hosted base URL:
 - [https://galihru.github.io/OrbinexSimulation/](https://galihru.github.io/OrbinexSimulation/)
 
 ## 11. Build and Publish
+
+### 11.1 npm Token Setup (Safe)
+
+Do not commit a real npm token into this repository.
+
+1. Create or update user-level `.npmrc` (recommended: in home directory, not in repo):
+
+```ini
+//registry.npmjs.org/:_authToken=${NPM_TOKEN}
+```
+
+2. Set token as environment variable in your current shell session.
+
+PowerShell:
+
+```powershell
+$env:NPM_TOKEN="npm_REPLACE_WITH_YOUR_TOKEN"
+```
+
+3. Validate authentication before publish.
+
+```bash
+npm whoami
+```
+
+If a token was exposed accidentally, revoke/rotate it in npm account settings before publishing.
 
 ```bash
 npm run build

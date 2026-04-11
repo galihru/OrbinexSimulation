@@ -121,26 +121,16 @@ T = 2\pi\sqrt{\frac{a^3}{\mu}}
 $$
 
 $$
-\eta_{\text{years}} = \mathrm{clamp}\!\left(\frac{d / v_{\text{rel}}}{\text{YEAR\_SECONDS}},\ 10^{-7},\ 5000\right)
+\eta_{\mathrm{years}} = \operatorname{clamp}\left(\frac{d / v_{\mathrm{rel}}}{\mathrm{YEAR\_SECONDS}}, 10^{-7}, 5000\right)
 $$
 
 $$
-\mathrm{confidence} = \mathrm{clamp}\!\left(0.45 + \frac{0.5}{1 + d/\text{AU}},\ 0.45,\ 0.98\right)
+\operatorname{confidence} = \operatorname{clamp}\left(0.45 + \frac{0.5}{1 + d/\mathrm{AU}}, 0.45, 0.98\right)
 $$
 
 $$
-r_{\text{visual}} = \mathrm{clamp}\!\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot s,\ 0.03,\ 0.68\right)
+r_{\mathrm{visual}} = \operatorname{clamp}\left((0.08 + \log_{10}(\max(r_m, 1)) \cdot 0.04) \cdot s, 0.03, 0.68\right)
 $$
-
-Plain-text fallback (for markdown engines without math rendering):
-
-```text
-mu = G * M
-v = sqrt(mu / r)
-T = 2 * pi * sqrt(a^3 / mu)
-
-eta_years = clamp((distance / relative_speed) / YEAR_SECONDS, 1e-7, 5000)
-confidence = clamp(0.45 + 0.5 / (1 + distance / AU), 0.45, 0.98)
 
 r_visual = clamp((0.08 + log10(max(radius_m, 1)) * 0.04) * scale, 0.03, 0.68)
 ```
