@@ -25,23 +25,51 @@ This repository delivers the following capabilities:
 | Wrapper package | [@galihru/orbinexsim](https://www.npmjs.com/package/@galihru/orbinexsim) | High-level integration API |
 | Physics core package | [@galihru/orbinex](https://www.npmjs.com/package/@galihru/orbinex) | Orbital constants and sampling |
 
-## 3. Empirical Runtime Screenshots
+## 3. Empirical Runtime Screenshots and Journal-Style Interpretation
 
-The following figures are direct runtime outputs, aligned with the functional sections described in this document.
+The image evidence is organized as journal-style tables. In each table, Column 1 defines the analytical focus, and Column 2 presents the observed runtime artifact.
 
-| Startup and runtime state | UI instrumentation |
+### Table 1. Startup and Main Runtime States
+
+| Column 1: Analytical focus | Column 2: Visual evidence |
 | --- | --- |
-| ![Startup render pipeline](docs/images/startup-render.png) | ![Object information card](docs/images/object-information-card.png) |
-| ![Desktop runtime overview](docs/images/desktop-runtime-overview.png) | ![Desktop runtime focused state](docs/images/desktop-runtime-focused.png) |
+| Startup render pipeline and object initialization stage | ![Startup render pipeline](docs/images/startup-render.png) |
+| Global runtime overview with full orbital trace density | ![Desktop runtime overview](docs/images/desktop-runtime-overview.png) |
+| Focused runtime state highlighting sparse-body visibility | ![Desktop runtime focused state](docs/images/desktop-runtime-focused.png) |
 
-| Search and control modules | Event and hierarchy modules |
+Interpretation for Table 1:
+
+1. Table 1, Column 2, Row 1 shows the pre-render phase where engine, catalog, and synthetic object sets are merged before interactive simulation begins.
+2. Table 1, Column 2, Row 2 shows the high-density orbital regime, demonstrating concurrent rendering of major and minor bodies.
+3. Table 1, Column 2, Row 3 shows the focused or sparse regime, where distant trajectories remain detectable without visual collapse.
+
+### Table 2. Scientific UI and Diagnostics Modules
+
+| Column 1: Analytical focus | Column 2: Visual evidence |
 | --- | --- |
-| ![Search and object list panel](docs/images/search-panel.png) | ![Event log panel](docs/images/event-log-panel.png) |
-| ![Hierarchy filter panel](docs/images/hierarchy-filter-panel.png) | ![AR marker QR card](docs/images/ar-qr-code.png) |
+| Object-level scientific descriptor panel | ![Object information card](docs/images/object-information-card.png) |
+| Search and ranked object-selection panel | ![Search and object list panel](docs/images/search-panel.png) |
+| Event chronology and confidence stream | ![Event log panel](docs/images/event-log-panel.png) |
+| Hierarchy depth filtering controller | ![Hierarchy filter panel](docs/images/hierarchy-filter-panel.png) |
 
-| AR marker reference |
-| --- |
-| ![Hiro marker reference](docs/images/ar-marker-hiro.png) |
+Interpretation for Table 2:
+
+1. Table 2, Column 2, Row 1 shows per-object measurable attributes, including mass, radius, distance, velocity, and rotation.
+2. Table 2, Column 2, Row 2 shows deterministic retrieval of indexed bodies for fast navigation across simulation entities.
+3. Table 2, Column 2, Row 3 shows event ingestion with confidence metadata, supporting temporal anomaly review.
+4. Table 2, Column 2, Row 4 shows hierarchy gating for level-bounded visualization and complexity reduction.
+
+### Table 3. AR Activation and Marker Evidence
+
+| Column 1: Analytical focus | Column 2: Visual evidence |
+| --- | --- |
+| Mobile AR activation card (cross-device bridge) | ![AR marker QR card](docs/images/ar-qr-code.png) |
+| Marker reference target for Hiro-based AR detection | ![Hiro marker reference](docs/images/ar-marker-hiro.png) |
+
+Interpretation for Table 3:
+
+1. Table 3, Column 2, Row 1 shows the QR-mediated handoff used to transfer the active object context to mobile AR runtime.
+2. Table 3, Column 2, Row 2 shows the canonical marker used by the AR pipeline for stable object anchoring.
 
 ## 4. Architecture and Workflow Graph (Mermaid)
 

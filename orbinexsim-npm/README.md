@@ -23,9 +23,9 @@ High-level scientific wrapper for embedding OrbinexSimulation desktop and AR run
 | Wrapper package | [@galihru/orbinexsim](https://www.npmjs.com/package/@galihru/orbinexsim) |
 | Core physics package | [@galihru/orbinex](https://www.npmjs.com/package/@galihru/orbinex) |
 
-## 3. Visual Runtime Evidence
+## 3. Visual Runtime Evidence with Figure Interpretation
 
-| Function area | Screenshot |
+| Column 1: Function area | Column 2: Screenshot evidence |
 | --- | --- |
 | Startup render stage | ![Startup render](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/startup-render.png) |
 | Main runtime overview | ![Runtime overview](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/desktop-runtime-overview.png) |
@@ -34,11 +34,16 @@ High-level scientific wrapper for embedding OrbinexSimulation desktop and AR run
 | Search and event modules | ![Search panel](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/search-panel.png) |
 | Event logging module | ![Event log panel](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/event-log-panel.png) |
 | Hierarchy filtering module | ![Hierarchy filter panel](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/hierarchy-filter-panel.png) |
+| AR marker reference | ![Hiro marker](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/ar-marker-hiro.png) |
+| AR QR activation bridge | ![AR QR card](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/ar-qr-code.png) |
 
-| AR evidence |
-| --- |
-| ![Hiro marker](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/ar-marker-hiro.png) |
-| ![AR QR card](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/ar-qr-code.png) |
+Figure interpretation notes:
+
+1. Table 1, Column 2, Row 1 documents the initialization stage preceding full scene interactivity.
+2. Table 1, Column 2, Row 2 and Row 3 document high-density and focused-density runtime regimes.
+3. Table 1, Column 2, Row 4 isolates object-level scientific descriptors used in the detail panel API flow.
+4. Table 1, Column 2, Row 5 to Row 7 capture retrieval, event chronology, and hierarchy filtering controls.
+5. Table 1, Column 2, Row 8 and Row 9 capture AR marker anchoring and QR-based mobile activation.
 
 ## 4. Installation
 
