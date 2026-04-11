@@ -166,26 +166,31 @@ jobs:
         run: |
           set +e
 
-          MAX_FILES=10
-          TASK_LOWER=$(printf '%s' "$AI_TASK" | tr '[:upper:]' '[:lower:]')
+          MAX_FILES=8
           mapfile -t FILE_LIST < <(
-            git ls-files orbinexsim-npm \
-              | grep -Ev '^orbinexsim-npm/(node_modules|dist)/' \
-              | grep -Ev '^orbinexsim-npm/package-lock\.json$' \
-              | grep -E '^orbinexsim-npm/(src/.*\.(ts|tsx|js|jsx|mjs|cjs)|package\.json|tsconfig\.json)$' \
+            {
+              git ls-files orbinexsim-npm/src | grep -E '^orbinexsim-npm/src/.*\.(ts|tsx|js|jsx|mjs|cjs)$'
+              git ls-files orbinexsim-npm/package.json
+              git ls-files orbinexsim-npm/tsconfig.json
+            } \
+              | awk 'NF && !seen[$0]++' \
               | head -n "$MAX_FILES"
           )
-
-          if [[ "$TASK_LOWER" == *"readme"* || "$TASK_LOWER" == *"docs"* || "$TASK_LOWER" == *"dokumentasi"* ]]; then
-            if git ls-files --error-unmatch orbinexsim-npm/README.md >/dev/null 2>&1; then
-              FILE_LIST+=("orbinexsim-npm/README.md")
-            fi
-          fi
 
           if [ "${#FILE_LIST[@]}" -eq 0 ]; then
             echo "No npm module files selected for Aider context."
             exit 1
           fi
+
+          SCOPED_TASK=$(cat <<EOF
+$AI_TASK
+
+Hard constraints:
+- Only modify files under orbinexsim-npm.
+- Focus on program/code changes only.
+- Do not edit documentation, license, or workflow files.
+EOF
+)
 
           echo "Selected ${#FILE_LIST[@]} npm module files for Aider context:"
           printf ' - %s\n' "${FILE_LIST[@]}"
@@ -195,9 +200,9 @@ jobs:
             --no-auto-commits \
             --no-gitignore \
             --encoding utf-8 \
-            --map-tokens 1024 \
+            --map-tokens 512 \
             --model "ollama/${OLLAMA_MODEL}" \
-            --message "$AI_TASK" \
+            --message "$SCOPED_TASK" \
             "${FILE_LIST[@]}"
           STATUS=$?
 
@@ -207,9 +212,9 @@ jobs:
               --no-auto-commits \
               --no-gitignore \
               --encoding utf-8 \
-              --map-tokens 1024 \
+              --map-tokens 512 \
               --model "ollama_chat/${OLLAMA_MODEL}" \
-              --message "$AI_TASK" \
+              --message "$SCOPED_TASK" \
               "${FILE_LIST[@]}"
             STATUS=$?
           fi
