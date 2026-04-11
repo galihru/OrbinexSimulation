@@ -1,29 +1,33 @@
 ﻿<!doctype html>
-<html lang="id" xml:lang="id">
+<html lang="en" xml:lang="en">
 
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Orbinex AR Viewer</title>
     <meta name="description"
-        content="Viewer AR Orbinex untuk menampilkan objek semesta dari parameter model lewat QR code." />
+        content="Orbinex AR viewer to render universe objects from model parameters via QR marker tracking." />
     <meta name="robots" content="index,follow,max-image-preview:large" />
     <meta name="author" content="galihru" />
     <meta name="theme-color" content="#07142d" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <link rel="canonical" href="https://galihru.github.io/OrbinexSimulation/ar-view.html" />
+    <link rel="icon" href="./orbinex-logo.svg" type="image/svg+xml" />
+    <link rel="shortcut icon" href="https://galihru.github.io/OrbinexSimulation/ar-view/favicon.ico"
+        type="image/x-icon" />
+    <link rel="apple-touch-icon" href="./orbinex.png" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="OrbinexSimulation" />
     <meta property="og:title" content="Orbinex AR Viewer" />
     <meta property="og:description"
-        content="Viewer AR Orbinex untuk simulasi objek semesta langsung dari browser mobile." />
+        content="Orbinex AR viewer for rendering universe objects directly from mobile browsers." />
     <meta property="og:url" content="https://galihru.github.io/OrbinexSimulation/ar-view.html" />
     <meta property="og:image" content="https://galihru.github.io/OrbinexSimulation/orbinex-logo.svg" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Orbinex AR Viewer" />
     <meta name="twitter:description"
-        content="Mode AR Orbinex untuk visualisasi objek semesta dengan marker Hiro/Kanji." />
+        content="Orbinex AR mode for visualizing universe objects using Hiro/Kanji markers." />
     <meta name="twitter:image" content="https://galihru.github.io/OrbinexSimulation/orbinex-logo.svg" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <style>
@@ -579,47 +583,71 @@
         }
     </style>
 
+    <script>
+        // Hint 2D canvases for frequent readback to reduce AR.js warning noise.
+        (() => {
+            const proto = HTMLCanvasElement && HTMLCanvasElement.prototype;
+            if (!proto || typeof proto.getContext !== "function" || proto.getContext.__orbinexPatched) {
+                return;
+            }
+
+            const originalGetContext = proto.getContext;
+            const patchedGetContext = function (type, options) {
+                if (type === "2d") {
+                    const nextOptions = options && typeof options === "object"
+                        ? { ...options, willReadFrequently: true }
+                        : { willReadFrequently: true };
+                    return originalGetContext.call(this, type, nextOptions);
+                }
+
+                return originalGetContext.call(this, type, options);
+            };
+
+            patchedGetContext.__orbinexPatched = true;
+            proto.getContext = patchedGetContext;
+        })();
+    </script>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <script src="./vendor/aframe-ar.min.js"></script>
 </head>
 
 <body>
-    <a class="skip-link" href="#ar-overlay">Lewati ke kontrol AR</a>
+    <a class="skip-link" href="#ar-overlay">Skip to AR controls</a>
     <main id="ar-app" role="main" aria-label="Orbinex AR viewer">
         <button id="sheet-toggle" class="ar-sheet-toggle" type="button" aria-controls="ar-overlay" aria-expanded="true"
-            aria-label="Buka panel info AR">&#9776;</button>
+            aria-label="Open AR info panel">&#9776;</button>
 
         <section id="ar-overlay" class="ar-overlay" aria-live="polite">
-            <div id="sheet-handle" class="sheet-handle-zone" aria-label="Geser ke bawah untuk menutup panel">
+            <div id="sheet-handle" class="sheet-handle-zone" aria-label="Swipe down to close panel">
                 <span class="sheet-grabber" aria-hidden="true"></span>
-                <span class="sheet-swipe-text">Swipe down untuk tutup panel</span>
+                <span class="sheet-swipe-text">Swipe down to close panel</span>
             </div>
-            <h1>Orbinex AR Viewer: <span id="ar-model-name">Bumi</span></h1>
-            <p id="ar-status" role="status" aria-live="polite">Aktifkan kamera, scan marker Hiro/Kanji, lalu model
-                sesuai marker akan muncul.</p>
+            <h1>Orbinex AR Viewer: <span id="ar-model-name">Earth</span></h1>
+            <p id="ar-status" role="status" aria-live="polite">Enable camera access, scan a Hiro/Kanji marker, and the
+                mapped model will appear.</p>
             <div class="ar-toolbar">
-                <a id="open-desktop" href="#" rel="noopener noreferrer">Buka Simulasi Desktop</a>
+                <a id="open-desktop" href="#" rel="noopener noreferrer">Open Desktop Simulation</a>
                 <a id="open-marker" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
-                    target="_blank" rel="noopener noreferrer">Buka Marker Aktif</a>
+                    target="_blank" rel="noopener noreferrer">Open Active Marker</a>
                 <button id="zoom-in" type="button">Zoom +</button>
                 <button id="zoom-out" type="button">Zoom -</button>
-                <button id="rot-left" type="button">Rotasi -</button>
-                <button id="rot-right" type="button">Rotasi +</button>
+                <button id="rot-left" type="button">Rotate -</button>
+                <button id="rot-right" type="button">Rotate +</button>
                 <button id="view-reset" type="button">Reset View</button>
             </div>
             <div class="ar-speed-row">
-                <label for="speed-range">Kecepatan simulasi</label>
+                <label for="speed-range">Simulation speed</label>
                 <input id="speed-range" type="range" min="0.05" max="24" step="0.05" value="2.5" />
-                <span id="speed-value" class="ar-speed-value">2.50 hari/detik</span>
+                <span id="speed-value" class="ar-speed-value">2.50 days/sec</span>
             </div>
-            <p id="ar-system-meta" class="ar-system-meta">Menyiapkan sistem orbit AR...</p>
+            <p id="ar-system-meta" class="ar-system-meta">Preparing AR orbit system...</p>
         </section>
 
         <a id="ar-marker-hint" href="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
-            class="ar-marker-hint" target="_blank" rel="noopener noreferrer" aria-label="Marker AR aktif">
+            class="ar-marker-hint" target="_blank" rel="noopener noreferrer" aria-label="Active AR marker">
             <img id="ar-marker-hint-image"
                 src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
-                alt="Marker Hiro untuk tracking AR" />
+                alt="Hiro marker for AR tracking" />
         </a>
 
         <video id="camera-display-video" class="camera-display-video" autoplay muted playsinline
@@ -627,14 +655,14 @@
 
         <div id="gesture-pad" class="gesture-pad" aria-hidden="true"></div>
 
-        <button id="pip-swap" class="pip-swap" type="button" aria-label="Tukar tampilan ke kamera utama">
+        <button id="pip-swap" class="pip-swap" type="button" aria-label="Swap to main camera view">
             <video id="pip-camera-video" autoplay muted playsinline webkit-playsinline></video>
-            <span id="pip-swap-label" class="pip-swap-label">Kamera</span>
+            <span id="pip-swap-label" class="pip-swap-label">Camera</span>
         </button>
 
         <a-scene id="ar-scene" embedded loading-screen="enabled: false" vr-mode-ui="enabled: false"
-            renderer="antialias: true; alpha: true; precision: mediump; colorManagement: true"
-            arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; detectionMode: mono; matrixCodeType: 3x3; maxDetectionRate: 60; canvasWidth: 1280; canvasHeight: 960;">
+            renderer="antialias: true; alpha: true; precision: high; colorManagement: true"
+            arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; detectionMode: mono; matrixCodeType: 3x3; maxDetectionRate: 60; canvasWidth: 3840; canvasHeight: 2160; sourceWidth: 3840; sourceHeight: 2160;">
             <a-marker id="orbinex-marker-hiro" data-model="" data-marker-label="Hiro"
                 data-marker-image="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
                 data-marker-link="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
@@ -669,24 +697,52 @@
             const MARKER_KANJI_URL = "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.png";
 
             const params = new URLSearchParams(window.location.search);
-            const paramKeys = ["model", "object", "target", "name"];
-            const requestedModel = (() => {
+            function fallbackArRequestFromParams(searchParams) {
+                const paramKeys = ["model", "object", "target", "name"];
+                let model = "";
+
                 for (const key of paramKeys) {
-                    const value = params.get(key);
+                    const value = searchParams.get(key);
                     if (value && value.trim()) {
-                        return value.trim();
+                        model = value.trim();
+                        break;
                     }
                 }
-                return "Bumi";
-            })();
-            const requestedAltModel = (params.get("altModel") || "Mars").trim() || "Mars";
-            const swBuildToken = (params.get("build") || "latest").trim() || "latest";
+
+                return {
+                    model: model || "Earth",
+                    altModel: (searchParams.get("altModel") || "Mars").trim() || "Mars",
+                    buildToken: (searchParams.get("build") || "latest").trim() || "latest",
+                };
+            }
+
+            const initialArRequest = fallbackArRequestFromParams(params);
+            let requestedModel = initialArRequest.model;
+            let requestedAltModel = initialArRequest.altModel;
+            const swBuildToken = initialArRequest.buildToken;
+
+            const displayNameMap = new Map([
+                ["Matahari", "Sun"],
+                ["Merkurius", "Mercury"],
+                ["Bumi", "Earth"],
+                ["Bulan", "Moon"],
+                ["Saturnus", "Saturn"],
+                ["Neptunus", "Neptune"],
+                ["Bima Sakti", "Milky Way"],
+                ["Grup Lokal", "Local Group"],
+                ["Lengan Orion", "Orion Arm"],
+                ["Filamen Kosmik", "Cosmic Filament"],
+                ["Superklaster Laniakea", "Laniakea Supercluster"],
+            ]);
+
+            function displayBodyName(name) {
+                return displayNameMap.get(name) || name;
+            }
 
             const modelNameEl = document.getElementById("ar-model-name");
             const statusEl = document.getElementById("ar-status");
             const systemMetaEl = document.getElementById("ar-system-meta");
             const sceneEl = document.getElementById("ar-scene");
-            const markerEls = Array.from(document.querySelectorAll("a-marker[data-model]"));
             const openDesktopLink = document.getElementById("open-desktop");
             const openMarkerLink = document.getElementById("open-marker");
             const zoomInButton = document.getElementById("zoom-in");
@@ -709,35 +765,123 @@
             const markerHintEl = document.getElementById("ar-marker-hint");
             const markerHintImageEl = document.getElementById("ar-marker-hint-image");
 
-            const hiroMarkerEl = document.getElementById("orbinex-marker-hiro");
-            if (hiroMarkerEl && requestedModel) {
-                hiroMarkerEl.dataset.model = requestedModel;
-                hiroMarkerEl.dataset.markerImage = MARKER_HIRO_URL;
-                hiroMarkerEl.dataset.markerLink = MARKER_HIRO_URL;
+            function fallbackMarkerConfigs(primaryModel, secondaryModel) {
+                return [
+                    {
+                        id: "orbinex-marker-hiro",
+                        preset: "hiro",
+                        markerLabel: "Hiro",
+                        model: primaryModel,
+                        markerImage: MARKER_HIRO_URL,
+                        markerLink: MARKER_HIRO_URL,
+                    },
+                    {
+                        id: "orbinex-marker-kanji",
+                        preset: "kanji",
+                        markerLabel: "Kanji",
+                        model: secondaryModel,
+                        markerImage: MARKER_KANJI_URL,
+                        markerLink: MARKER_KANJI_URL,
+                    },
+                ];
             }
 
-            const kanjiMarkerEl = document.getElementById("orbinex-marker-kanji");
-            if (kanjiMarkerEl) {
-                kanjiMarkerEl.dataset.model = requestedAltModel;
-                kanjiMarkerEl.dataset.markerImage = MARKER_KANJI_URL;
-                kanjiMarkerEl.dataset.markerLink = MARKER_KANJI_URL;
+            function ensureFallbackArMarkers(sceneNode, markerConfigs) {
+                if (!sceneNode) {
+                    return;
+                }
+
+                markerConfigs.forEach((markerConfig) => {
+                    const markerId = markerConfig.id;
+                    let markerNode = markerId ? document.getElementById(markerId) : null;
+
+                    if (!markerNode && markerConfig.preset) {
+                        markerNode = sceneNode.querySelector(`a-marker[preset="${markerConfig.preset}"]`);
+                    }
+
+                    if (!markerNode) {
+                        markerNode = document.createElement("a-marker");
+                        sceneNode.appendChild(markerNode);
+                    }
+
+                    markerNode.id = markerConfig.id;
+                    markerNode.dataset.model = markerConfig.model;
+                    markerNode.dataset.markerLabel = markerConfig.markerLabel;
+                    markerNode.dataset.markerImage = markerConfig.markerImage;
+                    markerNode.dataset.markerLink = markerConfig.markerLink;
+                    markerNode.setAttribute("preset", markerConfig.preset);
+                    markerNode.setAttribute("emitevents", "true");
+                    markerNode.setAttribute("smooth", "true");
+                    markerNode.setAttribute("smoothCount", "8");
+                    markerNode.setAttribute("smoothTolerance", "0.01");
+                    markerNode.setAttribute("smoothThreshold", "5");
+
+                    if (!markerNode.querySelector("a-plane")) {
+                        const planeNode = document.createElement("a-plane");
+                        planeNode.setAttribute("width", "1.08");
+                        planeNode.setAttribute("height", "1.08");
+                        planeNode.setAttribute("position", "0 0.003 0");
+                        planeNode.setAttribute("rotation", "-90 0 0");
+                        planeNode.setAttribute("material", "shader: flat; color: #f3f6fb; opacity: 0.94; transparent: true; side: double; depthTest: false; depthWrite: false");
+                        markerNode.appendChild(planeNode);
+                    }
+
+                    if (!markerNode.querySelector("[data-model-root]")) {
+                        const modelRootNode = document.createElement("a-entity");
+                        modelRootNode.setAttribute("data-model-root", "");
+                        modelRootNode.setAttribute("position", "0 0 0");
+                        markerNode.appendChild(modelRootNode);
+                    }
+                });
             }
 
-            let modelRoot = (hiroMarkerEl && hiroMarkerEl.querySelector("[data-model-root]"))
-                || (markerEls[0] && markerEls[0].querySelector("[data-model-root]"));
-            let activeMarkerEl = hiroMarkerEl || markerEls[0] || null;
+            let markerEls = [];
+            let hiroMarkerEl = null;
+            let kanjiMarkerEl = null;
+            let modelRoot = null;
+            let activeMarkerEl = null;
+            let orbinexsimRuntimeModule = null;
+            let runtimeCatalogEntries = [];
+            let runtimeCatalogSource = "";
+            let stopMarkerTracking = null;
+
+            function refreshMarkerReferences() {
+                markerEls = Array.from(document.querySelectorAll("a-marker[data-model]"));
+                hiroMarkerEl = document.getElementById("orbinex-marker-hiro");
+                kanjiMarkerEl = document.getElementById("orbinex-marker-kanji");
+
+                if (!activeMarkerEl || !activeMarkerEl.isConnected) {
+                    activeMarkerEl = hiroMarkerEl || markerEls[0] || null;
+                }
+
+                modelRoot = (hiroMarkerEl && hiroMarkerEl.querySelector("[data-model-root]"))
+                    || (markerEls[0] && markerEls[0].querySelector("[data-model-root]"));
+            }
+
+            ensureFallbackArMarkers(sceneEl, fallbackMarkerConfigs(requestedModel, requestedAltModel));
+            refreshMarkerReferences();
+
             const markerVisibilityState = new Map();
 
-            modelNameEl.textContent = requestedModel;
+            modelNameEl.textContent = displayBodyName(requestedModel);
 
             function setMarkerHint(markerNode) {
-                const markerImage = (markerNode && markerNode.dataset && markerNode.dataset.markerImage) || MARKER_HIRO_URL;
-                const markerLink = (markerNode && markerNode.dataset && markerNode.dataset.markerLink) || markerImage;
-                const markerLabel = (markerNode && markerNode.dataset && markerNode.dataset.markerLabel) || "Hiro";
+                const runtimeHint = orbinexsimRuntimeModule && typeof orbinexsimRuntimeModule.resolveArMarkerHint === "function"
+                    ? orbinexsimRuntimeModule.resolveArMarkerHint(markerNode, MARKER_HIRO_URL)
+                    : null;
+                const markerImage = (runtimeHint && runtimeHint.markerImage)
+                    || (markerNode && markerNode.dataset && markerNode.dataset.markerImage)
+                    || MARKER_HIRO_URL;
+                const markerLink = (runtimeHint && runtimeHint.markerLink)
+                    || (markerNode && markerNode.dataset && markerNode.dataset.markerLink)
+                    || markerImage;
+                const markerLabel = (runtimeHint && runtimeHint.markerLabel)
+                    || (markerNode && markerNode.dataset && markerNode.dataset.markerLabel)
+                    || "Hiro";
 
                 if (markerHintImageEl) {
                     markerHintImageEl.src = markerImage;
-                    markerHintImageEl.alt = `Marker ${markerLabel} untuk tracking AR`;
+                    markerHintImageEl.alt = `Marker ${markerLabel} for AR tracking`;
                 }
 
                 if (markerHintEl) {
@@ -747,7 +891,7 @@
 
                 if (openMarkerLink) {
                     openMarkerLink.href = markerLink;
-                    openMarkerLink.textContent = `Buka Marker ${markerLabel}`;
+                    openMarkerLink.textContent = `Open ${markerLabel} Marker`;
                 }
             }
 
@@ -765,35 +909,24 @@
                 new URL("./data/agency-catalog.json", baseUrl).toString(),
             ];
             const AR_RUNTIME_PROFILE_STORAGE_KEY = "orbinex.ar.runtimeProfile";
+            const ORBINEXSIM_RUNTIME_MODULE_SOURCES = [
+                new URL("../orbinexsim-npm/dist/ar-runtime.js", window.location.href).toString(),
+                "https://cdn.jsdelivr.net/npm/@galihru/orbinexsim@latest/dist/ar-runtime.js",
+                "https://cdn.jsdelivr.net/npm/@galihru/orbinexsim@0.1.1/dist/ar-runtime.js",
+                "https://cdn.jsdelivr.net/npm/@galihru/orbinexsim@0.1.1/+esm",
+                "https://unpkg.com/@galihru/orbinexsim@0.1.1/dist/index.js?module",
+            ];
+            const UNSUPPORTED_RUNTIME_PERMISSIONS = Object.freeze({
+                camera: "unsupported",
+                microphone: "unsupported",
+                geolocation: "unsupported",
+                motionSensors: "unsupported",
+            });
             let arLowLagModeActive = false;
             let arWakeLockHandle = null;
             let arSystem = null;
-
-            async function requestXrSessionPermission(mode) {
-                if (!window.isSecureContext || !navigator.xr || typeof navigator.xr.requestSession !== "function") {
-                    return "unsupported";
-                }
-
-                try {
-                    if (typeof navigator.xr.isSessionSupported === "function") {
-                        const supported = await navigator.xr.isSessionSupported(mode);
-                        if (!supported) {
-                            return "unsupported";
-                        }
-                    }
-
-                    const session = await navigator.xr.requestSession(mode, {
-                        optionalFeatures: ["local-floor", "bounded-floor", "anchors", "hit-test", "dom-overlay"],
-                        domOverlay: { root: document.body },
-                    });
-                    if (session && typeof session.end === "function") {
-                        await session.end();
-                    }
-                    return "granted";
-                } catch {
-                    return "denied";
-                }
-            }
+            let orbinexsimRuntimeModulePromise = null;
+            let orbinexsimRuntimeSource = "";
 
             function hasGrantedCapability(capabilities) {
                 return Object.values(capabilities).some((value) => value === "granted");
@@ -809,103 +942,157 @@
                 return "unsupported";
             }
 
-            async function requestRelatedAppsPermission() {
-                if (!window.isSecureContext || typeof navigator.getInstalledRelatedApps !== "function") {
-                    return "unsupported";
-                }
-
-                try {
-                    await navigator.getInstalledRelatedApps();
-                    return "granted";
-                } catch {
-                    return "denied";
-                }
+            function normalizePermissionResult(value) {
+                return value === "granted" || value === "denied" || value === "unsupported"
+                    ? value
+                    : "unsupported";
             }
 
-            async function requestGeolocationPermission() {
-                if (!window.isSecureContext || !("geolocation" in navigator) || !navigator.geolocation) {
-                    return "unsupported";
+            async function loadOrbinexsimRuntimeModule() {
+                if (orbinexsimRuntimeModulePromise) {
+                    return orbinexsimRuntimeModulePromise;
                 }
 
-                return new Promise((resolve) => {
-                    navigator.geolocation.getCurrentPosition(
-                        () => resolve("granted"),
-                        (error) => {
-                            if (error && error.code === error.PERMISSION_DENIED) {
-                                resolve("denied");
-                                return;
+                orbinexsimRuntimeModulePromise = (async () => {
+                    for (const sourceUrl of ORBINEXSIM_RUNTIME_MODULE_SOURCES) {
+                        try {
+                            const runtimeModule = await import(sourceUrl);
+                            if (runtimeModule && typeof runtimeModule.requestRuntimePermissions === "function") {
+                                orbinexsimRuntimeModule = runtimeModule;
+                                orbinexsimRuntimeSource = sourceUrl;
+                                return runtimeModule;
                             }
-                            resolve("denied");
-                        },
-                        {
-                            enableHighAccuracy: false,
-                            timeout: 7000,
-                            maximumAge: 0,
-                        },
-                    );
-                });
+                        } catch {
+                            // Try the next CDN endpoint.
+                        }
+                    }
+                    return null;
+                })();
+
+                return orbinexsimRuntimeModulePromise;
             }
 
-            async function requestMotionSensorPermission() {
-                const motionEventApi = window.DeviceMotionEvent;
-                if (!motionEventApi || typeof motionEventApi.requestPermission !== "function") {
-                    return "unsupported";
-                }
-
+            async function requestRuntimePermissionsFromModule() {
                 try {
-                    const outcome = await motionEventApi.requestPermission();
-                    return outcome === "granted" ? "granted" : "denied";
-                } catch {
-                    return "denied";
-                }
-            }
+                    const runtimeModule = await loadOrbinexsimRuntimeModule();
+                    if (!runtimeModule || typeof runtimeModule.requestRuntimePermissions !== "function") {
+                        return { ...UNSUPPORTED_RUNTIME_PERMISSIONS };
+                    }
 
-            async function requestMicrophonePermission() {
-                if (!window.isSecureContext || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
-                    return "unsupported";
-                }
-
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        audio: true,
-                        video: false,
+                    const result = await runtimeModule.requestRuntimePermissions({
+                        camera: true,
+                        microphone: true,
+                        geolocation: true,
+                        motionSensors: true,
                     });
-                    stream.getTracks().forEach((track) => track.stop());
-                    return "granted";
+
+                    return {
+                        camera: normalizePermissionResult(result && result.camera),
+                        microphone: normalizePermissionResult(result && result.microphone),
+                        geolocation: normalizePermissionResult(result && result.geolocation),
+                        motionSensors: normalizePermissionResult(result && result.motionSensors),
+                    };
                 } catch {
-                    return "denied";
+                    return { ...UNSUPPORTED_RUNTIME_PERMISSIONS };
                 }
             }
 
-            async function requestCameraPermissionForAr() {
-                if (!window.isSecureContext || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
-                    return "unsupported";
-                }
-
+            async function syncArMarkersFromRuntimeModule() {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: "environment" },
-                        audio: false,
+                    const runtimeModule = await loadOrbinexsimRuntimeModule();
+                    if (!runtimeModule || typeof runtimeModule.createDefaultArMarkers !== "function" || typeof runtimeModule.ensureArMarkers !== "function") {
+                        return;
+                    }
+
+                    if (typeof runtimeModule.parseArRequestFromSearch === "function") {
+                        const parsedArRequest = runtimeModule.parseArRequestFromSearch(window.location.search);
+                        if (parsedArRequest && parsedArRequest.model) {
+                            requestedModel = String(parsedArRequest.model).trim() || requestedModel;
+                        }
+                        if (parsedArRequest && parsedArRequest.altModel) {
+                            requestedAltModel = String(parsedArRequest.altModel).trim() || requestedAltModel;
+                        }
+                    }
+
+                    let markerConfigs = runtimeModule.createDefaultArMarkers(requestedModel, requestedAltModel);
+                    if (runtimeCatalogEntries.length && typeof runtimeModule.createMarkersFromCatalog === "function") {
+                        markerConfigs = runtimeModule.createMarkersFromCatalog(runtimeCatalogEntries, markerConfigs);
+                    }
+
+                    runtimeModule.ensureArMarkers(sceneEl, markerConfigs, {
+                        createMissing: true,
+                        ensureModelRoot: true,
                     });
-                    stream.getTracks().forEach((track) => track.stop());
-                    return "granted";
+
+                    refreshMarkerReferences();
+                    modelNameEl.textContent = displayBodyName(requestedModel);
+                    desktopUrl.searchParams.set("model", requestedModel);
+                    openDesktopLink.href = desktopUrl.toString();
+                    setMarkerHint(activeMarkerEl);
+                    await bindMarkerTrackingHandlers();
                 } catch {
-                    return "denied";
+                    // Fallback marker setup is already active.
                 }
             }
 
-            async function requestNotificationPermissionForPwa() {
-                if (!window.isSecureContext || !("Notification" in window)) {
-                    return "unsupported";
-                }
-
+            async function applyCatalogProxyFromRuntimeModule() {
                 try {
-                    const nextPermission = Notification.permission === "default"
-                        ? await Notification.requestPermission()
-                        : Notification.permission;
-                    return nextPermission === "granted" ? "granted" : "denied";
+                    const runtimeModule = await loadOrbinexsimRuntimeModule();
+                    if (!runtimeModule || typeof runtimeModule.resolveCatalogProxyUrl !== "function" || typeof runtimeModule.loadCatalogFromProxy !== "function") {
+                        return;
+                    }
+
+                    const proxyUrl = runtimeModule.resolveCatalogProxyUrl(window.location.search);
+                    if (!proxyUrl || proxyUrl === runtimeCatalogSource) {
+                        return;
+                    }
+
+                    const proxyEntries = await runtimeModule.loadCatalogFromProxy(proxyUrl, { timeoutMs: 15000 });
+                    if (!Array.isArray(proxyEntries) || !proxyEntries.length) {
+                        return;
+                    }
+
+                    runtimeCatalogEntries = proxyEntries;
+                    runtimeCatalogSource = proxyUrl;
+
+                    proxyEntries.forEach((entry) => {
+                        if (!entry || !entry.name) {
+                            return;
+                        }
+
+                        const entryName = String(entry.name).trim();
+                        if (!entryName) {
+                            return;
+                        }
+
+                        const entryKind = (entry.kind || inferKindFromName(entryName) || "planet").trim();
+                        const entryColor = (entry.color || defaultColorForKind(entryKind) || "#84aee4").trim();
+                        const massValue = Number(entry.massKg);
+                        const radiusValue = Number(entry.radiusMeters);
+                        const semiMajorValue = Number(entry.semiMajorMeters);
+                        const periodValue = Number(entry.periodDays);
+                        const rotationValue = Number(entry.rotationHours);
+                        const inclinationValue = Number(entry.inclinationDeg);
+
+                        registerBody({
+                            name: entryName,
+                            kind: entryKind,
+                            massKg: Number.isFinite(massValue) ? massValue : undefined,
+                            radiusMeters: Number.isFinite(radiusValue) ? radiusValue : undefined,
+                            color: entryColor,
+                            parentName: entry.parentName || null,
+                            semiMajorMeters: Number.isFinite(semiMajorValue) ? semiMajorValue : null,
+                            periodDays: Number.isFinite(periodValue) ? periodValue : null,
+                            rotationHours: Number.isFinite(rotationValue) ? rotationValue : null,
+                            inclinationDeg: Number.isFinite(inclinationValue) ? inclinationValue : undefined,
+                        });
+                    });
+
+                    await syncArMarkersFromRuntimeModule();
+                    setActiveFocusByName(requestedModel, (activeMarkerEl && activeMarkerEl.dataset.markerLabel) || "QR/Hiro");
+                    statusEl.textContent = `Catalog proxy enabled: ${proxyEntries.length} objects loaded.`;
                 } catch {
-                    return "denied";
+                    // Keep local catalog and marker fallback if proxy is unavailable.
                 }
             }
 
@@ -967,7 +1154,7 @@
                 arLowLagModeActive = true;
                 orbitDaysPerSecond = Math.min(orbitDaysPerSecond, 8);
                 speedRange.value = String(orbitDaysPerSecond);
-                speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} hari/detik`;
+                speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} days/sec`;
                 optimizeArNodesForLowLag();
 
                 try {
@@ -976,13 +1163,20 @@
                     // Ignore storage failures in private mode.
                 }
 
-                statusEl.textContent = `Mode anti-lag AR aktif (${reason}).`;
+                statusEl.textContent = `AR low-lag mode enabled (${reason}).`;
             }
 
             function restoreArRuntimeProfile() {
                 try {
+                    const forcedProfile = (params.get("profile") || "").trim().toLowerCase();
+                    if (forcedProfile === "low-lag") {
+                        activateArLowLagProfile("profile override");
+                        return;
+                    }
+
+                    // Keep high-quality mode as default unless explicitly overridden.
                     if (window.localStorage.getItem(AR_RUNTIME_PROFILE_STORAGE_KEY) === "low-lag") {
-                        activateArLowLagProfile("profil tersimpan");
+                        window.localStorage.removeItem(AR_RUNTIME_PROFILE_STORAGE_KEY);
                     }
                 } catch {
                     // Ignore storage failures in private mode.
@@ -990,68 +1184,46 @@
             }
 
             async function requestArAccessPermissions() {
-                const virtualRealityPromise = requestXrSessionPermission("immersive-vr");
-                const augmentedRealityPromise = requestXrSessionPermission("immersive-ar");
-                const geolocationPromise = requestGeolocationPermission();
-                const motionSensorsPromise = requestMotionSensorPermission();
-                const microphonePromise = requestMicrophonePermission();
-                const relatedAppsProbePromise = requestRelatedAppsPermission();
-                const cameraPromise = requestCameraPermissionForAr();
-                const notificationsPromise = requestNotificationPermissionForPwa();
+                const runtimePermissionsPromise = requestRuntimePermissionsFromModule();
                 const persistentStoragePromise = requestPersistentStoragePermission();
                 const wakeLockPromise = requestScreenWakeLockPermission();
 
                 const [
-                    virtualReality,
-                    augmentedReality,
-                    geolocation,
-                    motionSensors,
-                    microphone,
-                    relatedAppsProbe,
-                    camera,
-                    notifications,
+                    runtimePermissions,
                     persistentStorage,
                     wakeLock,
                 ] = await Promise.all([
-                    virtualRealityPromise,
-                    augmentedRealityPromise,
-                    geolocationPromise,
-                    motionSensorsPromise,
-                    microphonePromise,
-                    relatedAppsProbePromise,
-                    cameraPromise,
-                    notificationsPromise,
+                    runtimePermissionsPromise,
                     persistentStoragePromise,
                     wakeLockPromise,
                 ]);
 
-                const deviceUse = mergePermissionResults([geolocation, motionSensors, microphone, relatedAppsProbe]);
+                const camera = normalizePermissionResult(runtimePermissions && runtimePermissions.camera);
+                const geolocation = normalizePermissionResult(runtimePermissions && runtimePermissions.geolocation);
+                const motionSensors = normalizePermissionResult(runtimePermissions && runtimePermissions.motionSensors);
+                const microphone = normalizePermissionResult(runtimePermissions && runtimePermissions.microphone);
+
+                const deviceUse = mergePermissionResults([geolocation, motionSensors, microphone]);
 
                 const capabilities = {
-                    virtualReality,
-                    augmentedReality,
                     deviceUse,
                     geolocation,
                     motionSensors,
                     microphone,
-                    relatedAppsProbe,
                     camera,
-                    notifications,
                     persistentStorage,
                     wakeLock,
                 };
 
-                systemMetaEl.textContent = "Akses perangkat diproses oleh browser.";
+                systemMetaEl.textContent = orbinexsimRuntimeSource
+                    ? "Device access handled by @galihru/orbinexsim runtime module."
+                    : "Device access handled directly by browser (fallback).";
                 return capabilities;
             }
 
             async function applyArPermissionDrivenOptimizations(capabilities, trigger) {
                 if (capabilities.persistentStorage === "granted") {
                     await cachePwaDatabaseAssets();
-                }
-
-                if (hasGrantedCapability(capabilities)) {
-                    activateArLowLagProfile(trigger);
                 }
             }
 
@@ -1094,7 +1266,7 @@
             function setupArPwaInstallFlow() {
                 void registerArPwaServiceWorker();
                 window.addEventListener("appinstalled", () => {
-                    statusEl.textContent = "PWA terpasang. Menyiapkan database offline...";
+                    statusEl.textContent = "PWA installed. Preparing offline database...";
                     void cachePwaDatabaseAssets();
                 });
 
@@ -1108,6 +1280,33 @@
 
             setupArPwaInstallFlow();
             restoreArRuntimeProfile();
+            void syncArMarkersFromRuntimeModule();
+
+            let runtimePermissionsInitialized = false;
+            async function initializeRuntimePermissions(triggerLabel) {
+                if (runtimePermissionsInitialized) {
+                    return;
+                }
+                runtimePermissionsInitialized = true;
+
+                try {
+                    const capabilities = await requestArAccessPermissions();
+                    await applyArPermissionDrivenOptimizations(capabilities, triggerLabel);
+                } catch {
+                    // Keep AR running even if runtime permission bootstrap fails.
+                }
+            }
+
+            function setupArRuntimePermissionBootstrap() {
+                const runBootstrap = () => {
+                    void initializeRuntimePermissions("first interaction");
+                };
+
+                window.addEventListener("pointerdown", runBootstrap, { once: true, passive: true, capture: true });
+                window.addEventListener("keydown", runBootstrap, { once: true, capture: true });
+            }
+
+            setupArRuntimePermissionBootstrap();
 
             let sheetIsOpen = true;
             let sheetDragPointerId = null;
@@ -1297,7 +1496,7 @@
                     gesturePad.style.pointerEvents = "auto";
                 }
 
-                pipSwapLabel.textContent = currentViewMode === "ar-main" ? "Kamera" : "AR";
+                pipSwapLabel.textContent = currentViewMode === "ar-main" ? "Camera" : "AR";
             }
 
             function bindArMiniSwapTarget() {
@@ -1546,6 +1745,10 @@
                 ["saturn", "Saturnus"],
                 ["neptune", "Neptunus"],
                 ["milky way", "Bima Sakti"],
+                ["local group", "Grup Lokal"],
+                ["orion arm", "Lengan Orion"],
+                ["cosmic filament", "Filamen Kosmik"],
+                ["laniakea supercluster", "Superklaster Laniakea"],
                 ["phobos (mars)", "Phobos"],
                 ["deimos (mars)", "Deimos"],
                 ["io (jupiter)", "Io"],
@@ -2105,7 +2308,7 @@
                 }
 
                 const label = createEntity("a-text", {
-                    value: body.name === focusName ? `${body.name} [fokus]` : body.name,
+                    value: body.name === focusName ? `${displayBodyName(body.name)} [focus]` : displayBodyName(body.name),
                     align: "center",
                     color: body.name === focusName ? "#eaf4ff" : "#c8daff",
                     position: `0 ${(displayRadius * 1.9).toFixed(4)} 0`,
@@ -2211,7 +2414,7 @@
             }
 
             let orbitDaysPerSecond = clamp(Number(speedRange.value) || 2.5, 0.05, 24);
-            speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} hari/detik`;
+            speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} days/sec`;
 
             let currentFocusBody = resolveBodyByName(requestedModel);
             arSystem = null;
@@ -2222,7 +2425,7 @@
                 }
 
                 const label = markerLabel || (activeMarkerEl && activeMarkerEl.dataset.markerLabel) || "QR/Hiro";
-                systemMetaEl.textContent = `Marker: ${label} | Root: ${arSystem.rootBody.name} | Fokus: ${arSystem.focusBody.name} | Node AR: ${arSystem.nodes.length}`;
+                systemMetaEl.textContent = `Marker: ${label} | Root: ${displayBodyName(arSystem.rootBody.name)} | Focus: ${displayBodyName(arSystem.focusBody.name)} | AR Nodes: ${arSystem.nodes.length}`;
             }
 
             function setActiveFocusByName(bodyName, markerLabel) {
@@ -2231,7 +2434,7 @@
                 }
 
                 currentFocusBody = resolveBodyByName(bodyName || requestedModel);
-                modelNameEl.textContent = currentFocusBody.name;
+                modelNameEl.textContent = displayBodyName(currentFocusBody.name);
                 const updatedUrl = new URL(window.location.href);
                 updatedUrl.searchParams.set("model", currentFocusBody.name);
                 window.history.replaceState({}, "", updatedUrl.toString());
@@ -2250,6 +2453,14 @@
                     return null;
                 }
                 return markerNode.querySelector("[data-model-root]");
+            }
+
+            function resolveMarkerModelName(markerNode) {
+                if (orbinexsimRuntimeModule && typeof orbinexsimRuntimeModule.resolveObjectNameForMarker === "function") {
+                    return orbinexsimRuntimeModule.resolveObjectNameForMarker(markerNode, requestedModel);
+                }
+
+                return (markerNode && markerNode.dataset && markerNode.dataset.model || requestedModel || "Earth").trim();
             }
 
             function activateMarker(markerNode) {
@@ -2271,14 +2482,14 @@
                 activeMarkerEl = markerNode;
                 setMarkerHint(markerNode);
                 const markerLabel = markerNode.dataset.markerLabel || markerNode.id || "marker";
-                const markerModel = (markerNode.dataset.model || requestedModel || "Bumi").trim();
+                const markerModel = resolveMarkerModelName(markerNode);
                 const focusChanged = !arSystem || !currentFocusBody || currentFocusBody.name !== resolveBodyByName(markerModel).name;
 
                 if (rootChanged || focusChanged) {
                     setActiveFocusByName(markerModel, markerLabel);
                 }
 
-                statusEl.textContent = `Marker ${markerLabel} terdeteksi. Menampilkan ${currentFocusBody.name}.`;
+                statusEl.textContent = `Marker ${markerLabel} detected. Showing ${displayBodyName(currentFocusBody.name)}.`;
             }
 
             let viewScale = 1;
@@ -2308,7 +2519,8 @@
             }
 
             setActiveFocusByName(requestedModel, (activeMarkerEl && activeMarkerEl.dataset.markerLabel) || "QR/Hiro");
-            statusEl.textContent = "Aktifkan kamera, scan marker Hiro/Kanji, lalu gunakan drag/pinch untuk rotasi + zoom.";
+            statusEl.textContent = "Enable camera access, scan a Hiro/Kanji marker, then use drag/pinch for rotation and zoom.";
+            void applyCatalogProxyFromRuntimeModule();
 
             zoomInButton.addEventListener("click", () => zoomBy(1.12));
             zoomOutButton.addEventListener("click", () => zoomBy(0.9));
@@ -2324,10 +2536,10 @@
 
             speedRange.addEventListener("input", () => {
                 orbitDaysPerSecond = clamp(Number(speedRange.value) || 2.5, 0.05, 24);
-                speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} hari/detik`;
+                speedValue.textContent = `${orbitDaysPerSecond.toFixed(2)} days/sec`;
 
                 if (orbitDaysPerSecond > 14) {
-                    statusEl.textContent = `Kecepatan ${orbitDaysPerSecond.toFixed(2)} hari/detik: mode chaos visual aktif (orbit jadi tidak stabil).`;
+                    statusEl.textContent = `Speed ${orbitDaysPerSecond.toFixed(2)} days/sec: chaos visual mode active (orbits become unstable).`;
                 }
             });
 
@@ -2380,7 +2592,7 @@
                         cameraReady = true;
                         autoCloseSheetAfterCameraReady();
                         if (!markerDetected) {
-                            statusEl.textContent = "Kamera aktif. Arahkan marker Hiro/Kanji (25-60% area layar) agar model muncul.";
+                            statusEl.textContent = "Camera is active. Point to a Hiro/Kanji marker (25-60% of screen area) to render the model.";
                         }
                     }
                     return true;
@@ -2397,12 +2609,12 @@
                 bindArMiniSwapTarget();
                 autoCloseSheetAfterCameraReady();
                 if (!markerDetected) {
-                    statusEl.textContent = "Kamera AR terinisialisasi. Arahkan ke marker objek sekarang.";
+                    statusEl.textContent = "AR camera initialized. Point to the object marker now.";
                 }
             }
 
             function handleCameraError() {
-                statusEl.textContent = "Gagal membuka kamera. Pastikan izin kamera aktif dan browser mendukung WebRTC.";
+                statusEl.textContent = "Failed to open camera. Ensure camera permission is granted and the browser supports WebRTC.";
             }
 
             window.addEventListener("camera-init", handleCameraInit);
@@ -2414,7 +2626,7 @@
                 applyMainVideoLayer();
                 applySceneCanvasLayout();
                 bindArMiniSwapTarget();
-                statusEl.textContent = "Scene AR siap. Menunggu kamera dan marker Hiro/Kanji.";
+                statusEl.textContent = "AR scene ready. Waiting for camera and Hiro/Kanji marker.";
             });
 
             sceneEl.addEventListener("renderstart", () => {
@@ -2446,11 +2658,11 @@
 
             window.setTimeout(() => {
                 if (!cameraReady) {
-                    statusEl.textContent = "Kamera belum aktif. Cek izin kamera browser, lalu reload halaman AR.";
+                    statusEl.textContent = "Camera is not active yet. Check browser camera permission, then reload the AR page.";
                     return;
                 }
                 if (!markerDetected) {
-                    statusEl.textContent = "Kamera aktif, tapi marker belum terbaca. Dekatkan HP ke marker objek dan hindari blur/pantulan layar.";
+                    statusEl.textContent = "Camera is active, but no marker detected yet. Move closer to the marker and avoid blur/reflections.";
                 }
             }, 12000);
 
@@ -2579,27 +2791,81 @@
             }
             requestAnimationFrame(animateFrame);
 
-            markerEls.forEach((markerNode) => {
-                markerVisibilityState.set(markerNode.id, false);
+            function bindFallbackMarkerTracking() {
+                markerVisibilityState.clear();
+                const disposers = [];
 
-                markerNode.addEventListener("markerFound", () => {
-                    markerVisibilityState.set(markerNode.id, true);
-                    markerDetected = true;
-                    activateMarker(markerNode);
+                markerEls.forEach((markerNode, index) => {
+                    const markerId = markerNode.id || `marker-${index + 1}`;
+                    markerVisibilityState.set(markerId, false);
+
+                    const onFound = () => {
+                        markerVisibilityState.set(markerId, true);
+                        markerDetected = true;
+                        activateMarker(markerNode);
+                    };
+
+                    const onLost = () => {
+                        markerVisibilityState.set(markerId, false);
+                        markerDetected = Array.from(markerVisibilityState.values()).some(Boolean);
+
+                        if (!markerDetected) {
+                            statusEl.textContent = "Marker lost. Point the camera back to the marker to show the model again.";
+                        }
+                    };
+
+                    markerNode.addEventListener("markerFound", onFound);
+                    markerNode.addEventListener("markerLost", onLost);
+
+                    disposers.push(() => {
+                        markerNode.removeEventListener("markerFound", onFound);
+                        markerNode.removeEventListener("markerLost", onLost);
+                    });
                 });
 
-                markerNode.addEventListener("markerLost", () => {
-                    markerVisibilityState.set(markerNode.id, false);
-                    markerDetected = Array.from(markerVisibilityState.values()).some(Boolean);
+                return () => {
+                    disposers.forEach((dispose) => dispose());
+                };
+            }
 
-                    if (!markerDetected) {
-                        statusEl.textContent = "Marker hilang. Arahkan kamera ke marker objek agar model muncul lagi.";
+            async function bindMarkerTrackingHandlers() {
+                if (typeof stopMarkerTracking === "function") {
+                    stopMarkerTracking();
+                    stopMarkerTracking = null;
+                }
+
+                refreshMarkerReferences();
+
+                try {
+                    const runtimeModule = await loadOrbinexsimRuntimeModule();
+                    if (runtimeModule && typeof runtimeModule.bindMarkerTracking === "function") {
+                        stopMarkerTracking = runtimeModule.bindMarkerTracking(markerEls, {
+                            onMarkerFound: (summary) => {
+                                markerVisibilityState.set(summary.markerId, true);
+                                markerDetected = true;
+                                activateMarker(summary.markerNode);
+                            },
+                            onMarkerLost: (summary) => {
+                                markerVisibilityState.set(summary.markerId, false);
+                                markerDetected = !!summary.isAnyVisible;
+                                if (!markerDetected) {
+                                    statusEl.textContent = "Marker lost. Point the camera back to the marker to show the model again.";
+                                }
+                            },
+                        });
+                        return;
                     }
-                });
-            });
+                } catch {
+                    // Fallback listener below handles non-module runtime.
+                }
+
+                stopMarkerTracking = bindFallbackMarkerTracking();
+            }
+
+            void bindMarkerTrackingHandlers();
 
             if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
-                statusEl.textContent = "Perlu HTTPS agar izin kamera AR bisa aktif di browser modern.";
+                statusEl.textContent = "HTTPS is required to enable AR camera permission in modern browsers.";
             }
         })();
     </script>

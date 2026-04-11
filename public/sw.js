@@ -1,4 +1,4 @@
-const CACHE_VERSION = "orbinex-pwa-v3";
+const CACHE_VERSION = "orbinex-pwa-v5";
 const CORE_CACHE = `${CACHE_VERSION}-core`;
 const DB_CACHE = `${CACHE_VERSION}-db`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
@@ -8,6 +8,7 @@ const CORE_ASSETS = [
     "./index.html",
     "./ar-view.html",
     "./manifest.webmanifest",
+    "./favicon.ico",
     "./orbinex-logo.svg",
     "./orbinex.png",
     "./db/cn2tw_1.json",
@@ -88,16 +89,28 @@ async function staleWhileRevalidate(request, cacheName) {
     const cache = await caches.open(cacheName);
     const cached = await cache.match(request);
 
-    const networkPromise = fetch(request)
-        .then((response) => {
-            if (response.ok || response.type === "opaque") {
-                cache.put(request, response.clone());
-            }
-            return response;
-        })
-        .catch(() => null);
+    if (cached) {
+        // Return cached response immediately and refresh cache in the background.
+        fetch(request)
+            .then((response) => {
+                if (response.ok || response.type === "opaque") {
+                    return cache.put(request, response.clone());
+                }
+                return undefined;
+            })
+            .catch(() => undefined);
+        return cached;
+    }
 
-    return cached || networkPromise || new Response("Offline", { status: 503, statusText: "Offline" });
+    try {
+        const network = await fetch(request);
+        if (network.ok || network.type === "opaque") {
+            await cache.put(request, network.clone());
+        }
+        return network;
+    } catch {
+        return new Response("Offline", { status: 503, statusText: "Offline" });
+    }
 }
 
 function navigationFallbackPath(pathname) {
@@ -136,6 +149,29 @@ self.addEventListener("fetch", (event) => {
 
     const url = new URL(request.url);
     if (url.origin !== self.location.origin) {
+        return;
+    }
+
+    if (url.pathname === "/favicon.ico") {
+        event.respondWith((async () => {
+            const coreCache = await caches.open(CORE_CACHE);
+            const cached = await coreCache.match("./favicon.ico");
+            if (cached) {
+                return cached;
+            }
+
+            try {
+                const iconResponse = await fetch("./favicon.ico", { cache: "no-store" });
+                if (iconResponse.ok || iconResponse.type === "opaque") {
+                    await coreCache.put("./favicon.ico", iconResponse.clone());
+                    return iconResponse;
+                }
+            } catch {
+                // Fall through to empty response.
+            }
+
+            return new Response("", { status: 204, statusText: "No Content" });
+        })());
         return;
     }
 

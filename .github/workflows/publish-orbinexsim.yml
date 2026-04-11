@@ -1,22 +1,41 @@
-name: Publish OrbinexSim Package
+name: Auto Publish OrbinexSim Package
 
 on:
   workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump type
+        required: false
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
   push:
-    tags:
-      - "orbinexsim-v*"
+    branches:
+      - main
+    paths:
+      - "orbinexsim-npm/**"
+
+concurrency:
+  group: publish-orbinexsim
+  cancel-in-progress: false
 
 jobs:
   publish-npm:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     defaults:
       run:
         working-directory: orbinexsim-npm
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js for npm
         uses: actions/setup-node@v4
@@ -24,43 +43,48 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
+      - name: Validate npm automation token
+        env:
+          NPM_AUTOMATION_TOKEN: ${{ secrets.NPM_AUTOMATION_TOKEN }}
+        run: |
+          if [ -z "$NPM_AUTOMATION_TOKEN" ]; then
+            echo "Missing secret: NPM_AUTOMATION_TOKEN"
+            echo "Create npm granular token with publish permission and bypass 2FA, then save as this secret."
+            exit 1
+          fi
+
       - name: Install dependencies
         run: npm ci
 
       - name: Build package
         run: npm run build
+
+      - name: Bump package version
+        id: version
+        run: |
+          BUMP_TYPE="${{ github.event.inputs.bump }}"
+          if [ -z "$BUMP_TYPE" ]; then
+            BUMP_TYPE="patch"
+          fi
+          npm version "$BUMP_TYPE" --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm
         run: npm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_AUTOMATION_TOKEN }}
 
-  publish-github-packages:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    defaults:
-      run:
-        working-directory: orbinexsim-npm
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js for GitHub Packages
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          registry-url: https://npm.pkg.github.com
-          scope: '@galihru'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build package
-        run: npm run build
-
-      - name: Publish to GitHub Packages
-        run: npm publish --registry=https://npm.pkg.github.com
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit version bump and push tag
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No version changes to commit"
+          else
+            git commit -m "chore(release): orbinexsim v${NEW_VERSION} [skip ci]"
+            git tag "orbinexsim-v${NEW_VERSION}"
+            git push origin "HEAD:${GITHUB_REF_NAME}" --follow-tags
+          fi

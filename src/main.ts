@@ -312,20 +312,20 @@ const PWA_DB_FILES = [
 const app = byId<HTMLElement>("app");
 app.innerHTML = `
   <main id="sim-main" class="sim-root" aria-label="Orbinex full canvas simulation">
-        <canvas id="universe-canvas" aria-label="Kanvas simulasi semesta tiga dimensi"></canvas>
+    <canvas id="universe-canvas" aria-label="3D universe simulation canvas"></canvas>
 
-        <section id="hover-card" class="hover-card is-hidden" aria-live="polite" aria-label="Ringkasan objek di bawah kursor">
+    <section id="hover-card" class="hover-card is-hidden" aria-live="polite" aria-label="Object summary under pointer">
             <p id="hover-card-name" class="hover-card-name">-</p>
             <p id="hover-card-parent" class="hover-card-parent">-</p>
             <p id="hover-card-distance" class="hover-card-distance">-</p>
         </section>
 
-        <section id="splash" class="splash is-visible" role="dialog" aria-modal="true" aria-label="Memuat OrbinexSimulation">
+        <section id="splash" class="splash is-visible" role="dialog" aria-modal="true" aria-label="Loading OrbinexSimulation">
             <img src="${splashLogoUrl}" alt="Logo Orbinex" width="128" height="128" />
             <p class="splash-kicker">ORBINEXSIMULATION</p>
             <h1>Universe Sandbox Scientific 3D</h1>
-            <p id="splash-status">Menyalakan mesin fisika...</p>
-            <progress id="splash-progress" max="100" value="8" aria-label="Kemajuan memuat simulasi"></progress>
+            <p id="splash-status">Starting physics engine...</p>
+            <progress id="splash-progress" max="100" value="8" aria-label="Simulation loading progress"></progress>
             <span id="splash-percent" class="splash-percent">8%</span>
         </section>
 
@@ -335,102 +335,102 @@ app.innerHTML = `
                 <span>Web Universe Sandbox</span>
             </div>
             <div class="button-row">
-                <button id="btn-run" type="button">JEDA</button>
-                <button id="btn-focus" type="button">FOKUS+</button>
-                <button id="btn-trail" type="button">JEJAK</button>
-                        <button id="btn-guides" type="button">LINTASAN</button>
+                <button id="btn-run" type="button">PAUSE</button>
+                <button id="btn-focus" type="button">FOCUS+</button>
+                <button id="btn-trail" type="button">TRAIL</button>
+                        <button id="btn-guides" type="button">ORBIT</button>
                 <button id="btn-label" type="button">LABEL</button>
                 <button id="btn-info" type="button">INFO</button>
-                <button id="btn-search" type="button">CARI</button>
+                <button id="btn-search" type="button">SEARCH</button>
                 <button id="btn-ref" type="button">REF</button>
-                <button id="btn-help" type="button">BANTU</button>
-                <button id="btn-language" type="button">BAHASA: ID</button>
+                <button id="btn-help" type="button">HELP</button>
+                <button id="btn-language" type="button">LANG: EN</button>
             </div>
         </header>
 
         <aside class="hud-panel" aria-live="polite">
-            <pre id="hud-text">Memuat telemetry...</pre>
+            <pre id="hud-text">Loading telemetry...</pre>
         </aside>
 
-        <aside id="right-stack" class="right-stack" aria-label="Stack panel kanan">
-            <section id="search-panel" class="search-panel" aria-label="Panel pencarian objek">
+        <aside id="right-stack" class="right-stack" aria-label="Right panel stack">
+            <section id="search-panel" class="search-panel" aria-label="Object search panel">
                 <div class="search-row">
-                    <input id="search-input" list="search-suggestions" placeholder="Cari objek... (tekan /)" aria-label="Cari objek semesta" />
+                    <input id="search-input" list="search-suggestions" placeholder="Search objects... (press /)" aria-label="Search universe objects" />
                     <button id="search-go" type="button">GO</button>
                     <button id="search-clear" type="button">CLR</button>
                 </div>
                 <datalist id="search-suggestions"></datalist>
-                <p id="search-meta">Indeks pencarian: 0</p>
+                <p id="search-meta">Search index: 0</p>
                 <ol id="search-results" class="search-results"></ol>
             </section>
 
-            <section id="info-panel" class="info-panel" aria-live="polite" aria-label="Panel detail objek">
+            <section id="info-panel" class="info-panel" aria-live="polite" aria-label="Object detail panel">
                 <div class="info-head">
                     <div class="info-media">
                         <div class="info-image-wrap">
-                            <canvas id="info-preview" class="info-image" aria-label="Pratinjau 3D objek"></canvas>
+                            <canvas id="info-preview" class="info-image" aria-label="Object 3D preview"></canvas>
                             <img
                                 id="info-preview-marker"
                                 class="info-preview-marker"
                                 src="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
-                                alt="Ikon marker objek"
+                                alt="Object marker icon"
                                 loading="lazy"
                             />
                         </div>
                     </div>
                     <div>
                         <div class="info-title-row">
-                            <h2 id="info-name">Tidak ada objek dipilih</h2>
-                            <button id="info-ar-trigger" class="info-ar-trigger" type="button" aria-label="Lihat kode AR dan marker">AR</button>
-                            <figure id="info-ar-card" class="info-ar-card" aria-label="QR AR objek aktif">
+                            <h2 id="info-name">No object selected</h2>
+                            <button id="info-ar-trigger" class="info-ar-trigger" type="button" aria-label="View AR code and marker">AR</button>
+                            <figure id="info-ar-card" class="info-ar-card" aria-label="Active object AR QR">
                                 <div class="info-ar-code-wrap">
-                                    <img id="info-ar-qr" class="info-ar-qr" alt="QR AR belum tersedia" />
+                                    <img id="info-ar-qr" class="info-ar-qr" alt="AR QR not available yet" />
                                 </div>
-                                <figcaption id="info-ar-caption" class="info-ar-caption">Scan HP untuk AR objek aktif</figcaption>
-                                <a id="info-ar-link" class="info-ar-link" href="#" target="_blank" rel="noopener noreferrer">Buka AR di HP</a>
+                                <figcaption id="info-ar-caption" class="info-ar-caption">Scan with your phone to open AR for the active object</figcaption>
+                                <a id="info-ar-link" class="info-ar-link" href="#" target="_blank" rel="noopener noreferrer">Open AR on phone</a>
                             </figure>
                         </div>
                         <p id="info-kind">-</p>
-                        <p id="info-source" class="info-source">Sumber: Orbinex Engine</p>
-                        <p id="info-quality" class="info-quality">Kualitas referensi: internal model</p>
+                        <p id="info-source" class="info-source">Source: Orbinex Engine</p>
+                        <p id="info-quality" class="info-quality">Reference quality: internal model</p>
                         <p id="info-parent" class="info-parent">Parent: -</p>
                     </div>
                 </div>
                 <dl>
-                    <div><dt>Massa</dt><dd id="info-mass">-</dd></div>
+                    <div><dt>Mass</dt><dd id="info-mass">-</dd></div>
                     <div><dt>Radius</dt><dd id="info-radius">-</dd></div>
-                    <div><dt>Jarak ke Matahari</dt><dd id="info-distance-sun">-</dd></div>
-                    <div><dt>Jarak tampilan</dt><dd id="info-distance-render">-</dd></div>
-                    <div><dt>Kecepatan</dt><dd id="info-speed">-</dd></div>
-                    <div><dt>Suhu perkiraan</dt><dd id="info-temperature">-</dd></div>
-                    <div><dt>Rotasi</dt><dd id="info-rotation">-</dd></div>
-                    <div><dt>Revolusi</dt><dd id="info-revolution">-</dd></div>
-                    <div><dt>Tingkat struktur</dt><dd id="info-hierarchy">-</dd></div>
-                    <div><dt>Tipe orbit</dt><dd id="info-orbit-type">-</dd></div>
-                    <div><dt>Gravitasi permukaan</dt><dd id="info-gravity">-</dd></div>
-                    <div><dt>Kecepatan lepas</dt><dd id="info-escape">-</dd></div>
-                    <div><dt>Fluks radiasi</dt><dd id="info-radiation">-</dd></div>
-                    <div><dt>UV relatif</dt><dd id="info-uv">-</dd></div>
-                    <div><dt>Radius Schwarzschild</dt><dd id="info-schwarzschild">-</dd></div>
-                    <div><dt>Suhu Hawking</dt><dd id="info-hawking">-</dd></div>
-                    <div><dt>Posisi</dt><dd id="info-position">-</dd></div>
+                    <div><dt>Distance to Sun</dt><dd id="info-distance-sun">-</dd></div>
+                    <div><dt>Render distance</dt><dd id="info-distance-render">-</dd></div>
+                    <div><dt>Speed</dt><dd id="info-speed">-</dd></div>
+                    <div><dt>Estimated temperature</dt><dd id="info-temperature">-</dd></div>
+                    <div><dt>Rotation</dt><dd id="info-rotation">-</dd></div>
+                    <div><dt>Revolution</dt><dd id="info-revolution">-</dd></div>
+                    <div><dt>Structure level</dt><dd id="info-hierarchy">-</dd></div>
+                    <div><dt>Orbit type</dt><dd id="info-orbit-type">-</dd></div>
+                    <div><dt>Surface gravity</dt><dd id="info-gravity">-</dd></div>
+                    <div><dt>Escape velocity</dt><dd id="info-escape">-</dd></div>
+                    <div><dt>Radiation flux</dt><dd id="info-radiation">-</dd></div>
+                    <div><dt>Relative UV</dt><dd id="info-uv">-</dd></div>
+                    <div><dt>Schwarzschild radius</dt><dd id="info-schwarzschild">-</dd></div>
+                    <div><dt>Hawking temperature</dt><dd id="info-hawking">-</dd></div>
+                    <div><dt>Position</dt><dd id="info-position">-</dd></div>
                     <div><dt>Velocity</dt><dd id="info-velocity">-</dd></div>
                 </dl>
-                <p id="info-description" class="info-desc">Arahkan mouse ke objek untuk melihat detail ilmiah.</p>
+                <p id="info-description" class="info-desc">Hover an object to view scientific details.</p>
                 <button id="info-pin" type="button" class="info-pin">Pin Panel</button>
             </section>
 
-            <section class="events-panel" aria-label="Panel event simulasi">
-                <h2>Log event berbasis AI</h2>
-                <p class="events-tip">Klik event untuk fokus ke koordinat kejadian.</p>
+            <section class="events-panel" aria-label="Simulation event panel">
+                <h2>AI event log</h2>
+                <p class="events-tip">Click an event to focus on the event coordinates.</p>
                 <ol id="events-list" class="events-list">
-                    <li class="event-item event-item-empty">Belum ada event.</li>
+                    <li class="event-item event-item-empty">No events yet.</li>
                 </ol>
             </section>
         </aside>
 
-        <section id="hierarchy-panel" class="hierarchy-panel" aria-label="Panel filter hirarki kosmik">
-            <h2>Filter Hirarki 1-13</h2>
+        <section id="hierarchy-panel" class="hierarchy-panel" aria-label="Cosmic hierarchy filter panel">
+            <h2>Hierarchy Filter 1-13</h2>
             <div class="hierarchy-row">
                 <label for="hierarchy-min">Min</label>
                 <input id="hierarchy-min" type="range" min="1" max="13" step="1" value="1" />
@@ -441,23 +441,23 @@ app.innerHTML = `
                 <input id="hierarchy-max" type="range" min="1" max="13" step="1" value="13" />
                 <span id="hierarchy-max-value">13</span>
             </div>
-            <p id="hierarchy-note">Menampilkan level 1 sampai 13.</p>
-            <button id="hierarchy-reset" type="button">RESET HIRARKI</button>
+            <p id="hierarchy-note">Showing levels 1 to 13.</p>
+            <button id="hierarchy-reset" type="button">RESET HIERARCHY</button>
         </section>
 
-        <section id="help-panel" class="help-panel" aria-label="Bantuan kontrol">
-        <h2>Hint kontrol</h2>
+        <section id="help-panel" class="help-panel" aria-label="Control help">
+        <h2>Control hints</h2>
         <ul>
-            <li>Drag untuk orbit kamera, wheel untuk zoom.</li>
-            <li>TAB atau tombol FOKUS+ untuk ganti objek fokus.</li>
-            <li>SPACE untuk pause/jalan.</li>
-            <li>T untuk jejak, L untuk label, C untuk konteks, / untuk cari.</li>
-                    <li>R untuk reset kamera kembali mengorbit Bumi.</li>
-            <li>Klik objek untuk pin panel detail.</li>
+            <li>Drag to orbit camera, wheel to zoom.</li>
+            <li>TAB or FOCUS+ button to switch focus object.</li>
+            <li>SPACE to pause/resume.</li>
+            <li>T for trail, L for labels, C for context, / for search.</li>
+                    <li>R to reset camera back to Earth orbit.</li>
+            <li>Click an object to pin the detail panel.</li>
         </ul>
         </section>
 
-                <p id="bottom-hint" class="bottom-hint">Ringkasan: drag/arrow orbit kamera | wheel zoom | TAB fokus | / cari | R reset bumi | klik objek pin panel</p>
+                <p id="bottom-hint" class="bottom-hint">Summary: drag/arrow orbit | wheel zoom | TAB focus | / search | R reset Earth | click object to pin panel</p>
   </main>
 `;
 
@@ -543,24 +543,24 @@ const helpPanel = byId<HTMLElement>("help-panel");
 
 const i18n = {
     id: {
-        pause: "JEDA",
-        resume: "JALAN",
-        focus: "FOKUS+",
-        trailOn: "JEJAK",
-        trailOff: "JEJAK:OFF",
-        guidesOn: "LINTASAN",
-        guidesOff: "LINTASAN:OFF",
+        pause: "PAUSE",
+        resume: "RUN",
+        focus: "FOCUS+",
+        trailOn: "TRAIL",
+        trailOff: "TRAIL:OFF",
+        guidesOn: "ORBIT",
+        guidesOff: "ORBIT:OFF",
         labelOn: "LABEL",
         labelOff: "LABEL:OFF",
         infoOn: "INFO",
         infoOff: "INFO:OFF",
-        searchOn: "CARI",
-        searchOff: "CARI:OFF",
-        helpOn: "BANTU",
-        helpOff: "BANTU:OFF",
-        lang: "BAHASA: ID",
-        bottomHint: "Ringkasan: drag/arrow orbit kamera | wheel zoom | TAB fokus | / cari | R reset bumi | klik objek pin panel",
-        searchPlaceholder: "Cari objek... (tekan /)",
+        searchOn: "SEARCH",
+        searchOff: "SEARCH:OFF",
+        helpOn: "HELP",
+        helpOff: "HELP:OFF",
+        lang: "LANG: EN",
+        bottomHint: "Summary: drag/arrow orbit | wheel zoom | TAB focus | / search | R reset Earth | click object to pin panel",
+        searchPlaceholder: "Search object... (press /)",
     },
     en: {
         pause: "PAUSE",
@@ -611,7 +611,7 @@ const viewState: ViewState = {
 
 const uiState: UiState = {
     running: true,
-    language: "id",
+    language: "en",
     focusName: "Bumi",
     hoverKey: null,
     selectedKey: null,
@@ -738,14 +738,41 @@ let pwaInstalled = window.matchMedia("(display-mode: standalone)").matches
 let pwaListenersBound = false;
 
 const bodyDescriptions: Record<string, string> = {
-    Matahari: "Bintang pusat sistem; sumber utama energi dan referensi gravitasi.",
-    Bumi: "Planet terestrial dengan biosfer aktif dan satelit alami Bulan.",
-    Jupiter: "Planet jovian terbesar; mendominasi resonansi gravitasi planet luar.",
-    Saturnus: "Planet cincin utama dengan sistem satelit kompleks.",
-    "Sagittarius A*": "Black hole supermasif di pusat galaksi Bima Sakti.",
-    "Bima Sakti": "Galaksi spiral rumah sistem surya pada lengan Orion.",
-    "Andromeda (M31)": "Galaksi tetangga terbesar di Grup Lokal.",
+    Matahari: "Central star of the system; primary energy source and gravity reference.",
+    Bumi: "Terrestrial planet with an active biosphere and the Moon as a natural satellite.",
+    Jupiter: "Largest Jovian planet; dominates outer-planet gravitational resonances.",
+    Saturnus: "Major ringed planet with a complex moon system.",
+    "Sagittarius A*": "Supermassive black hole at the center of the Milky Way.",
+    "Bima Sakti": "Spiral galaxy that hosts the Solar System in the Orion Arm.",
+    "Andromeda (M31)": "Largest neighboring galaxy in the Local Group.",
 };
+
+const bodyDisplayNames: Record<string, string> = {
+    Matahari: "Sun",
+    Merkurius: "Mercury",
+    Venus: "Venus",
+    Bumi: "Earth",
+    Bulan: "Moon",
+    Mars: "Mars",
+    Jupiter: "Jupiter",
+    Saturnus: "Saturn",
+    Uranus: "Uranus",
+    Neptunus: "Neptune",
+    "Bima Sakti": "Milky Way",
+    "Grup Lokal": "Local Group",
+    "Sistem Surya Lokal": "Local Solar System",
+    "Lengan Orion": "Orion Arm",
+    "Filamen Kosmik": "Cosmic Filament",
+    "Superklaster Laniakea": "Laniakea Supercluster",
+    "Void Lokal": "Local Void",
+};
+
+function displayBodyName(name: string | null | undefined): string {
+    if (!name) {
+        return "-";
+    }
+    return bodyDisplayNames[name] ?? name;
+}
 
 const bodyImagesByName: Record<string, string> = {
     Matahari: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Solar_sys8.jpg/640px-Solar_sys8.jpg",
@@ -808,24 +835,24 @@ const sourceQualityScore: Record<string, number> = {
 function sourceQualityLabel(source: string): string {
     const score = sourceQualityScore[source] ?? 2;
     if (score >= 5) {
-        return "Agency catalog / jurnal terkurasi";
+        return "Agency catalog / curated journals";
     }
     if (score === 4) {
-        return "Basis data astronomi terverifikasi";
+        return "Verified astronomy databases";
     }
     if (score === 3) {
-        return "Katalog sekunder";
+        return "Secondary catalog";
     }
     if (score === 2) {
-        return "Model ilmiah terarah";
+        return "Guided scientific model";
     }
-    return "Model simulasi";
+    return "Simulation model";
 }
 
 function bodyReferenceQuality(name: string): string {
     const sources = Array.from(bodySourcesByName.get(name) ?? []);
     if (sources.length === 0) {
-        return "Model simulasi";
+        return "Simulation model";
     }
 
     const top = sources
@@ -847,7 +874,7 @@ function updateHierarchyFilterUi(): void {
     hierarchyMaxInput.value = `${viewState.hierarchyMax}`;
     hierarchyMinValue.textContent = `${viewState.hierarchyMin}`;
     hierarchyMaxValue.textContent = `${viewState.hierarchyMax}`;
-    hierarchyNote.textContent = `Menampilkan level ${viewState.hierarchyMin} sampai ${viewState.hierarchyMax}.`;
+    hierarchyNote.textContent = `Showing levels ${viewState.hierarchyMin} to ${viewState.hierarchyMax}.`;
 }
 
 function ensureFocusWithinVisibleBodies(): void {
@@ -874,10 +901,10 @@ function applyScientificDataOnly(enabled: boolean): void {
     viewState.scientificDataOnly = enabled;
     if (enabled) {
         clearSyntheticGalaxyBodies();
-        addLocalEvent("Mode Scientific Data Only aktif: objek sintetis disembunyikan.");
+        addLocalEvent("Scientific Data Only mode enabled: synthetic objects hidden.");
     } else {
         addSyntheticGalaxySystems();
-        addLocalEvent(`Mode Scientific Data Only nonaktif: model sintetis aktif (${syntheticGalaxyBodyNames.size} objek).`);
+        addLocalEvent(`Scientific Data Only mode disabled: synthetic model enabled (${syntheticGalaxyBodyNames.size} objects).`);
     }
 
     if (uiState.selectedKey) {
@@ -1034,7 +1061,7 @@ const esaFallbackEntries: ExternalCatalogEntry[] = [
         decDeg: -5.34,
         distancePc: 480,
         colorHex: "#8ba0ff",
-        description: "Objek kandidat black hole dari observasi Gaia (referensi sains ESA).",
+        description: "Candidate black hole object from Gaia observations (ESA science reference).",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Black_hole_-_Messier_87_crop_max_res.jpg/640px-Black_hole_-_Messier_87_crop_max_res.jpg",
     },
     {
@@ -1044,7 +1071,7 @@ const esaFallbackEntries: ExternalCatalogEntry[] = [
         decDeg: 7.59,
         distancePc: 38.7,
         colorHex: "#9ec7ff",
-        description: "Eksoplanet kandidat layak huni yang sering dirujuk pada materi eksoplanet ESA.",
+        description: "Potentially habitable exoplanet frequently referenced in ESA exoplanet materials.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Exoplanet_Comparison_K2-18b.png/640px-Exoplanet_Comparison_K2-18b.png",
     },
     {
@@ -1054,7 +1081,7 @@ const esaFallbackEntries: ExternalCatalogEntry[] = [
         decDeg: 24.12,
         distancePc: 120,
         colorHex: "#9fd6ff",
-        description: "Anchor cluster sintetis untuk menampilkan ingest ESA/Gaia pada simulasi web.",
+        description: "Synthetic anchor cluster to represent ESA/Gaia ingest in the web simulation.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Pleiades_large.jpg/640px-Pleiades_large.jpg",
     },
 ];
@@ -1067,7 +1094,7 @@ const jaxaFallbackEntries: ExternalCatalogEntry[] = [
         decDeg: 7.18,
         distancePc: 960,
         colorHex: "#7e8bff",
-        description: "Sumber sinar-X biner yang aktif pada observasi misi MAXI/JAXA.",
+        description: "Active binary X-ray source from MAXI/JAXA mission observations.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/Artist%E2%80%99s_impression_of_Cygnus_X-1.jpg/640px-Artist%E2%80%99s_impression_of_Cygnus_X-1.jpg",
     },
     {
@@ -1077,7 +1104,7 @@ const jaxaFallbackEntries: ExternalCatalogEntry[] = [
         decDeg: 22.01,
         distancePc: 2000,
         colorHex: "#8fc8d8",
-        description: "Area referensi observasi spektrum energi tinggi yang dikurasi dari publikasi JAXA.",
+        description: "Reference high-energy spectrum observation area curated from JAXA publications.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg/640px-Orion_Nebula_-_Hubble_2006_mosaic_18000.jpg",
     },
     {
@@ -1087,7 +1114,7 @@ const jaxaFallbackEntries: ExternalCatalogEntry[] = [
         decDeg: -5.1,
         distancePc: 4,
         colorHex: "#b9c8e8",
-        description: "Koridor lintasan sintetis misi Hayabusa/Hayabusa2 untuk meniru ingest JAXA pada HUD.",
+        description: "Synthetic trajectory corridor for Hayabusa/Hayabusa2 missions to emulate JAXA ingest on the HUD.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Hayabusa2_at_Ryugu_%28artist%27s_impression%29.jpg/640px-Hayabusa2_at_Ryugu_%28artist%27s_impression%29.jpg",
     },
 ];
@@ -1100,7 +1127,7 @@ const nedFallbackEntries: ExternalCatalogEntry[] = [
         decDeg: -19.41,
         distancePc: 19000000,
         colorHex: "#9cb8e2",
-        description: "Galaksi spiral berbatang dari katalog NED/IPAC (fallback kurasi).",
+        description: "Barred spiral galaxy from the NED/IPAC catalog (curated fallback).",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/NGC_1300_HST.jpg/640px-NGC_1300_HST.jpg",
     },
     {
@@ -1110,7 +1137,7 @@ const nedFallbackEntries: ExternalCatalogEntry[] = [
         decDeg: -23.38,
         distancePc: 40000000,
         colorHex: "#93afd4",
-        description: "Galaksi host dari event gelombang gravitasi GW170817 yang tercantum pada NED.",
+        description: "Host galaxy of the GW170817 gravitational-wave event listed in NED.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/NGC_4993_Hubble_WFC3.jpg/640px-NGC_4993_Hubble_WFC3.jpg",
     },
     {
@@ -1120,7 +1147,7 @@ const nedFallbackEntries: ExternalCatalogEntry[] = [
         decDeg: -43.02,
         distancePc: 3800000,
         colorHex: "#9db7cf",
-        description: "Galaksi radio aktif populer di basis data ekstragalaksi NED.",
+        description: "Well-known active radio galaxy in the NED extragalactic database.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Centaurus_A.jpg/640px-Centaurus_A.jpg",
     },
 ];
@@ -1134,7 +1161,7 @@ const simbadFallbackEntries: ExternalCatalogEntry[] = [
         distancePc: 2.64,
         colorHex: "#cddfff",
         parentName: "Sirius A",
-        description: "Katalog bintang SIMBAD untuk sistem Sirius.",
+        description: "SIMBAD stellar catalog entry for the Sirius system.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Sirius_A_and_B_Hubble_photo.jpg/640px-Sirius_A_and_B_Hubble_photo.jpg",
     },
     {
@@ -1145,7 +1172,7 @@ const simbadFallbackEntries: ExternalCatalogEntry[] = [
         distancePc: 1.83,
         colorHex: "#ffb98d",
         parentName: "Bima Sakti",
-        description: "Bintang katai merah dengan proper motion besar dari katalog SIMBAD.",
+        description: "Red dwarf star with high proper motion from the SIMBAD catalog.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/RedDwarfNASA.jpg/640px-RedDwarfNASA.jpg",
     },
     {
@@ -1156,7 +1183,7 @@ const simbadFallbackEntries: ExternalCatalogEntry[] = [
         distancePc: 1170,
         colorHex: "#ff9f8a",
         parentName: "Bima Sakti",
-        description: "Supergiant merah dari SIMBAD, sering dipakai sebagai referensi ukuran bintang.",
+        description: "Red supergiant from SIMBAD, commonly used as a stellar size reference.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/VY_Canis_Majoris.jpg/640px-VY_Canis_Majoris.jpg",
     },
 ];
@@ -1170,7 +1197,7 @@ const mpcFallbackEntries: ExternalCatalogEntry[] = [
         distancePc: 0.000006,
         colorHex: "#d3c1a6",
         parentName: "Matahari",
-        description: "Near-Earth asteroid dari arsip Minor Planet Center (MPC).",
+        description: "Near-Earth asteroid from the Minor Planet Center (MPC) archive.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/99942_Apophis_asteroid.jpg/640px-99942_Apophis_asteroid.jpg",
     },
     {
@@ -1181,7 +1208,7 @@ const mpcFallbackEntries: ExternalCatalogEntry[] = [
         distancePc: 0.000004,
         colorHex: "#bcae95",
         parentName: "Matahari",
-        description: "Asteroid target misi OSIRIS-REx dari katalog MPC.",
+        description: "OSIRIS-REx mission target asteroid from the MPC catalog.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Bennu_in_natural_color.jpg/640px-Bennu_in_natural_color.jpg",
     },
     {
@@ -1192,7 +1219,7 @@ const mpcFallbackEntries: ExternalCatalogEntry[] = [
         distancePc: 0.000014,
         colorHex: "#b9c7d8",
         parentName: "Matahari",
-        description: "Planet kerdil sabuk asteroid utama dari data MPC/IAU.",
+        description: "Main-belt dwarf planet from MPC/IAU data.",
         imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/76/Ceres_-_RC3_-_Haulani_Crater_%2822381131691%29.jpg/640px-Ceres_-_RC3_-_Haulani_Crater_%2822381131691%29.jpg",
     },
 ];
@@ -1276,10 +1303,10 @@ function morphologyForGalaxy(body: UniverseBody): GalaxyMorphology {
     if (sourceText.includes("magellan") || sourceText.includes("irregular") || sourceText.includes("tak beraturan")) {
         return "irregular";
     }
-    if (sourceText.includes("ngc 1300") || sourceText.includes("berpalang") || sourceText.includes("barred") || sourceText.includes("bar ")) {
+    if (sourceText.includes("ngc 1300") || sourceText.includes("barred") || sourceText.includes("bar ")) {
         return "barred-spiral";
     }
-    if (sourceText.includes("m87") || sourceText.includes("ellipt") || sourceText.includes("elips")) {
+    if (sourceText.includes("m87") || sourceText.includes("ellipt")) {
         return "elliptical";
     }
     return "spiral";
@@ -1292,22 +1319,22 @@ function normalizeCatalogKind(
 ): UniverseBody["kind"] {
     const text = `${name} ${description ?? ""}`.toLowerCase();
 
-    if (text.includes("matahari") || text.includes("sun")) {
+    if (text.includes("sun")) {
         return "star";
     }
     if (text.includes("black hole") || text.includes("black-hole") || text.includes("bh") || text.includes("sagittarius a*") || text.includes("m87*")) {
         return "black-hole";
     }
-    if (text.includes("galaxy") || text.includes("m31") || text.includes("m33") || text.includes("ngc") || text.includes("andromeda") || text.includes("bima sakti") || text.includes("milky way")) {
+    if (text.includes("galaxy") || text.includes("m31") || text.includes("m33") || text.includes("ngc") || text.includes("andromeda") || text.includes("milky way")) {
         return "galaxy";
     }
-    if (text.includes("cluster") || text.includes("grup lokal") || text.includes("laniakea")) {
+    if (text.includes("cluster") || text.includes("laniakea")) {
         return "cluster";
     }
     if (text.includes("nebula") || text.includes("snr")) {
         return "nebula";
     }
-    if (text.includes("comet") || text.includes("komet")) {
+    if (text.includes("comet")) {
         return "comet";
     }
     if (text.includes("meteor") || text.includes("asteroid") || text.includes("meteoroid")) {
@@ -1316,7 +1343,7 @@ function normalizeCatalogKind(
     if (text.includes("planet") || text.includes("exoplanet") || /\bp-\d+\b/.test(text)) {
         return "planet";
     }
-    if (text.includes("moon") || text.includes("bulan") || text.includes("satellite")) {
+    if (text.includes("moon") || text.includes("satellite")) {
         return "moon";
     }
 
@@ -1367,19 +1394,19 @@ function preferredFocusDistance(body: UniverseBody): number {
 function hierarchyRankForBody(body: UniverseBody): number {
     const name = body.name.toLowerCase();
 
-    if (name.includes("observable universe") || name.includes("alam semesta teramati")) {
+    if (name.includes("observable universe")) {
         return 13;
     }
     if (name.includes("void")) {
         return 12;
     }
-    if (name.includes("filamen") || name.includes("filament") || name.includes("cosmic web")) {
+    if (name.includes("filament") || name.includes("cosmic web")) {
         return 11;
     }
-    if (name.includes("supercluster") || name.includes("superklaster") || name.includes("laniakea")) {
+    if (name.includes("supercluster") || name.includes("laniakea")) {
         return 10;
     }
-    if (name.includes("local group") || name.includes("grup lokal") || name.includes("group")) {
+    if (name.includes("local group") || name.includes("group")) {
         return 8;
     }
     if (body.kind === "cluster") {
@@ -1388,10 +1415,10 @@ function hierarchyRankForBody(body: UniverseBody): number {
     if (body.kind === "galaxy") {
         return 7;
     }
-    if (name.includes("lengan") || name.includes("arm")) {
+    if (name.includes("arm")) {
         return 6;
     }
-    if (name.includes("sistem") || name.includes("system")) {
+    if (name.includes("system")) {
         return 5;
     }
     if (body.kind === "star" || body.kind === "black-hole") {
@@ -1413,21 +1440,21 @@ function hierarchyRankForBody(body: UniverseBody): number {
 function hierarchyLabelForBody(body: UniverseBody): string {
     const rank = hierarchyRankForBody(body);
     const labels: Record<number, string> = {
-        1: "1. Satelit alami",
-        2: "2. Asteroid/Komet/Meteoroid",
+        1: "1. Natural satellite",
+        2: "2. Asteroid/Comet/Meteoroid",
         3: "3. Planet",
-        4: "4. Bintang / Remnan kompak",
-        5: "5. Sistem gravitasi lokal",
-        6: "6. Lengan spiral galaksi",
-        7: "7. Galaksi",
+        4: "4. Star / Compact remnant",
+        5: "5. Local gravitational system",
+        6: "6. Galactic spiral arm",
+        7: "7. Galaxy",
         8: "8. Galaxy Group",
         9: "9. Galaxy Cluster",
         10: "10. Supercluster",
-        11: "11. Filamen kosmik",
-        12: "12. Void kosmik",
+        11: "11. Cosmic filament",
+        12: "12. Cosmic void",
         13: "13. Observable Universe",
     };
-    return labels[rank] ?? "5. Sistem gravitasi lokal";
+    return labels[rank] ?? "5. Local gravitational system";
 }
 
 function bodyWithinHierarchyWindow(body: UniverseBody): boolean {
@@ -1637,7 +1664,7 @@ function ensureCosmicHierarchyBodies(): void {
         alive: true,
         parentName: "Bima Sakti",
         isHypothesis: false,
-    }, "Representasi sistem bintang lokal (bintang+planet+satelit+small bodies).");
+    }, "Representation of the local stellar system (star+planets+moons+small bodies).");
 
     if (milkyWay) {
         registerDynamicOrbit(
@@ -1662,7 +1689,7 @@ function ensureCosmicHierarchyBodies(): void {
         alive: true,
         parentName: "Bima Sakti",
         isHypothesis: false,
-    }, "Lengan spiral tempat Matahari berada di Bima Sakti.");
+    }, "Spiral arm where the Sun is located within the Milky Way.");
 
     if (milkyWay) {
         registerDynamicOrbit(
@@ -1687,7 +1714,7 @@ function ensureCosmicHierarchyBodies(): void {
         alive: true,
         parentName: "Laniakea",
         isHypothesis: false,
-    }, "Klaster galaksi padat (skala ratusan-ribuan galaksi).", ["Scientific Hierarchy Model", "NASA", "ESA"]);
+    }, "Dense galaxy cluster (scale of hundreds to thousands of galaxies).", ["Scientific Hierarchy Model", "NASA", "ESA"]);
 
     if (laniakea) {
         registerDynamicOrbit(
@@ -1712,7 +1739,7 @@ function ensureCosmicHierarchyBodies(): void {
         alive: true,
         parentName: "Filamen Kosmik",
         isHypothesis: false,
-    }, "Representasi supercluster pada jaringan kosmik skala sangat besar.");
+    }, "Supercluster representation in very-large-scale cosmic structure.");
 
     if (filament) {
         registerDynamicOrbit(
@@ -1743,7 +1770,7 @@ function ensureCosmicHierarchyBodies(): void {
         alive: true,
         parentName: "Filamen Kosmik",
         isHypothesis: false,
-    }, "Wilayah kosmik sangat jarang galaksi (void), bukan benda pejal.");
+    }, "Extremely low-density cosmic region (void), not a solid body.");
 
     upsertSyntheticBody({
         name: "Observable Universe",
@@ -1756,7 +1783,7 @@ function ensureCosmicHierarchyBodies(): void {
         alive: true,
         parentName: null,
         isHypothesis: false,
-    }, "Batas alam semesta teramati (~93 miliar tahun cahaya diameter).", ["Scientific Hierarchy Model", "NASA"]);
+    }, "Boundary of the observable universe (~93 billion light-years in diameter).", ["Scientific Hierarchy Model", "NASA"]);
 }
 
 type PlanetaryMoonSeed = {
@@ -1783,7 +1810,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 0.319,
         inclinationDeg: 1.1,
         eccentricity: 0.015,
-        description: "Satelit alami terdalam Mars; orbit sangat dekat dan cepat.",
+        description: "Innermost natural moon of Mars; very close and fast orbit.",
     },
     {
         name: "Deimos (Mars)",
@@ -1795,7 +1822,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 1.263,
         inclinationDeg: 1.8,
         eccentricity: 0.0002,
-        description: "Satelit alami terluar Mars dengan orbit lebih stabil.",
+        description: "Outer natural moon of Mars with a more stable orbit.",
     },
     {
         name: "Io (Jupiter)",
@@ -1807,7 +1834,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 1.769,
         inclinationDeg: 0.04,
         eccentricity: 0.004,
-        description: "Satelit Galilean dengan aktivitas vulkanik sangat tinggi.",
+        description: "Galilean moon with very high volcanic activity.",
     },
     {
         name: "Europa (Jupiter)",
@@ -1819,7 +1846,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 3.551,
         inclinationDeg: 0.47,
         eccentricity: 0.009,
-        description: "Satelit Galilean dengan indikasi samudra bawah permukaan es.",
+        description: "Galilean moon with indications of a subsurface ocean beneath ice.",
     },
     {
         name: "Ganymede (Jupiter)",
@@ -1831,7 +1858,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 7.154,
         inclinationDeg: 0.2,
         eccentricity: 0.001,
-        description: "Satelit terbesar Tata Surya, memiliki medan magnet intrinsik.",
+        description: "Largest moon in the Solar System, with an intrinsic magnetic field.",
     },
     {
         name: "Callisto (Jupiter)",
@@ -1843,7 +1870,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 16.689,
         inclinationDeg: 0.28,
         eccentricity: 0.007,
-        description: "Satelit Galilean terluar dengan permukaan berkrater tua.",
+        description: "Outermost Galilean moon with an old cratered surface.",
     },
     {
         name: "Amalthea (Jupiter)",
@@ -1855,7 +1882,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 0.498,
         inclinationDeg: 0.37,
         eccentricity: 0.003,
-        description: "Satelit kecil Jupiter di wilayah dalam sistem Jovian.",
+        description: "Small inner Jupiter moon in the Jovian system.",
     },
     {
         name: "Titan (Saturnus)",
@@ -1867,7 +1894,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 15.945,
         inclinationDeg: 0.35,
         eccentricity: 0.029,
-        description: "Satelit terbesar Saturnus dengan atmosfer tebal kaya nitrogen.",
+        description: "Largest moon of Saturn with a thick nitrogen-rich atmosphere.",
     },
     {
         name: "Rhea (Saturnus)",
@@ -1879,7 +1906,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 4.518,
         inclinationDeg: 0.35,
         eccentricity: 0.001,
-        description: "Satelit es besar Saturnus dengan crater terrain luas.",
+        description: "Large icy Saturn moon with broad cratered terrain.",
     },
     {
         name: "Iapetus (Saturnus)",
@@ -1891,7 +1918,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 79.322,
         inclinationDeg: 15.5,
         eccentricity: 0.028,
-        description: "Satelit Saturnus dengan kontras albedo dua belahan sangat khas.",
+        description: "Saturn moon with a distinctive two-hemisphere albedo contrast.",
     },
     {
         name: "Dione (Saturnus)",
@@ -1903,7 +1930,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 2.737,
         inclinationDeg: 0.02,
         eccentricity: 0.002,
-        description: "Satelit es Saturnus pada orbit menengah.",
+        description: "Icy Saturn moon on a mid-range orbit.",
     },
     {
         name: "Tethys (Saturnus)",
@@ -1915,7 +1942,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 1.888,
         inclinationDeg: 1.1,
         eccentricity: 0.0,
-        description: "Satelit es Saturnus dengan crater dan graben besar.",
+        description: "Icy Saturn moon with major craters and grabens.",
     },
     {
         name: "Enceladus (Saturnus)",
@@ -1927,7 +1954,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 1.37,
         inclinationDeg: 0.0,
         eccentricity: 0.005,
-        description: "Satelit aktif geologi dengan plume kriovolkanik.",
+        description: "Geologically active moon with cryovolcanic plumes.",
     },
     {
         name: "Mimas (Saturnus)",
@@ -1939,7 +1966,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 0.942,
         inclinationDeg: 1.6,
         eccentricity: 0.02,
-        description: "Satelit kecil Saturnus dengan crater raksasa Herschel.",
+        description: "Small Saturn moon with the giant Herschel crater.",
     },
     {
         name: "Titania (Uranus)",
@@ -1951,7 +1978,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 8.706,
         inclinationDeg: 0.1,
         eccentricity: 0.002,
-        description: "Satelit terbesar Uranus dengan lembah tektonik panjang.",
+        description: "Largest moon of Uranus with long tectonic valleys.",
     },
     {
         name: "Oberon (Uranus)",
@@ -1963,7 +1990,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 13.463,
         inclinationDeg: 0.1,
         eccentricity: 0.001,
-        description: "Satelit luar Uranus dengan permukaan es gelap.",
+        description: "Outer Uranus moon with a dark icy surface.",
     },
     {
         name: "Triton (Neptunus)",
@@ -1975,7 +2002,7 @@ const planetaryMoonSeeds: PlanetaryMoonSeed[] = [
         periodDays: 5.877,
         inclinationDeg: 156.8,
         eccentricity: 0.0,
-        description: "Satelit retrograde Neptunus dengan aktivitas kriovolkanik.",
+        description: "Retrograde Neptune moon with cryovolcanic activity.",
     },
 ];
 
@@ -2015,7 +2042,7 @@ const planetaryDebrisProfiles: PlanetaryDebrisProfile[] = [
         massMaxKg: 8e12,
         colorHex: "#caa482",
         sources: ["MPC", "NASA", "Synthetic Planetary Model"],
-        note: "Meteoroid cluster sintetis koridor Mars.",
+        note: "Synthetic meteoroid cluster in the Mars corridor.",
     },
     {
         parentName: "Jupiter",
@@ -2033,7 +2060,7 @@ const planetaryDebrisProfiles: PlanetaryDebrisProfile[] = [
         massMaxKg: 2e13,
         colorHex: "#d0b08a",
         sources: ["MPC", "NASA", "Synthetic Planetary Model"],
-        note: "Meteoroid swarm sintetis zona Jovian.",
+        note: "Synthetic meteoroid swarm in the Jovian zone.",
     },
     {
         parentName: "Jupiter",
@@ -2051,7 +2078,7 @@ const planetaryDebrisProfiles: PlanetaryDebrisProfile[] = [
         massMaxKg: 9e14,
         colorHex: "#9cd5ff",
         sources: ["MPC", "ESA", "Synthetic Planetary Model"],
-        note: "Komet terperangkap sintetis gravitasi Jupiter.",
+        note: "Synthetic comets captured by Jupiter's gravity.",
     },
     {
         parentName: "Saturnus",
@@ -2069,7 +2096,7 @@ const planetaryDebrisProfiles: PlanetaryDebrisProfile[] = [
         massMaxKg: 1.6e13,
         colorHex: "#cdbb9f",
         sources: ["MPC", "NASA", "Synthetic Planetary Model"],
-        note: "Meteoroid swarm sintetis zona Saturnian.",
+        note: "Synthetic meteoroid swarm in the Saturnian zone.",
     },
     {
         parentName: "Saturnus",
@@ -2087,7 +2114,7 @@ const planetaryDebrisProfiles: PlanetaryDebrisProfile[] = [
         massMaxKg: 1e15,
         colorHex: "#9ac9f0",
         sources: ["MPC", "ESA", "Synthetic Planetary Model"],
-        note: "Komet terperangkap sintetis gravitasi Saturnus.",
+        note: "Synthetic comets captured by Saturn's gravity.",
     },
 ];
 
@@ -2125,7 +2152,7 @@ const planetaryMinorMoonProfiles: PlanetaryMinorMoonProfile[] = [
         massMaxKg: 6e15,
         colorHex: "#b89f7f",
         sources: ["MPC", "NASA", "Synthetic Planetary Model"],
-        note: "Satelit minor sintetis orbit Mars.",
+        note: "Synthetic minor moons orbiting Mars.",
     },
     {
         parentName: "Jupiter",
@@ -2142,7 +2169,7 @@ const planetaryMinorMoonProfiles: PlanetaryMinorMoonProfile[] = [
         massMaxKg: 8e18,
         colorHex: "#b5b9c3",
         sources: ["NASA", "JPL Horizons", "Synthetic Planetary Model"],
-        note: "Satelit minor sintetis orbit Jupiter.",
+        note: "Synthetic minor moons orbiting Jupiter.",
     },
     {
         parentName: "Saturnus",
@@ -2159,7 +2186,7 @@ const planetaryMinorMoonProfiles: PlanetaryMinorMoonProfile[] = [
         massMaxKg: 9e18,
         colorHex: "#c4bba8",
         sources: ["NASA", "JPL Horizons", "Synthetic Planetary Model"],
-        note: "Satelit minor sintetis orbit Saturnus.",
+        note: "Synthetic minor moons orbiting Saturn.",
     },
     {
         parentName: "Uranus",
@@ -2176,7 +2203,7 @@ const planetaryMinorMoonProfiles: PlanetaryMinorMoonProfile[] = [
         massMaxKg: 5e18,
         colorHex: "#b8cad4",
         sources: ["NASA", "JPL Horizons", "Synthetic Planetary Model"],
-        note: "Satelit minor sintetis orbit Uranus.",
+        note: "Synthetic minor moons orbiting Uranus.",
     },
     {
         parentName: "Neptunus",
@@ -2193,7 +2220,7 @@ const planetaryMinorMoonProfiles: PlanetaryMinorMoonProfile[] = [
         massMaxKg: 6e18,
         colorHex: "#b6c4d3",
         sources: ["NASA", "JPL Horizons", "Synthetic Planetary Model"],
-        note: "Satelit minor sintetis orbit Neptunus.",
+        note: "Synthetic minor moons orbiting Neptune.",
     },
 ];
 
@@ -2365,7 +2392,7 @@ function addSyntheticGalaxySystems(): void {
             };
             pushCatalogBody(coreBody, {
                 sources: ["Synthetic Galaxy Model"],
-                description: `Objek inti gravitasional sintetis untuk ${parent.name}.`,
+                description: `Synthetic gravitational core object for ${parent.name}.`,
             });
             syntheticGalaxyBodyNames.add(coreName);
         }
@@ -2386,7 +2413,7 @@ function addSyntheticGalaxySystems(): void {
             };
             pushCatalogBody(starBody, {
                 sources: ["Synthetic Galaxy Model"],
-                description: `Bintang sintetis pada cabang ${parent.name}.`,
+                description: `Synthetic star in branch ${parent.name}.`,
             });
             syntheticGalaxyBodyNames.add(starName);
 
@@ -2416,7 +2443,7 @@ function addSyntheticGalaxySystems(): void {
                 };
                 pushCatalogBody(planetBody, {
                     sources: ["Synthetic Galaxy Model"],
-                    description: `Planet sintetis sistem ${starName}.`,
+                    description: `Synthetic planet in ${starName} system.`,
                 });
                 syntheticGalaxyBodyNames.add(planetName);
 
@@ -2448,7 +2475,7 @@ function addSyntheticGalaxySystems(): void {
             };
             pushCatalogBody(cometBody, {
                 sources: ["Synthetic Galaxy Model"],
-                description: `Komet sintetis pada halo ${parent.name}.`,
+                description: `Synthetic comet in the ${parent.name} halo.`,
             });
             syntheticGalaxyBodyNames.add(cometName);
             registerDynamicOrbit(
@@ -2478,7 +2505,7 @@ function addSyntheticGalaxySystems(): void {
             };
             pushCatalogBody(meteorBody, {
                 sources: ["Synthetic Galaxy Model"],
-                description: `Meteoroid sintetis pada halo ${parent.name}.`,
+                description: `Synthetic meteoroid in the ${parent.name} halo.`,
             });
             syntheticGalaxyBodyNames.add(meteorName);
             registerDynamicOrbit(
@@ -2497,7 +2524,7 @@ function addSyntheticGalaxySystems(): void {
     addSyntheticPlanetarySystems();
 
     nasaCatalogEntries = nasaCatalogBodies.length;
-    addLocalEvent(`Model sintetis galaksi+tata surya diperbarui: +${syntheticGalaxyBodyNames.size} objek dinamis.`);
+    addLocalEvent(`Synthetic galaxy+solar model updated: +${syntheticGalaxyBodyNames.size} dynamic objects.`);
 }
 
 function updateDynamicCatalogBodies(dtMs: number): void {
@@ -2610,7 +2637,7 @@ function updateDynamicCatalogBodies(dtMs: number): void {
             .join(", ");
         const extraCount = capturedBodies.size - 3;
         addLocalEvent(
-            `Objek minor tersedot gravitasi dan hancur: ${samples}${extraCount > 0 ? ` (+${extraCount} lainnya)` : ""}.`,
+            `Minor objects captured and destroyed by gravity: ${samples}${extraCount > 0 ? ` (+${extraCount} more)` : ""}.`,
         );
     }
 }
@@ -2714,7 +2741,7 @@ function stabilizeMajorMoonOrbits(): void {
 
 function addLocalEvent(message: string): void {
     const stamp = engine.getStateSnapshot().yearsElapsed.toFixed(3);
-    localEvents.unshift(`[ingest] waktu=${stamp} tahun | ${message}`);
+    localEvents.unshift(`[ingest] time=${stamp} years | ${message}`);
     if (localEvents.length > 16) {
         localEvents.splice(16);
     }
@@ -2995,7 +3022,7 @@ async function predownloadOfflineDatabaseAssets(): Promise<void> {
         }
     }
 
-    addLocalEvent("Database offline dipersiapkan agar akses PWA lebih cepat.");
+    addLocalEvent("Offline database prepared to speed up PWA access.");
 }
 
 async function registerPwaServiceWorker(): Promise<void> {
@@ -3013,7 +3040,7 @@ async function registerPwaServiceWorker(): Promise<void> {
         });
         await registration.update();
     } catch {
-        addLocalEvent("Service worker gagal didaftarkan. Mode offline terbatas.");
+        addLocalEvent("Service worker registration failed. Offline mode is limited.");
     }
 }
 
@@ -3027,7 +3054,7 @@ function setupPwaSupport(): void {
 
     window.addEventListener("appinstalled", () => {
         pwaInstalled = true;
-        addLocalEvent("PWA terpasang. Mulai sinkronisasi database offline.");
+        addLocalEvent("PWA installed. Starting offline database sync.");
         void predownloadOfflineDatabaseAssets();
     });
 
@@ -3166,7 +3193,7 @@ function applyNasaRows(rows: NasaExoplanetRow[]): number {
             hostMap.set(hostName, hostBody);
             pushCatalogBody(hostBody, {
                 sources: ["NASA"],
-                description: `Host star katalog NASA Exoplanet Archive (${hostName}).`,
+                description: `Host star from NASA Exoplanet Archive catalog (${hostName}).`,
             });
             freshCount += 1;
             reservedNames.add(hostDisplayName);
@@ -3202,7 +3229,7 @@ function applyNasaRows(rows: NasaExoplanetRow[]): number {
         };
         pushCatalogBody(planetBody, {
             sources: ["NASA"],
-            description: `Eksoplanet ${row.pl_name} dari katalog NASA Exoplanet Archive.`,
+            description: `Exoplanet ${row.pl_name} from the NASA Exoplanet Archive catalog.`,
         });
         registerDynamicOrbit(
             planetBody.name,
@@ -3222,7 +3249,7 @@ function applyNasaRows(rows: NasaExoplanetRow[]): number {
 function ingestFallbackCatalogs(): IngestStatus[] {
     const statuses: IngestStatus[] = [];
 
-    setSplashProgress(40, "Fallback: memproses NASA...");
+    setSplashProgress(40, "Fallback: processing NASA...");
     const nasaAdded = applyNasaRows(fallbackNasaRows);
     const nasa: IngestStatus = {
         source: "NASA",
@@ -3231,10 +3258,10 @@ function ingestFallbackCatalogs(): IngestStatus[] {
         note: "NASA fallback rows enabled",
     };
     setIngestStatus(nasa.source, nasa.mode, nasa.count, nasa.note);
-    addLocalEvent(`NASA ingest fallback aktif: +${nasaAdded} objek referensi.`);
+    addLocalEvent(`NASA fallback ingest enabled: +${nasaAdded} reference objects.`);
     statuses.push(nasa);
 
-    setSplashProgress(44, "Fallback: memproses ESA...");
+    setSplashProgress(44, "Fallback: processing ESA...");
     const esaAdded = applyCatalogEntries(esaFallbackEntries, "ESA");
     const esa: IngestStatus = {
         source: "ESA",
@@ -3243,10 +3270,10 @@ function ingestFallbackCatalogs(): IngestStatus[] {
         note: "ESA fallback dataset active",
     };
     setIngestStatus(esa.source, esa.mode, esa.count, esa.note);
-    addLocalEvent(`ESA ingest fallback aktif: +${esaAdded} objek katalog.`);
+    addLocalEvent(`ESA fallback ingest enabled: +${esaAdded} catalog objects.`);
     statuses.push(esa);
 
-    setSplashProgress(48, "Fallback: memproses JAXA...");
+    setSplashProgress(48, "Fallback: processing JAXA...");
     const jaxaAdded = applyCatalogEntries(jaxaFallbackEntries, "JAXA");
     const jaxa: IngestStatus = {
         source: "JAXA",
@@ -3255,10 +3282,10 @@ function ingestFallbackCatalogs(): IngestStatus[] {
         note: "JAXA fallback dataset active",
     };
     setIngestStatus(jaxa.source, jaxa.mode, jaxa.count, jaxa.note);
-    addLocalEvent(`JAXA ingest fallback aktif: +${jaxaAdded} objek katalog.`);
+    addLocalEvent(`JAXA fallback ingest enabled: +${jaxaAdded} catalog objects.`);
     statuses.push(jaxa);
 
-    setSplashProgress(52, "Fallback: memproses NED...");
+    setSplashProgress(52, "Fallback: processing NED...");
     const nedAdded = applyCatalogEntries(nedFallbackEntries, "NED");
     const ned: IngestStatus = {
         source: "NED",
@@ -3267,10 +3294,10 @@ function ingestFallbackCatalogs(): IngestStatus[] {
         note: "NED fallback dataset active",
     };
     setIngestStatus(ned.source, ned.mode, ned.count, ned.note);
-    addLocalEvent(`NED ingest fallback aktif: +${nedAdded} objek katalog.`);
+    addLocalEvent(`NED fallback ingest enabled: +${nedAdded} catalog objects.`);
     statuses.push(ned);
 
-    setSplashProgress(56, "Fallback: memproses SIMBAD...");
+    setSplashProgress(56, "Fallback: processing SIMBAD...");
     const simbadAdded = applyCatalogEntries(simbadFallbackEntries, "SIMBAD");
     const simbad: IngestStatus = {
         source: "SIMBAD",
@@ -3279,10 +3306,10 @@ function ingestFallbackCatalogs(): IngestStatus[] {
         note: "SIMBAD fallback dataset active",
     };
     setIngestStatus(simbad.source, simbad.mode, simbad.count, simbad.note);
-    addLocalEvent(`SIMBAD ingest fallback aktif: +${simbadAdded} objek katalog.`);
+    addLocalEvent(`SIMBAD fallback ingest enabled: +${simbadAdded} catalog objects.`);
     statuses.push(simbad);
 
-    setSplashProgress(60, "Fallback: memproses MPC...");
+    setSplashProgress(60, "Fallback: processing MPC...");
     const mpcAdded = applyCatalogEntries(mpcFallbackEntries, "MPC");
     const mpc: IngestStatus = {
         source: "MPC",
@@ -3291,7 +3318,7 @@ function ingestFallbackCatalogs(): IngestStatus[] {
         note: "MPC fallback dataset active",
     };
     setIngestStatus(mpc.source, mpc.mode, mpc.count, mpc.note);
-    addLocalEvent(`MPC ingest fallback aktif: +${mpcAdded} objek katalog.`);
+    addLocalEvent(`MPC fallback ingest enabled: +${mpcAdded} catalog objects.`);
     statuses.push(mpc);
 
     return statuses;
@@ -3300,7 +3327,7 @@ function ingestFallbackCatalogs(): IngestStatus[] {
 function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[] {
     const statuses: IngestStatus[] = [];
 
-    setSplashProgress(40, "Sinkronisasi NASA Exoplanet Archive...");
+    setSplashProgress(40, "Syncing NASA Exoplanet Archive...");
     const nasaRows = payload.nasa?.rows;
     const hasNasaRows = Array.isArray(nasaRows) && nasaRows.length > 0;
     const nasaAdded = applyNasaRows(hasNasaRows ? nasaRows : fallbackNasaRows);
@@ -3311,7 +3338,7 @@ function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[]
         note: payload.nasa?.note ?? (hasNasaRows ? "NASA cached catalog loaded" : "NASA fallback rows enabled"),
     };
     setIngestStatus(nasa.source, nasa.mode, nasa.count, nasa.note);
-    addLocalEvent(`NASA ingest ${nasa.mode}: +${nasaAdded} objek katalog.`);
+    addLocalEvent(`NASA ingest ${nasa.mode}: +${nasaAdded} catalog objects.`);
     statuses.push(nasa);
 
     const agencyEntries = payload.agencies ?? {};
@@ -3325,7 +3352,7 @@ function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[]
 
     const sourceProgress: Record<string, number> = { ESA: 44, JAXA: 48, NED: 52, SIMBAD: 56, MPC: 60 };
     for (const sourceName of ["ESA", "JAXA", "NED", "SIMBAD", "MPC"]) {
-        setSplashProgress(sourceProgress[sourceName], `Sinkronisasi ${sourceName} catalog...`);
+        setSplashProgress(sourceProgress[sourceName], `Syncing ${sourceName} catalog...`);
         const sourceFile = agencyEntries[sourceName];
         const sourceRows = sourceFile?.entries;
         const entries = Array.isArray(sourceRows) && sourceRows.length > 0
@@ -3343,7 +3370,7 @@ function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[]
             note: sourceFile?.note ?? `${sourceName} catalog loaded`,
         };
         setIngestStatus(status.source, status.mode, status.count, status.note);
-        addLocalEvent(`${sourceName} ingest ${status.mode}: +${added} objek katalog.`);
+        addLocalEvent(`${sourceName} ingest ${status.mode}: +${added} catalog objects.`);
         statuses.push(status);
     }
 
@@ -3352,17 +3379,17 @@ function ingestFromAgencyCatalogFile(payload: AgencyCatalogFile): IngestStatus[]
 
 async function ingestExternalCatalogs(): Promise<IngestRunSummary> {
     const startedAt = performance.now();
-    setSplashProgress(30, "Mengambil payload katalog NASA/ESA/JAXA/NED/SIMBAD/MPC...");
+    setSplashProgress(30, "Fetching NASA/ESA/JAXA/NED/SIMBAD/MPC catalog payload...");
     const payload = await fetchAgencyCatalogFile();
-    setSplashProgress(38, payload ? "Payload katalog diterima, memvalidasi struktur data..." : "Payload tidak tersedia, menyiapkan fallback ilmiah...");
+    setSplashProgress(38, payload ? "Catalog payload received, validating data structure..." : "Payload unavailable, preparing scientific fallback...");
     const statuses = payload ? ingestFromAgencyCatalogFile(payload) : ingestFallbackCatalogs();
     const online = statuses.filter((entry) => entry.mode === "online").length;
     const fallback = statuses.filter((entry) => entry.mode === "fallback").length;
     const failed = statuses.filter((entry) => entry.mode === "failed").length;
 
-    setSplashProgress(62, `Sinkronisasi sumber selesai (online=${online} fallback=${fallback} failed=${failed}).`);
+    setSplashProgress(62, `Source sync complete (online=${online} fallback=${fallback} failed=${failed}).`);
 
-    addLocalEvent(`Ingest selesai: online=${online} fallback=${fallback} failed=${failed}.`);
+    addLocalEvent(`Ingest complete: online=${online} fallback=${fallback} failed=${failed}.`);
 
     const generatedAt = typeof payload?.generatedAt === "string" ? payload.generatedAt : null;
     if (generatedAt) {
@@ -3371,10 +3398,10 @@ async function ingestExternalCatalogs(): Promise<IngestRunSummary> {
 
     if (viewState.scientificDataOnly) {
         clearSyntheticGalaxyBodies();
-        setSplashProgress(60, "Mode Scientific Data Only aktif: hanya data observasional/katalog.");
+        setSplashProgress(60, "Scientific Data Only mode enabled: observational/catalog data only.");
     } else {
         addSyntheticGalaxySystems();
-        setSplashProgress(60, `Membangun sistem galaksi dinamis (${syntheticGalaxyBodyNames.size} objek sintetis).`);
+        setSplashProgress(60, `Building dynamic galaxy systems (${syntheticGalaxyBodyNames.size} synthetic objects).`);
     }
 
     return {
@@ -4035,13 +4062,13 @@ function activateLowLagProfile(reason: string): void {
     applyRendererPixelRatioCaps();
     setCanvasSize();
     persistRuntimeProfile("low-lag");
-    addLocalEvent(`Mode anti-lag aktif (${reason}).`);
+    addLocalEvent(`Low-lag mode enabled (${reason}).`);
 }
 
 function restoreRuntimeProfileFromStorage(): void {
     const profile = loadRuntimeProfile();
     if (profile === "low-lag") {
-        activateLowLagProfile("profil tersimpan");
+        activateLowLagProfile("saved profile");
     }
 }
 
@@ -5556,11 +5583,11 @@ function updateInfoPanel(): void {
     const schwarzschildM = schwarzschildRadius(body);
     const hawkingK = hawkingTemperature(body);
 
-    infoName.textContent = body.name;
+    infoName.textContent = displayBodyName(body.name);
     infoKind.textContent = `${body.kind}${body.isHypothesis ? " | hypothesis" : " | observed"}`;
-    infoSource.textContent = `Sumber: ${bodySourceText(body.name)}`;
-    infoQuality.textContent = `Kualitas referensi: ${bodyReferenceQuality(body.name)}`;
-    infoParent.textContent = `Parent: ${body.parentName ?? "-"}`;
+    infoSource.textContent = `Source: ${bodySourceText(body.name)}`;
+    infoQuality.textContent = `Reference quality: ${bodyReferenceQuality(body.name)}`;
+    infoParent.textContent = `Parent: ${displayBodyName(body.parentName)}`;
     infoMass.textContent = formatMass(body.massKg);
     infoRadius.textContent = formatRadius(body.radiusMeters);
     infoDistanceSun.textContent = `${(distanceSun / constants.auMeters).toFixed(3)} AU`;
@@ -5568,15 +5595,15 @@ function updateInfoPanel(): void {
     infoSpeed.textContent = `${speed.toLocaleString(undefined, { maximumFractionDigits: 2 })} m/s`;
     infoTemperature.textContent = `${kelvin.toFixed(2)} K`;
     infoRotation.textContent = Number.isFinite(rotationHours)
-        ? `${Math.abs(rotationHours).toFixed(3)} jam${rotationHours < 0 ? " (retrograde)" : ""}`
-        : "Model dinamis";
+        ? `${Math.abs(rotationHours).toFixed(3)} hours${rotationHours < 0 ? " (retrograde)" : ""}`
+        : "Dynamic model";
     if (orbitGuide && Number.isFinite(orbitGuide.orbitalPeriodSeconds) && orbitGuide.orbitalPeriodSeconds > 0) {
         const days = orbitGuide.orbitalPeriodSeconds / 86400;
         infoRevolution.textContent = days >= 365
-            ? `${(days / 365.25).toFixed(3)} tahun`
-            : `${days.toFixed(3)} hari`;
+            ? `${(days / 365.25).toFixed(3)} years`
+            : `${days.toFixed(3)} days`;
     } else {
-        infoRevolution.textContent = "Model dinamis";
+        infoRevolution.textContent = "Dynamic model";
     }
     infoHierarchy.textContent = hierarchyLabelForBody(body);
     infoOrbitType.textContent = orbitType;
@@ -5592,7 +5619,7 @@ function updateInfoPanel(): void {
     infoVelocity.textContent = `(${formatExp(body.velocity.x)}, ${formatExp(body.velocity.y)}, ${formatExp(body.velocity.z)})`;
     infoDescription.textContent = bodyDescriptionsDynamic.get(body.name)
         ?? bodyDescriptions[body.name]
-        ?? "Objek kosmik aktif dalam simulasi. Klik pin untuk menahan panel saat eksplorasi.";
+        ?? "Active cosmic object in the simulation. Click Pin to keep this panel visible during exploration.";
 
     setInfoPreviewBody(body);
     void updateInfoArCard(body);
@@ -5608,8 +5635,10 @@ function focusBodyBySearchTerm(term: string): boolean {
 
     const targets = focusCandidates();
     const exact = targets.find((body) => body.name.toLowerCase() === normalized);
+    const exactDisplay = targets.find((body) => displayBodyName(body.name).toLowerCase() === normalized);
     const partial = targets.find((body) => body.name.toLowerCase().includes(normalized));
-    const target = exact ?? partial;
+    const partialDisplay = targets.find((body) => displayBodyName(body.name).toLowerCase().includes(normalized));
+    const target = exact ?? exactDisplay ?? partial ?? partialDisplay;
     if (!target) {
         return false;
     }
@@ -5624,14 +5653,17 @@ function updateSearchResults(): void {
     const targets = focusCandidates();
     const filteredTargets = query.length === 0
         ? targets
-        : targets.filter((body) => body.name.toLowerCase().includes(query));
+        : targets.filter((body) =>
+            body.name.toLowerCase().includes(query)
+            || displayBodyName(body.name).toLowerCase().includes(query),
+        );
 
     const filtered = filteredTargets.slice(0, 80);
 
     searchSuggestions.innerHTML = "";
     filteredTargets.slice(0, 120).forEach((body) => {
         const option = document.createElement("option");
-        option.value = body.name;
+        option.value = displayBodyName(body.name);
         option.label = `L${hierarchyRankForBody(body)} ${body.kind} | ${bodySourceText(body.name)}`;
         searchSuggestions.appendChild(option);
     });
@@ -5642,7 +5674,7 @@ function updateSearchResults(): void {
         const button = document.createElement("button");
         button.type = "button";
         const sourceHint = bodySourceText(body.name).split(" | ").slice(0, 2).join("+");
-        button.textContent = `${body.name} [L${hierarchyRankForBody(body)}|${body.kind}] <${sourceHint}>`;
+        button.textContent = `${displayBodyName(body.name)} [L${hierarchyRankForBody(body)}|${body.kind}] <${sourceHint}>`;
         button.addEventListener("click", () => {
             const preferredDistance = preferredFocusDistance(body);
             setFocusBody(body, { pinInfo: true, preferredDistance, durationMs: 820 });
@@ -5659,7 +5691,7 @@ function updateSearchResults(): void {
     const filamentCount = targets.filter((body) => hierarchyRankForBody(body) === 11).length;
     const voidCount = targets.filter((body) => hierarchyRankForBody(body) === 12).length;
     const hypothesisCount = targets.filter((body) => body.isHypothesis).length;
-    searchMeta.textContent = `Mode:${viewState.scientificDataOnly ? "DataOnly" : "Hybrid"} | L${viewState.hierarchyMin}-${viewState.hierarchyMax} | Indeks:${targets.length} | BH:${blackHoleCount} Gal:${galaxyCount} Group:${groupCount} Cluster:${clusterCount} Super:${superclusterCount} Fil:${filamentCount} Void:${voidCount} Hyp:${hypothesisCount} | Eksternal:${nasaCatalogEntries} ${nasaCatalogStatus}`;
+    searchMeta.textContent = `Mode:${viewState.scientificDataOnly ? "DataOnly" : "Hybrid"} | L${viewState.hierarchyMin}-${viewState.hierarchyMax} | Index:${targets.length} | BH:${blackHoleCount} Gal:${galaxyCount} Group:${groupCount} Cluster:${clusterCount} Super:${superclusterCount} Fil:${filamentCount} Void:${voidCount} Hyp:${hypothesisCount} | External:${nasaCatalogEntries} ${nasaCatalogStatus}`;
 }
 
 function updateHudPanel(): void {
@@ -5700,14 +5732,14 @@ function updateHudPanel(): void {
 
     hudText.textContent = [
         "Orbinex",
-        `c=${constants.speedOfLightMps.toFixed(1)} m/s | waktu=${snap.yearsElapsed.toFixed(4)} tahun | kecepatan x${snap.timeScale.toFixed(1)}`,
-        `fokus=${uiState.focusName} | ${uiState.running ? "RUN" : "PAUSE"} | label=${viewState.showLabels ? "on" : "off"}`,
-        `mode=${viewState.scientificDataOnly ? "ScientificDataOnly" : "Scientific+Synthetic"} | hierarki=L${viewState.hierarchyMin}-L${viewState.hierarchyMax}`,
-        `delay Bumi-Matahari=${earthSunDelay.toFixed(2)} s | Bumi-Bulan=${earthMoonDelay.toFixed(2)} s`,
-        `Ast=${asteroidCount} Kuiper=${kuiperCount} Komet=${cometCount} Meteor=${meteorCount}`,
+        `c=${constants.speedOfLightMps.toFixed(1)} m/s | time=${snap.yearsElapsed.toFixed(4)} years | speed x${snap.timeScale.toFixed(1)}`,
+        `focus=${displayBodyName(uiState.focusName)} | ${uiState.running ? "RUN" : "PAUSE"} | label=${viewState.showLabels ? "on" : "off"}`,
+        `mode=${viewState.scientificDataOnly ? "ScientificDataOnly" : "Scientific+Synthetic"} | hierarchy=L${viewState.hierarchyMin}-L${viewState.hierarchyMax}`,
+        `Earth-Sun delay=${earthSunDelay.toFixed(2)} s | Earth-Moon=${earthMoonDelay.toFixed(2)} s`,
+        `Ast=${asteroidCount} Kuiper=${kuiperCount} Comets=${cometCount} Meteors=${meteorCount}`,
         `BH=${snap.counts.blackHole} Galaxy=${snap.counts.galaxy} Nebula=${snap.counts.nebula} Hypothesis=${hypothesisCount}`,
-        `Katalog eksternal=${nasaCatalogEntries} (${nasaCatalogStatus}) | major=${snap.counts.majorBodies} context=${snap.counts.contextBodies}`,
-        `Render3D=${totalRenderObjects} | sintetis-galaksi=${syntheticGalaxyBodyNames.size} | orbit-dinamis=${dynamicCatalogOrbits.size}`,
+        `External catalog=${nasaCatalogEntries} (${nasaCatalogStatus}) | major=${snap.counts.majorBodies} context=${snap.counts.contextBodies}`,
+        `Render3D=${totalRenderObjects} | synthetic-galaxy=${syntheticGalaxyBodyNames.size} | dynamic-orbits=${dynamicCatalogOrbits.size}`,
         `Forecast: ${forecastLine}`,
     ].join("\n");
 }
@@ -5715,21 +5747,21 @@ function updateHudPanel(): void {
 function formatEtaYears(etaYears: number): string {
     const safeYears = Math.max(etaYears, 0);
     if (safeYears >= 1) {
-        return `${safeYears.toFixed(3)} tahun`;
+        return `${safeYears.toFixed(3)} years`;
     }
     const days = safeYears * 365.25;
     if (days >= 1) {
-        return `${days.toFixed(2)} hari`;
+        return `${days.toFixed(2)} days`;
     }
     const hours = days * 24;
     if (hours >= 1) {
-        return `${hours.toFixed(2)} jam`;
+        return `${hours.toFixed(2)} hours`;
     }
     const minutes = hours * 60;
     if (minutes >= 1) {
-        return `${minutes.toFixed(2)} menit`;
+        return `${minutes.toFixed(2)} minutes`;
     }
-    return `${(minutes * 60).toFixed(2)} detik`;
+    return `${(minutes * 60).toFixed(2)} seconds`;
 }
 
 function formatDistanceKm(distanceKm: number): string {
@@ -5805,25 +5837,26 @@ function resetInfoArCard(): void {
     infoArCard.classList.remove("is-loading");
     infoArCard.classList.remove("is-open");
     infoArQr.removeAttribute("src");
-    infoArQr.alt = "QR AR belum tersedia";
+    infoArQr.alt = "AR QR not available yet";
     applyMarkerProfileToInfoUi(profile);
     infoArTrigger.title = `QR AR + ${profile.markerLabel}`;
-    infoArTrigger.setAttribute("aria-label", `Lihat QR AR dan ${profile.markerHint}`);
-    infoArCaption.textContent = "Hover/click ikon AR, scan QR, lalu gunakan marker objek.";
-    infoArLink.textContent = "Buka AR di HP";
+    infoArTrigger.setAttribute("aria-label", `View AR QR and ${profile.markerHint}`);
+    infoArCaption.textContent = "Hover/click the AR icon, scan QR, then use the object marker.";
+    infoArLink.textContent = "Open AR on phone";
     infoArLink.href = arViewerUrlForObject();
 }
 
 async function updateInfoArCard(body: UniverseBody): Promise<void> {
     const arUrl = arViewerUrlForObject(body.name);
     const profile = markerProfileForObject(body.name);
+    const displayName = displayBodyName(body.name);
     infoArLink.href = arUrl;
-    infoArLink.textContent = `Buka AR ${body.name}`;
+    infoArLink.textContent = `Open AR ${displayName}`;
     applyMarkerProfileToInfoUi(profile);
     infoArTrigger.title = `QR AR + ${profile.markerLabel}`;
-    infoArTrigger.setAttribute("aria-label", `Lihat QR AR ${body.name} dan ${profile.markerHint}`);
-    infoArCaption.textContent = `Scan QR HP, lalu arahkan ke ${profile.markerHint}.`;
-    infoArQr.alt = `QR AR untuk ${body.name}`;
+    infoArTrigger.setAttribute("aria-label", `View AR QR for ${displayName} and ${profile.markerHint}`);
+    infoArCaption.textContent = `Scan the phone QR, then point to ${profile.markerHint}.`;
+    infoArQr.alt = `AR QR for ${displayName}`;
 
     if (infoArQrCurrentUrl === arUrl && !!infoArQr.getAttribute("src")) {
         return;
@@ -5860,7 +5893,7 @@ async function updateInfoArCard(body: UniverseBody): Promise<void> {
         }
         infoArQrPendingUrl = "";
         infoArCard.classList.remove("is-loading");
-        infoArCaption.textContent = "QR gagal dibuat. Gunakan tombol Buka AR di HP.";
+        infoArCaption.textContent = "Failed to generate QR. Use the Open AR on phone button.";
     }
 }
 
@@ -5905,11 +5938,11 @@ function updateHoverCard(): void {
         )
         : null;
 
-    hoverCardName.textContent = `${body.name} [${body.kind}]`;
-    hoverCardParent.textContent = `Orbit ke: ${parentName ?? "root / tanpa parent"}`;
+    hoverCardName.textContent = `${displayBodyName(body.name)} [${body.kind}]`;
+    hoverCardParent.textContent = `Orbit to: ${parentName ? displayBodyName(parentName) : "root / no parent"}`;
     hoverCardDistance.textContent = orbitDistanceMeters === null
-        ? "Jarak orbit: n/a"
-        : `Jarak orbit: ${formatOrbitDistance(orbitDistanceMeters)}`;
+        ? "Orbit distance: n/a"
+        : `Orbit distance: ${formatOrbitDistance(orbitDistanceMeters)}`;
 
     hoverCard.classList.remove("is-hidden");
 
@@ -6015,18 +6048,18 @@ function estimateEffectRadiusKm(energyJ: number, kind: string, bodyA: UniverseBo
 function impactNarrative(kind: string, energyJ: number, confidence: number): string {
     const confPct = (confidence * 100).toFixed(1);
     if (kind.includes("supernova") || kind.includes("collapse") || kind.includes("white-dwarf")) {
-        return `Potensi radiasi sangat tinggi; confidence ${confPct}%.`;
+        return `Very high radiation potential; confidence ${confPct}%.`;
     }
     if (kind.includes("collision") || kind.includes("impact")) {
         if (energyJ >= 1e29) {
-            return `Skala global/catastrophic; confidence ${confPct}%.`;
+            return `Global/catastrophic scale; confidence ${confPct}%.`;
         }
         if (energyJ >= 1e24) {
-            return `Skala regional-planetary; confidence ${confPct}%.`;
+            return `Regional-to-planetary scale; confidence ${confPct}%.`;
         }
-        return `Skala lokal-regional; confidence ${confPct}%.`;
+        return `Local-to-regional scale; confidence ${confPct}%.`;
     }
-    return `Gangguan gravitasi/gelombang kejut potensial; confidence ${confPct}%.`;
+    return `Potential gravity/shockwave disturbance; confidence ${confPct}%.`;
 }
 
 function isMajorEventKind(kind: string): boolean {
@@ -6296,7 +6329,7 @@ function focusEventById(eventId: number): void {
     spawnEventPulse(event);
     if (isMajorEventKind(event.kind)) {
         dismissedEventIds.add(event.id);
-        addLocalEvent(`Event mayor ditandai selesai: ${event.kind} (${event.id}).`);
+        addLocalEvent(`Major event marked handled: ${event.kind} (${event.id}).`);
     }
     updateInfoPanel();
     updateEventsPanel();
@@ -6370,13 +6403,16 @@ function updateEventsPanel(): void {
         button.className = "event-button";
         button.dataset.targetKey = `event:${event.id}`;
         button.title = isMajorEventKind(event.kind)
-            ? "Klik untuk fokus dan sembunyikan event mayor ini dari panel."
-            : "Klik untuk fokus ke koordinat kejadian.";
+            ? "Click to focus and hide this major event from the panel."
+            : "Click to focus event coordinates.";
 
         const distanceAu = Math.hypot(event.location.x, event.location.y, event.location.z) / constants.auMeters;
-        const anchor = [event.bodyA, event.bodyB].filter((token) => token.trim().length > 0).join(" -> ");
+        const anchor = [event.bodyA, event.bodyB]
+            .filter((token) => token.trim().length > 0)
+            .map((token) => displayBodyName(token))
+            .join(" -> ");
         const anchorText = anchor.length > 0 ? ` | ${anchor}` : "";
-        button.textContent = `[event:${event.kind}] t=${event.timeYears.toFixed(3)} th${anchorText}${Number.isFinite(distanceAu) ? ` | r=${distanceAu.toFixed(3)} AU` : ""}`
+        button.textContent = `[event:${event.kind}] t=${event.timeYears.toFixed(3)} y${anchorText}${Number.isFinite(distanceAu) ? ` | r=${distanceAu.toFixed(3)} AU` : ""}`
             + ` | v_rel=${(relSpeed / 1000).toFixed(2)} km/s | ${impact} | ${note}`;
 
         item.appendChild(button);
@@ -6386,7 +6422,7 @@ function updateEventsPanel(): void {
     if (forecasts.length > 0) {
         const predictionHeader = document.createElement("li");
         predictionHeader.className = "event-item event-item-local";
-        predictionHeader.textContent = `Prediksi AI @ t=${simYears.toFixed(3)} tahun (ringkas).`;
+        predictionHeader.textContent = `AI forecast @ t=${simYears.toFixed(3)} years (compact).`;
         eventsList.appendChild(predictionHeader);
     }
 
@@ -6413,8 +6449,8 @@ function updateEventsPanel(): void {
         button.type = "button";
         button.className = "event-button event-button-forecast";
         button.dataset.targetKey = key;
-        button.title = "Klik untuk fokus ke area prediksi";
-        button.textContent = `[prediksi:${forecast.kind}] ${forecast.bodyA} -> ${forecast.bodyB}`
+        button.title = "Click to focus forecast area";
+        button.textContent = `[forecast:${forecast.kind}] ${displayBodyName(forecast.bodyA)} -> ${displayBodyName(forecast.bodyB)}`
             + ` | ETA=${etaText}`
             + ` | conf=${(forecast.confidence * 100).toFixed(1)}%`
             + ` | v_rel=${(relSpeed / 1000).toFixed(2)} km/s`
@@ -6428,7 +6464,7 @@ function updateEventsPanel(): void {
     if (eventsList.children.length === 0) {
         const empty = document.createElement("li");
         empty.className = "event-item event-item-empty";
-        empty.textContent = "Belum ada event.";
+        empty.textContent = "No events yet.";
         eventsList.appendChild(empty);
     }
 }
@@ -6862,7 +6898,7 @@ async function refreshCatalogIfUpdated(): Promise<void> {
         addSyntheticGalaxySystems();
     }
     addLocalEvent(
-        `Auto-sync katalog ${new Date(generatedAt).toLocaleString()}: +${delta} objek | online=${modeStats.online} fallback=${modeStats.fallback} failed=${modeStats.failed}.`,
+        `Catalog auto-sync ${new Date(generatedAt).toLocaleString()}: +${delta} objects | online=${modeStats.online} fallback=${modeStats.fallback} failed=${modeStats.failed}.`,
     );
 
     rebuildOrbitGuides(true);
@@ -6914,7 +6950,7 @@ function animate(now: number): void {
         if (!supernovaAutoTriggered && engine.getStateSnapshot().yearsElapsed >= 8) {
             const triggered = engine.triggerSupernova("Betelgeuse");
             if (triggered) {
-                addLocalEvent("Supernova model aktif: Betelgeuse masuk mode observasi ledakan.");
+                addLocalEvent("Supernova model active: Betelgeuse entered explosion observation mode.");
             }
             supernovaAutoTriggered = true;
         }
@@ -6954,16 +6990,16 @@ function animate(now: number): void {
 async function bootstrapApp(): Promise<void> {
     const bootStart = performance.now();
 
-    setSplashProgress(8, "Menyalakan mesin fisika dan menyiapkan status loader...");
+    setSplashProgress(8, "Starting physics engine and preparing loader state...");
     bindUiHandlers();
     setupPwaSupport();
     restoreRuntimeProfileFromStorage();
 
-    setSplashProgress(14, "Menyusun scene 3D dasar (kamera, cahaya, kanvas)...");
+    setSplashProgress(14, "Building base 3D scene (camera, lights, canvas)...");
     setCanvasSize();
-    setSplashProgress(18, "Mengunci target awal kamera ke Bumi...");
+    setSplashProgress(18, "Locking initial camera target to Earth...");
     resetCameraToEarthView();
-    setSplashProgress(22, "Sinkronisasi panel UI, pencarian, dan telemetry HUD...");
+    setSplashProgress(22, "Syncing UI panels, search, and HUD telemetry...");
     updateHierarchyFilterUi();
     updateActionButtons();
     updatePanelVisibility();
@@ -6972,20 +7008,20 @@ async function bootstrapApp(): Promise<void> {
     updateEventsPanel();
     updateInfoPanel();
 
-    setSplashProgress(26, "Audit taksonomi objek (bintang/planet/galaksi/cluster)...");
+    setSplashProgress(26, "Auditing object taxonomy (star/planet/galaxy/cluster)...");
 
-    setSplashProgress(32, "Mengambil data eksternal NASA/ESA/JAXA/NED/SIMBAD/MPC...");
+    setSplashProgress(32, "Fetching external data from NASA/ESA/JAXA/NED/SIMBAD/MPC...");
     const ingest = await ingestExternalCatalogs();
     const modeStats = ingestModeBreakdown(ingest.statuses);
 
     setSplashProgress(
         66,
-        `Ingest selesai: online=${modeStats.online} fallback=${modeStats.fallback} failed=${modeStats.failed} | ${(ingest.durationMs / 1000).toFixed(2)}s`,
+        `Ingest complete: online=${modeStats.online} fallback=${modeStats.fallback} failed=${modeStats.failed} | ${(ingest.durationMs / 1000).toFixed(2)}s`,
     );
 
-    setSplashProgress(72, "Menyusun orbit guide 3D berdasarkan struktur fokus...");
+    setSplashProgress(72, "Building 3D orbit guides based on focus structure...");
     rebuildOrbitGuides(true);
-    setSplashProgress(78, "Menyusun indeks klik objek dan panel pencarian...");
+    setSplashProgress(78, "Building object click index and search panel...");
     updateSearchResults();
     updateHudPanel();
     updateInfoPanel();
@@ -6996,15 +7032,15 @@ async function bootstrapApp(): Promise<void> {
         ? new Date(ingest.generatedAt).toLocaleString()
         : "n/a";
 
-    setSplashProgress(84, `Menyiapkan render ${objectCount} objek 3D (engine + katalog + sintetis)...`);
+    setSplashProgress(84, `Preparing render for ${objectCount} 3D objects (engine + catalog + synthetic)...`);
     await waitMs(120);
 
-    setSplashProgress(92, "Mengaktifkan loop simulasi (rotasi/revolusi/event AI)...");
+    setSplashProgress(92, "Starting simulation loop (rotation/revolution/AI events)...");
     window.requestAnimationFrame(animate);
     startCatalogAutoRefresh();
 
     const loadSec = (performance.now() - bootStart) / 1000;
-    await closeSplash(`Simulasi siap | load=${loadSec.toFixed(2)}s | katalog=${generatedStamp} | auto-sync=${(AUTO_REFRESH_MS / 1000).toFixed(0)}s`);
+    await closeSplash(`Simulation ready | load=${loadSec.toFixed(2)}s | catalog=${generatedStamp} | auto-sync=${(AUTO_REFRESH_MS / 1000).toFixed(0)}s`);
 }
 
 void bootstrapApp();
