@@ -119,6 +119,28 @@ function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
 }
 
+function normalizeCssColor(value: string | undefined, fallback: string): string {
+    const candidate = (value || "").trim();
+    if (!candidate) {
+        return fallback;
+    }
+
+    if (typeof document === "undefined") {
+        return candidate;
+    }
+
+    const probe = document.createElement("span");
+    probe.style.color = "";
+    probe.style.color = candidate;
+    return probe.style.color ? candidate : fallback;
+}
+
+function isBlackLikeColor(value: string): boolean {
+    const normalized = value.replace(/\s+/g, "").toLowerCase();
+    return normalized === "#000" || normalized === "#000000" || normalized === "black"
+        || normalized === "rgb(0,0,0)" || normalized === "rgba(0,0,0,1)";
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
     if (!value || typeof value !== "object") {
         return null;
@@ -280,23 +302,6 @@ function ensureModelRoot(markerEl: Element): void {
     modelRoot.setAttribute("data-model-root", "");
     modelRoot.setAttribute("position", "0 0 0");
     markerEl.appendChild(modelRoot);
-}
-
-function ensureMarkerPlane(markerEl: Element): void {
-    if (markerEl.querySelector("a-plane")) {
-        return;
-    }
-
-    const plane = document.createElement("a-plane");
-    plane.setAttribute("width", "1.08");
-    plane.setAttribute("height", "1.08");
-    plane.setAttribute("position", "0 0.003 0");
-    plane.setAttribute("rotation", "-90 0 0");
-    plane.setAttribute(
-        "material",
-        "shader: flat; color: #f3f6fb; opacity: 0.94; transparent: true; side: double; depthTest: false; depthWrite: false",
-    );
-    markerEl.appendChild(plane);
 }
 
 function applyMarkerDataset(markerEl: HTMLElement, marker: ReturnType<typeof normalizeMarkerConfig>): void {
@@ -554,7 +559,12 @@ export function createPrimitiveModelFromCatalogEntry(
     const radiusScale = options.radiusScale ?? 1;
     const radiusMeters = Number.isFinite(entry.radiusMeters) ? Number(entry.radiusMeters) : 6.371e6;
     const radius = clamp((0.08 + Math.log10(Math.max(radiusMeters, 1)) * 0.04) * radiusScale, 0.03, 0.68);
-    const color = (entry.color || options.defaultColor || "#84aee4").trim() || "#84aee4";
+    const fallbackColor = (options.defaultColor || "#84aee4").trim() || "#84aee4";
+    let color = normalizeCssColor(entry.color, fallbackColor);
+    const normalizedName = (entry.name || "").trim().toLowerCase();
+    if ((normalizedName === "matahari" || normalizedName === "sun") && isBlackLikeColor(color)) {
+        color = "#ffd37c";
+    }
 
     wrapper.setAttribute("position", options.position || "0 0 0");
     wrapper.setAttribute("data-proxy-object", entry.name);
@@ -650,12 +660,13 @@ export function ensureArMarkers(
         if (!markerEl && createMissing) {
             markerEl = document.createElement("a-marker");
             sceneEl.appendChild(markerEl);
-            ensureMarkerPlane(markerEl);
         }
 
         if (!markerEl) {
             return;
         }
+
+        markerEl.querySelectorAll("a-plane").forEach((planeNode) => planeNode.remove());
 
         applyMarkerDataset(markerEl, marker);
         if (ensureModelRootEnabled) {

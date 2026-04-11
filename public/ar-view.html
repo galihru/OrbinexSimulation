@@ -668,8 +668,6 @@
                 data-marker-link="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png"
                 preset="hiro" emitevents="true" smooth="true" smoothCount="8" smoothTolerance="0.01"
                 smoothThreshold="5">
-                <a-plane width="1.08" height="1.08" position="0 0.003 0" rotation="-90 0 0"
-                    material="shader: flat; color: #f3f6fb; opacity: 0.94; transparent: true; side: double; depthTest: false; depthWrite: false"></a-plane>
                 <a-entity id="model-root-hiro" data-model-root position="0 0 0"></a-entity>
             </a-marker>
 
@@ -678,8 +676,6 @@
                 data-marker-link="https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/kanji.png"
                 preset="kanji" emitevents="true" smooth="true" smoothCount="8" smoothTolerance="0.01"
                 smoothThreshold="5">
-                <a-plane width="1.08" height="1.08" position="0 0.003 0" rotation="-90 0 0"
-                    material="shader: flat; color: #f3f6fb; opacity: 0.94; transparent: true; side: double; depthTest: false; depthWrite: false"></a-plane>
                 <a-entity id="model-root-kanji" data-model-root position="0 0 0"></a-entity>
             </a-marker>
             <a-entity camera></a-entity>
@@ -816,16 +812,6 @@
                     markerNode.setAttribute("smoothTolerance", "0.01");
                     markerNode.setAttribute("smoothThreshold", "5");
 
-                    if (!markerNode.querySelector("a-plane")) {
-                        const planeNode = document.createElement("a-plane");
-                        planeNode.setAttribute("width", "1.08");
-                        planeNode.setAttribute("height", "1.08");
-                        planeNode.setAttribute("position", "0 0.003 0");
-                        planeNode.setAttribute("rotation", "-90 0 0");
-                        planeNode.setAttribute("material", "shader: flat; color: #f3f6fb; opacity: 0.94; transparent: true; side: double; depthTest: false; depthWrite: false");
-                        markerNode.appendChild(planeNode);
-                    }
-
                     if (!markerNode.querySelector("[data-model-root]")) {
                         const modelRootNode = document.createElement("a-entity");
                         modelRootNode.setAttribute("data-model-root", "");
@@ -845,7 +831,14 @@
             let runtimeCatalogSource = "";
             let stopMarkerTracking = null;
 
+            function removeLegacyMarkerPlanes() {
+                document.querySelectorAll("a-marker > a-plane").forEach((planeNode) => {
+                    planeNode.remove();
+                });
+            }
+
             function refreshMarkerReferences() {
+                removeLegacyMarkerPlanes();
                 markerEls = Array.from(document.querySelectorAll("a-marker[data-model]"));
                 hiroMarkerEl = document.getElementById("orbinex-marker-hiro");
                 kanjiMarkerEl = document.getElementById("orbinex-marker-kanji");
@@ -1684,6 +1677,33 @@
                 return "#84aee4";
             }
 
+            function normalizeCssColor(inputColor, fallbackColor) {
+                const candidate = (inputColor || "").trim();
+                if (!candidate) {
+                    return fallbackColor;
+                }
+
+                const probe = document.createElement("span");
+                probe.style.color = "";
+                probe.style.color = candidate;
+                return probe.style.color ? candidate : fallbackColor;
+            }
+
+            function isBlackLikeColor(colorValue) {
+                const normalized = (colorValue || "").replace(/\s+/g, "").toLowerCase();
+                return normalized === "#000" || normalized === "#000000" || normalized === "black"
+                    || normalized === "rgb(0,0,0)" || normalized === "rgba(0,0,0,1)";
+            }
+
+            function resolveRenderableColor(body) {
+                const fallback = defaultColorForKind(body.kind);
+                const resolved = normalizeCssColor(body.color, fallback);
+                if (body.kind === "star" && isBlackLikeColor(resolved)) {
+                    return "#ffd37c";
+                }
+                return resolved;
+            }
+
             function defaultRadiusForKind(kind) {
                 if (kind === "star") return 6.9634e8;
                 if (kind === "planet") return 6.371e6;
@@ -2149,7 +2169,7 @@
                 return clamp(Math.max(base, min), min, max);
             }
 
-            function appearanceForBody(body, displayRadius) {
+            function appearanceForBody(body, displayRadius, renderColor) {
                 const kind = body.kind;
                 const visualProfile = visualProfileByName.get(body.name);
                 const useBodyTexture = body.name === "Bumi" && !!(visualProfile && visualProfile.texture);
@@ -2157,7 +2177,7 @@
                 if (useBodyTexture && visualProfile && visualProfile.texture) {
                     const materialParts = [
                         "shader: flat",
-                        `color: ${body.color}`,
+                        `color: ${renderColor}`,
                         `src: ${visualProfile.texture}`,
                         "side: double",
                         "depthTest: false",
@@ -2173,13 +2193,13 @@
                 if (kind === "meteor") {
                     return {
                         geometry: `primitive: dodecahedron; radius: ${displayRadius.toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; side: double; depthTest: false; depthWrite: false`,
+                        material: `shader: flat; color: ${renderColor}; side: double; depthTest: false; depthWrite: false`,
                     };
                 }
                 if (kind === "comet") {
                     return {
                         geometry: `primitive: icosahedron; radius: ${displayRadius.toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; side: double; depthTest: false; depthWrite: false`,
+                        material: `shader: flat; color: ${renderColor}; side: double; depthTest: false; depthWrite: false`,
                     };
                 }
                 if (kind === "black-hole") {
@@ -2191,24 +2211,25 @@
                 if (kind === "galaxy") {
                     return {
                         geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; opacity: 0.7; transparent: true; side: double; depthTest: false; depthWrite: false`,
+                        material: `shader: flat; color: ${renderColor}; opacity: 0.7; transparent: true; side: double; depthTest: false; depthWrite: false`,
                     };
                 }
                 if (kind === "nebula") {
                     return {
                         geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; opacity: 0.62; transparent: true; side: double; depthTest: false; depthWrite: false`,
+                        material: `shader: flat; color: ${renderColor}; opacity: 0.62; transparent: true; side: double; depthTest: false; depthWrite: false`,
                     };
                 }
                 if (kind === "star") {
+                    const emissive = normalizeCssColor((visualProfile && visualProfile.emissive) || "#ffb648", "#ffb648");
                     return {
                         geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; side: double; depthTest: false; depthWrite: false`,
+                        material: `shader: standard; color: ${renderColor}; emissive: ${emissive}; emissiveIntensity: 1.35; roughness: 1; metalness: 0; side: double; depthTest: false; depthWrite: false`,
                     };
                 }
                 return {
                     geometry: `primitive: sphere; radius: ${displayRadius.toFixed(4)}`,
-                    material: `shader: flat; color: ${body.color}; side: double; depthTest: false; depthWrite: false`,
+                    material: `shader: flat; color: ${renderColor}; side: double; depthTest: false; depthWrite: false`,
                 };
             }
 
@@ -2218,7 +2239,8 @@
                 parentContainer.appendChild(orbitAnchorEl);
 
                 const displayRadius = displayRadiusForBody(body, parentNode, focusName);
-                const appearance = appearanceForBody(body, displayRadius);
+                const renderColor = resolveRenderableColor(body);
+                const appearance = appearanceForBody(body, displayRadius, renderColor);
                 const visualProfile = visualProfileByName.get(body.name) || null;
 
                 const bodyMeshEl = createEntity("a-entity", {
@@ -2229,7 +2251,7 @@
                 orbitAnchorEl.appendChild(bodyMeshEl);
 
                 if (body.name === "Bumi" && visualProfile && visualProfile.texture) {
-                    attachTextureErrorFallback(bodyMeshEl, `shader: flat; color: ${body.color}; side: double; depthTest: false; depthWrite: false`);
+                    attachTextureErrorFallback(bodyMeshEl, `shader: flat; color: ${renderColor}; side: double; depthTest: false; depthWrite: false`);
                 }
 
                 let atmosphereEl = null;
@@ -2257,7 +2279,7 @@
                 if (body.kind === "star") {
                     glowEl = createEntity("a-entity", {
                         geometry: `primitive: sphere; radius: ${(displayRadius * 1.2).toFixed(4)}`,
-                        material: `shader: flat; color: ${body.color}; opacity: 0.24; transparent: true; side: double; depthTest: false; depthWrite: false`,
+                        material: `shader: flat; color: ${renderColor}; opacity: 0.24; transparent: true; side: double; depthTest: false; depthWrite: false`,
                     });
                     orbitAnchorEl.appendChild(glowEl);
                 }
@@ -2301,7 +2323,7 @@
                 if (body.kind === "galaxy") {
                     const diskEl = createEntity("a-entity", {
                         geometry: `primitive: torus; radius: ${(displayRadius * 1.42).toFixed(4)}; radiusTubular: ${(displayRadius * 0.26).toFixed(4)}; segmentsTubular: 92; segmentsRadial: 14`,
-                        material: `shader: flat; color: ${body.color}; opacity: 0.36; transparent: true; side: double; depthTest: false; depthWrite: false`,
+                        material: `shader: flat; color: ${renderColor}; opacity: 0.36; transparent: true; side: double; depthTest: false; depthWrite: false`,
                         rotation: "88 0 0",
                     });
                     orbitAnchorEl.appendChild(diskEl);
