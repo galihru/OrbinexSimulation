@@ -166,104 +166,21 @@ jobs:
         run: |
           set +e
 
-          MAX_FILES=24
-          TASK_LOWER=$(printf '%s' "$AI_TASK" | tr '[:upper:]' '[:lower:]')
-
-          mapfile -t ALL_TRACKED < <(
-            git ls-files \
-              ':!:docs/images/**' \
-              ':!:public/vendor/**' \
-              ':!:**/*.png' \
-              ':!:**/*.jpg' \
-              ':!:**/*.jpeg' \
-              ':!:**/*.gif' \
-              ':!:**/*.webp' \
-              ':!:**/*.ico' \
-              ':!:**/*.pdf' \
-              ':!:**/*.zip' \
-              ':!:**/*.tasty' \
-              ':!:**/*.exe' \
-              ':!:**/*.dll' \
-              ':!:**/*.so' \
-              ':!:**/*.dylib' \
-              ':!:**/*.jar' \
-              ':!:**/*.class' \
-              ':!:**/*.woff' \
-              ':!:**/*.woff2'
+          MAX_FILES=12
+          mapfile -t FILE_LIST < <(
+            git ls-files orbinexsim-npm \
+              | grep -Ev '^orbinexsim-npm/(node_modules|dist)/' \
+              | grep -Ev '^orbinexsim-npm/package-lock\.json$' \
+              | grep -E '^orbinexsim-npm/(src/.*\.(ts|tsx|js|jsx|mjs|cjs|json|md|txt|yml|yaml)|README\.md|package\.json|tsconfig\.json|\.gitignore|LICENSE)$' \
+              | head -n "$MAX_FILES"
           )
-
-          declare -a TEXT_FILES=()
-          for file in "${ALL_TRACKED[@]}"; do
-            case "$file" in
-              *.md|*.txt|*.yml|*.yaml|*.json|*.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs|*.css|*.scss|*.html|*.htm|*.py|*.sh|*.bat|*.ps1|*.c|*.h|*.cpp|*.hpp|*.sql|*.scala|*.kt|*.toml|*.ini|*.cfg|*.conf|*.xml|.gitignore)
-                TEXT_FILES+=("$file")
-                ;;
-            esac
-          done
-
-          if [ "${#TEXT_FILES[@]}" -eq 0 ]; then
-            echo "No eligible text files found for Aider context."
-            exit 1
-          fi
-
-          mapfile -t KEYWORDS < <(
-            printf '%s' "$TASK_LOWER" \
-              | tr -cs 'a-z0-9_-' '\n' \
-              | awk 'length >= 4' \
-              | sort -u \
-              | head -n 20
-          )
-
-          declare -A SEEN=()
-          declare -a FILE_LIST=()
-
-          add_file() {
-            local candidate="$1"
-            if [ -z "$candidate" ] || [ ! -f "$candidate" ]; then
-              return
-            fi
-            if [ -n "${SEEN[$candidate]}" ]; then
-              return
-            fi
-            SEEN[$candidate]=1
-            FILE_LIST+=("$candidate")
-          }
-
-          add_file ".github/workflows/ai-maintainer.yml"
-          add_file "README.md"
-          add_file "AI_AUTOMATION.md"
-
-          for kw in "${KEYWORDS[@]}"; do
-            for file in "${TEXT_FILES[@]}"; do
-              file_lower=$(printf '%s' "$file" | tr '[:upper:]' '[:lower:]')
-              if [[ "$file_lower" == *"$kw"* ]]; then
-                add_file "$file"
-              fi
-              if [ "${#FILE_LIST[@]}" -ge "$MAX_FILES" ]; then
-                break 2
-              fi
-            done
-          done
-
-          if [ "${#FILE_LIST[@]}" -lt "$MAX_FILES" ]; then
-            for file in "${TEXT_FILES[@]}"; do
-              case "$file" in
-                src/*|scripts/*|.github/*|orbinexsim-npm/src/*|orbinexsim-npm/*.json|orbinexsim-npm/*.md|public/*.html|public/*.js|public/*.css|README.md|AI_AUTOMATION.md|package.json|vite.config.ts|tsconfig.json)
-                  add_file "$file"
-                  ;;
-              esac
-              if [ "${#FILE_LIST[@]}" -ge "$MAX_FILES" ]; then
-                break
-              fi
-            done
-          fi
 
           if [ "${#FILE_LIST[@]}" -eq 0 ]; then
-            echo "No relevant files selected for Aider context."
+            echo "No npm module files selected for Aider context."
             exit 1
           fi
 
-          echo "Selected ${#FILE_LIST[@]} files for Aider context:"
+          echo "Selected ${#FILE_LIST[@]} npm module files for Aider context:"
           printf ' - %s\n' "${FILE_LIST[@]}"
 
           timeout 480 aider \
