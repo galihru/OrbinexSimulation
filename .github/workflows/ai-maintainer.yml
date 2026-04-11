@@ -16,12 +16,18 @@ on:
         required: false
         default: main
         type: string
+      retry_count:
+        description: Internal retry counter
+        required: false
+        default: "0"
+        type: string
   issue_comment:
     types: [created]
   issues:
     types: [labeled]
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
   issues: write
@@ -55,15 +61,18 @@ jobs:
             let task = "";
             let issueNumber = "";
             let baseBranch = "main";
+            let retryCount = "0";
 
             if (eventName === "workflow_dispatch") {
               const inputs = context.payload.inputs || {};
               task = String(inputs.task || "").trim();
               issueNumber = String(inputs.issue_number || "").trim();
               baseBranch = String(inputs.base_branch || "main").trim();
+              retryCount = String(inputs.retry_count || "0").trim() || "0";
             } else if (eventName === "issue_comment") {
               issueNumber = String(context.payload.issue.number);
               baseBranch = context.payload.repository.default_branch || "main";
+              retryCount = "0";
 
               const commentBody = (context.payload.comment.body || "").trim();
               let commandTask = commentBody.replace(/^\/ai\s*/i, "").trim();
@@ -90,6 +99,7 @@ jobs:
             } else if (eventName === "issues") {
               issueNumber = String(context.payload.issue.number);
               baseBranch = context.payload.repository.default_branch || "main";
+              retryCount = "0";
 
               const title = context.payload.issue.title || "";
               const body = context.payload.issue.body || "";
@@ -108,8 +118,10 @@ jobs:
             }
 
             core.setOutput("task", task);
+            core.setOutput("task_dispatch", task.replace(/\s+/g, " ").trim());
             core.setOutput("issue_number", issueNumber);
             core.setOutput("base_branch", baseBranch);
+            core.setOutput("retry_count", retryCount);
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -174,6 +186,7 @@ jobs:
 
       - name: Run Aider with Smart Fallback
         id: run_ai
+        continue-on-error: true
         env:
           AI_TASK: ${{ steps.task.outputs.task }}
           AI_PROVIDER: ${{ steps.provider.outputs.name }}
@@ -227,6 +240,14 @@ jobs:
             return ${PIPESTATUS[0]}
           }
 
+          is_rate_limited() {
+            local log_file="$1"
+            if [ ! -f "$log_file" ]; then
+              return 1
+            fi
+            grep -Eiq "RateLimitError|RESOURCE_EXHAUSTED|quota exceeded|\b429\b" "$log_file"
+          }
+
           ensure_ollama() {
             if ! command -v ollama >/dev/null 2>&1; then
               curl -fsSL https://ollama.com/install.sh | sh
@@ -272,6 +293,10 @@ jobs:
             run_aider "gemini/${MODEL_NAME}" 180 /tmp/aider-gemini-primary.log
             STATUS=$?
 
+            if [ "$STATUS" -eq 0 ] && is_rate_limited /tmp/aider-gemini-primary.log; then
+              STATUS=88
+            fi
+
             if [ "$STATUS" -eq 0 ]; then
               USED_PROVIDER="gemini/${MODEL_NAME}"
               RESPONDER_NAME="AI Orbinex based Gemini (${MODEL_NAME})"
@@ -286,6 +311,10 @@ jobs:
               if [ "$FALLBACK_MODEL" != "$MODEL_NAME" ]; then
                 run_aider "gemini/${FALLBACK_MODEL}" 180 /tmp/aider-gemini-fallback.log
                 STATUS=$?
+
+                if [ "$STATUS" -eq 0 ] && is_rate_limited /tmp/aider-gemini-fallback.log; then
+                  STATUS=89
+                fi
 
                 if [ "$STATUS" -eq 0 ]; then
                   USED_PROVIDER="gemini/${FALLBACK_MODEL}"
@@ -329,7 +358,48 @@ jobs:
             exit "$STATUS"
           fi
 
+      - name: Auto retry when AI run failed
+        if: steps.run_ai.outcome == 'failure' && steps.task.outputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_RESPONDER: ${{ steps.run_ai.outputs.responder_name }}
+        run: |
+          RETRY_COUNT="${{ steps.task.outputs.retry_count }}"
+          if [ -z "$RETRY_COUNT" ]; then
+            RETRY_COUNT="0"
+          fi
+
+          RESPONDER="$AI_RESPONDER"
+          if [ -z "$RESPONDER" ]; then
+            RESPONDER="AI Orbinex based Gemini"
+          fi
+
+          if [ "$RETRY_COUNT" -lt 2 ]; then
+            NEXT=$((RETRY_COUNT + 1))
+
+            gh workflow run ai-maintainer.yml \
+              --repo "${{ github.repository }}" \
+              --ref "${{ steps.task.outputs.base_branch }}" \
+              -f task="${{ steps.task.outputs.task_dispatch }}" \
+              -f issue_number="${{ steps.task.outputs.issue_number }}" \
+              -f base_branch="${{ steps.task.outputs.base_branch }}" \
+              -f retry_count="$NEXT"
+
+            gh issue comment "${{ steps.task.outputs.issue_number }}" \
+              --repo "${{ github.repository }}" \
+              --body "[$RESPONDER] run failed (quota/rate-limit or execution error). Auto-retry queued ($NEXT/2)."
+          else
+            gh issue comment "${{ steps.task.outputs.issue_number }}" \
+              --repo "${{ github.repository }}" \
+              --body "[$RESPONDER] run failed after auto-retries. Please review quota/billing or switch model settings."
+          fi
+
+      - name: Fail workflow after retry handling
+        if: steps.run_ai.outcome == 'failure'
+        run: exit 1
+
       - name: Check for changes
+        if: steps.run_ai.outcome != 'failure'
         id: changes
         run: |
           if git diff --quiet; then
@@ -339,7 +409,7 @@ jobs:
           fi
 
       - name: Commit changes
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.run_ai.outcome != 'failure' && steps.changes.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -353,11 +423,11 @@ jobs:
           fi
 
       - name: Push branch
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.run_ai.outcome != 'failure' && steps.changes.outputs.changed == 'true'
         run: git push origin "${{ steps.branch.outputs.name }}"
 
       - name: Open pull request
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.run_ai.outcome != 'failure' && steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AI_RESPONDER: ${{ steps.run_ai.outputs.responder_name }}
@@ -393,7 +463,7 @@ jobs:
             --body "$PR_BODY"
 
       - name: Comment on issue with PR link
-        if: steps.changes.outputs.changed == 'true' && steps.task.outputs.issue_number != ''
+        if: steps.run_ai.outcome != 'failure' && steps.changes.outputs.changed == 'true' && steps.task.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AI_RESPONDER: ${{ steps.run_ai.outputs.responder_name }}
@@ -408,7 +478,7 @@ jobs:
           gh issue comment "$ISSUE_NO" --repo "${{ github.repository }}" --body "[$RESPONDER] finished and opened a PR: $PR_URL"
 
       - name: Comment when no changes were produced
-        if: steps.changes.outputs.changed != 'true' && steps.task.outputs.issue_number != ''
+        if: steps.run_ai.outcome != 'failure' && steps.changes.outputs.changed != 'true' && steps.task.outputs.issue_number != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AI_RESPONDER: ${{ steps.run_ai.outputs.responder_name }}
