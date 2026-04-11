@@ -1,6 +1,6 @@
 {
     "name": "@galihru/orbinexsim",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "description": "High-level Orbinex simulation + AR wrapper with one-call setup.",
     "type": "module",
     "license": "MIT",
