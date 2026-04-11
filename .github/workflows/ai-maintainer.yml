@@ -1,0 +1,209 @@
+name: AI Maintainer (Gemini + Aider)
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: AI task description (feature, bug fix, refactor, docs)
+        required: true
+        type: string
+      issue_number:
+        description: Optional issue number to link
+        required: false
+        type: string
+      base_branch:
+        description: Base branch for the PR
+        required: false
+        default: main
+        type: string
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  ai-maintainer:
+    if: >
+      github.actor != 'github-actions[bot]' && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'issue_comment' && github.event.issue.pull_request == null && startsWith(github.event.comment.body, '/ai'))
+      )
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check API key availability
+        id: key
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "GEMINI_API_KEY is missing. Skipping AI maintainer run."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.key.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare task context
+        if: steps.key.outputs.enabled == 'true'
+        id: task
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const eventName = context.eventName;
+            let task = "";
+            let issueNumber = "";
+            let baseBranch = "main";
+
+            if (eventName === "workflow_dispatch") {
+              task = core.getInput("task").trim();
+              issueNumber = (core.getInput("issue_number") || "").trim();
+              baseBranch = (core.getInput("base_branch") || "main").trim();
+            } else {
+              issueNumber = String(context.payload.issue.number);
+              baseBranch = context.payload.repository.default_branch || "main";
+
+              const commentBody = (context.payload.comment.body || "").trim();
+              let commandTask = commentBody.replace(/^\/ai\s*/i, "").trim();
+
+              const issue = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.issue.number,
+              });
+
+              const title = issue.data.title || "";
+              const body = issue.data.body || "";
+
+              if (!commandTask) {
+                commandTask = "Please implement the issue request with the smallest safe change and update relevant docs/tests.";
+              }
+
+              task = [
+                commandTask,
+                "",
+                `Issue #${issueNumber}: ${title}`,
+                body,
+              ].join("\n").trim();
+            }
+
+            if (!task) {
+              core.setFailed("Task is empty. Provide a task or use '/ai <task>' in an issue comment.");
+              return;
+            }
+
+            core.setOutput("task", task);
+            core.setOutput("issue_number", issueNumber);
+            core.setOutput("base_branch", baseBranch);
+
+      - name: Setup Python
+        if: steps.key.outputs.enabled == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Aider
+        if: steps.key.outputs.enabled == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install aider-chat
+
+      - name: Create working branch
+        if: steps.key.outputs.enabled == 'true'
+        id: branch
+        run: |
+          BASE_BRANCH="${{ steps.task.outputs.base_branch }}"
+          BRANCH_NAME="ai/task-${{ github.run_id }}"
+          git fetch origin "$BASE_BRANCH"
+          git checkout -b "$BRANCH_NAME" "origin/$BASE_BRANCH"
+          echo "name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Run Aider with Gemini
+        if: steps.key.outputs.enabled == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AI_TASK: ${{ steps.task.outputs.task }}
+        run: |
+          aider \
+            --yes \
+            --no-auto-commits \
+            --model gemini/gemini-2.0-flash \
+            --message "$AI_TASK" \
+            .
+
+      - name: Check for changes
+        if: steps.key.outputs.enabled == 'true'
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit changes
+        if: steps.key.outputs.enabled == 'true' && steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          ISSUE_NO="${{ steps.task.outputs.issue_number }}"
+          if [ -n "$ISSUE_NO" ]; then
+            git commit -m "feat(ai): automated update for issue #$ISSUE_NO"
+          else
+            git commit -m "feat(ai): automated repository update"
+          fi
+
+      - name: Push branch
+        if: steps.key.outputs.enabled == 'true' && steps.changes.outputs.changed == 'true'
+        run: git push origin "${{ steps.branch.outputs.name }}"
+
+      - name: Open pull request
+        if: steps.key.outputs.enabled == 'true' && steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NO="${{ steps.task.outputs.issue_number }}"
+          BASE_BRANCH="${{ steps.task.outputs.base_branch }}"
+          BRANCH_NAME="${{ steps.branch.outputs.name }}"
+
+          if [ -n "$ISSUE_NO" ]; then
+            PR_TITLE="AI Update for issue #$ISSUE_NO"
+            PR_BODY="Automated AI update generated from issue #$ISSUE_NO.\n\nPlease review carefully before merging."
+          else
+            PR_TITLE="AI Automated Repository Update"
+            PR_BODY="Automated AI update generated from workflow dispatch.\n\nPlease review carefully before merging."
+          fi
+
+          gh pr create \
+            --repo "${{ github.repository }}" \
+            --base "$BASE_BRANCH" \
+            --head "$BRANCH_NAME" \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY"
+
+      - name: Comment on issue with PR link
+        if: steps.key.outputs.enabled == 'true' && steps.changes.outputs.changed == 'true' && steps.task.outputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NO="${{ steps.task.outputs.issue_number }}"
+          BRANCH_NAME="${{ steps.branch.outputs.name }}"
+          PR_URL=$(gh pr view "$BRANCH_NAME" --repo "${{ github.repository }}" --json url --jq '.url')
+          gh issue comment "$ISSUE_NO" --repo "${{ github.repository }}" --body "AI finished and opened a PR: $PR_URL"
+
+      - name: Comment when no changes were produced
+        if: steps.key.outputs.enabled == 'true' && steps.changes.outputs.changed != 'true' && steps.task.outputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ steps.task.outputs.issue_number }}" --repo "${{ github.repository }}" --body "AI run completed but no file changes were generated for this task."

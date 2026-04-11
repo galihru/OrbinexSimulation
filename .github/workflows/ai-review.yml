@@ -1,0 +1,104 @@
+name: AI PR Review (Gemini)
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ai-review:
+    if: github.event.pull_request.draft == false && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check API key availability
+        id: key
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "GEMINI_API_KEY is missing. Skipping AI review."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.key.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        if: steps.key.outputs.enabled == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        if: steps.key.outputs.enabled == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install google-generativeai
+
+      - name: Fetch PR metadata and diff
+        if: steps.key.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }} --jq '.title + "\n\n" + (.body // "")' > pr_meta.txt
+          gh pr diff ${{ github.event.pull_request.number }} --repo ${{ github.repository }} > pr.diff
+
+      - name: Generate review with Gemini
+        if: steps.key.outputs.enabled == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python - << 'PY'
+          import os
+          import textwrap
+          import google.generativeai as genai
+
+          with open("pr_meta.txt", "r", encoding="utf-8") as f:
+              meta = f.read()
+          with open("pr.diff", "r", encoding="utf-8") as f:
+              diff = f.read()
+
+          diff_limit = 120000
+          if len(diff) > diff_limit:
+              diff = diff[:diff_limit] + "\n\n[Diff truncated due to size]"
+
+          prompt = textwrap.dedent(f"""
+          You are a senior software reviewer.
+          Review this pull request and return concise, actionable feedback in markdown.
+
+          Requirements:
+          - Prioritize correctness, regressions, security, and missing tests.
+          - If there are no major issues, explicitly say so.
+          - Keep it short and practical.
+          - Use sections: Summary, Findings, Suggested Next Steps.
+
+          PR metadata:
+          {meta}
+
+          Diff:
+          {diff}
+          """)
+
+          genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+          model = genai.GenerativeModel("gemini-2.0-flash")
+          response = model.generate_content(prompt)
+          content = (response.text or "No review output generated.").strip()
+
+          with open("ai-review-comment.md", "w", encoding="utf-8") as f:
+              f.write("## AI Review (Gemini)\n\n")
+              f.write(content)
+          PY
+
+      - name: Post review comment
+        if: steps.key.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body-file ai-review-comment.md
