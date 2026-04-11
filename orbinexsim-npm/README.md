@@ -32,10 +32,13 @@ High-level scientific wrapper for embedding OrbinexSimulation desktop and AR run
 | Focused runtime state | ![Runtime focused](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/desktop-runtime-focused.png) |
 | Object scientific card | ![Object card](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/object-information-card.png) |
 | Search and event modules | ![Search panel](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/search-panel.png) |
+| Event logging module | ![Event log panel](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/event-log-panel.png) |
+| Hierarchy filtering module | ![Hierarchy filter panel](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/hierarchy-filter-panel.png) |
 
 | AR evidence |
 | --- |
 | ![Hiro marker](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/ar-marker-hiro.png) |
+| ![AR QR card](https://raw.githubusercontent.com/galihru/OrbinexSimulation/main/docs/images/ar-qr-code.png) |
 
 ## 4. Installation
 
